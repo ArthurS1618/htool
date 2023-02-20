@@ -83,6 +83,8 @@ class HMatrix : public TreeNode<HMatrix<CoefficientPrecision, CoordinatePrecisio
     threaded_hierarchical_add_vector_product(char trans, CoefficientPrecision alpha, const CoefficientPrecision *in, CoefficientPrecision beta, CoefficientPrecision *out) const;
     void hierarchical_add_matrix_product(char trans, CoefficientPrecision alpha, const CoefficientPrecision *in, CoefficientPrecision beta, CoefficientPrecision *out, int mu) const;
 
+    void recursive_build_hmatrix_product(HMatrix &current_hmatrix) const;
+
   public:
     // Root constructor
     HMatrix(std::shared_ptr<const Cluster<CoordinatePrecision>> target_cluster, std::shared_ptr<const Cluster<CoordinatePrecision>> source_cluster) : TreeNode<HMatrix, HMatrixTreeData<CoefficientPrecision, CoordinatePrecision>>(), m_target_cluster(target_cluster.get()), m_source_cluster(source_cluster.get()) {
@@ -170,6 +172,8 @@ class HMatrix : public TreeNode<HMatrix<CoefficientPrecision, CoordinatePrecisio
 
     // Linear algebra
     void add_vector_product(char trans, CoefficientPrecision alpha, const CoefficientPrecision *in, CoefficientPrecision beta, CoefficientPrecision *out) const;
+
+    HMatrix hmatrix_product(const HMatrix &B) const;
 
     // void add_vector_product(char trans, CoefficientPrecision alpha, const CoefficientPrecision *in, CoefficientPrecision beta, CoefficientPrecision *out) const;
     // void add_matrix_product(CoefficientPrecision alpha, const CoefficientPrecision *in, CoefficientPrecision beta, CoefficientPrecision *out, int mu) const;
@@ -906,6 +910,23 @@ void HMatrix<CoefficientPrecision, CoordinatePrecision>::threaded_hierarchical_a
 #endif
         Blas<CoefficientPrecision>::axpy(&out_size, &alpha, temp.data(), &incx, out, &incy);
     }
+}
+
+// root_hmatrix = A*B (A.hmatrix_product(B))
+template <typename CoefficientPrecision, typename CoordinatePrecision>
+HMatrix<CoefficientPrecision, CoordinatePrecision> HMatrix<CoefficientPrecision, CoordinatePrecision>::hmatrix_product(const HMatrix &B) const {
+
+    HMatrix root_hmatrix(this->m_tree_data->m_target_cluster_tree, B.m_tree_data->m_source_cluster_tree);
+
+    recursive_build_hmatrix_product(&root_hmatrix);
+
+    return root_hmatrix;
+}
+
+template <typename CoefficientPrecision, typename CoordinatePrecision>
+void HMatrix<CoefficientPrecision, CoordinatePrecision>::recursive_build_hmatrix_product(HMatrix &current_hmatrix) const {
+    const auto &target_cluster = current_hmatrix->get_target_cluster();
+    const auto &source_cluster = current_hmatrix->get_source_cluster();
 }
 
 // template <typename CoefficientPrecision>
