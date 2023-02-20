@@ -179,7 +179,7 @@ class HMatrix : public TreeNode<HMatrix<CoefficientPrecision, CoordinatePrecisio
     void add_vector_product(char trans, CoefficientPrecision alpha, const CoefficientPrecision *in, CoefficientPrecision beta, CoefficientPrecision *out) const;
     void add_matrix_product_row_major(char trans, CoefficientPrecision alpha, const CoefficientPrecision *in, CoefficientPrecision beta, CoefficientPrecision *out, int mu) const;
 
-    HMatrix hmatrix_product(HMatrix *A, HMatrix *B) const;
+    HMatrix hmatrix_product(const HMatrix &B) const;
 
     // void add_vector_product(char trans, CoefficientPrecision alpha, const CoefficientPrecision *in, CoefficientPrecision beta, CoefficientPrecision *out) const;
     // void add_matrix_product(CoefficientPrecision alpha, const CoefficientPrecision *in, CoefficientPrecision beta, CoefficientPrecision *out, int mu) const;
@@ -1001,14 +1001,11 @@ void HMatrix<CoefficientPrecision, CoordinatePrecision>::threaded_hierarchical_a
 
 // root_hmatrix = A*B (A.hmatrix_product(B))
 template <typename CoefficientPrecision, typename CoordinatePrecision>
-HMatrix<CoefficientPrecision, CoordinatePrecision> HMatrix<CoefficientPrecision, CoordinatePrecision>::hmatrix_product(HMatrix *A, HMatrix *B) const {
-    // HMatrix temp = *this;
-    HMatrix root_hmatrix(A->m_tree_data->m_target_cluster_tree, B->m_tree_data->m_source_cluster_tree);
-    root_hmatrix.set_admissibility_condition(A->m_tree_data->m_admissibility_condition);
-    root_hmatrix.set_low_rank_generator(A->m_tree_data->m_low_rank_generator);
-    SumExpression<CoefficientPrecision, CoordinatePrecision> root_sum_expression(A, B);
+HMatrix<CoefficientPrecision, CoordinatePrecision> HMatrix<CoefficientPrecision, CoordinatePrecision>::hmatrix_product(const HMatrix &B) const {
 
-    root_hmatrix.recursive_build_hmatrix_product(root_sum_expression);
+    HMatrix root_hmatrix(this->m_tree_data->m_target_cluster_tree, B.m_tree_data->m_source_cluster_tree);
+
+    recursive_build_hmatrix_product(&root_hmatrix);
 
     return root_hmatrix;
 }
