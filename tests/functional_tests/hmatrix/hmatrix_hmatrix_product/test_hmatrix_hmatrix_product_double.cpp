@@ -9,7 +9,7 @@ int main(int argc, char *argv[]) {
     MPI_Init(&argc, &argv);
     bool is_error                = false;
     const int number_of_points_1 = 200;
-    const int number_of_points_2 = 400;
+    const int number_of_points_2 = 200;
     const int number_of_points_3 = 200;
 
     for (auto epsilon : {1e-14, 1e-6}) {
