@@ -111,6 +111,27 @@ bool test_hmatrix_hmatrix_product(int size_1, int size_2, int size_3, htool::und
     cout << " ca a l'aire ok " << endl;
 
     cout << "test sur la restriction" << endl;
+    auto &target_sons = t0->get_target_cluster().get_children();
+    auto &source_sons = t1->get_source_cluster().get_children();
+    for (int i = 0; i < target_sons.size(); ++i) {
+        auto &ti = target_sons[i];
+        for (int j = 0; j < source_sons.size(); ++j) {
+            auto &sj = source_sons[j];
+            cout << "target_sons size et offset " << ti->get_size() << ',' << ti->get_offset() << endl;
+            cout << "source sons size et offset " << sj->get_size() << ',' << sj->get_offset() << endl;
+            SumExpression<T, htool::underlying_type<T>> restriction = sumexpr.Restrict(ti->get_size(), ti->get_offset(), sj->get_size(), sj->get_offset());
+            cout << "restrict : sh size: " << restriction.get_sh().size() << ", sr size " << restriction.get_sr().size() << endl;
+            auto SH = restriction.get_sh();
+            for (int k = 0; k < SH.size() / 2; ++k) {
+                auto H  = SH[2 * k];
+                auto &K = SH[2 * k + 1];
+                cout << " H target-> " << H->get_target_cluster().get_size() << ',' << H->get_target_cluster().get_offset() << endl;
+                cout << " H source->" << H->get_source_cluster().get_size() << ',' << H->get_source_cluster().get_offset() << endl;
+                cout << "K target -> " << K->get_target_cluster().get_size() << ',' << K->get_target_cluster().get_offset() << endl;
+                cout << "K source ->" << K->get_source_cluster().get_size() << ',' << K->get_source_cluster().get_offset() << endl;
+            }
+        }
+    }
     // 4enfants
     // SumExpression<T, htool::underlying_type<T>> restr = sumexpr.Restrict(100, 100, 0, 0);
     // auto test                                         = restr.get_sh();
@@ -146,24 +167,24 @@ bool test_hmatrix_hmatrix_product(int size_1, int size_2, int size_3, htool::und
     //     // cout << testkk->get_target_cluster().get_size() << ',' << testkk->get_source_cluster().get_size() << endl;
     // }
     // ------------------------> Ca à l'aire de marcher
-    auto &child = root_hmatrix_21.get_children();
-    for (int k = 0; k < child.size(); ++k) {
-        auto &child_k                                         = child[k];
-        auto &t                                               = child_k->get_target_cluster();
-        auto &s                                               = child_k->get_source_cluster();
-        SumExpression<T, htool::underlying_type<T>> sum_restr = sumexpr.Restrict(t.get_size(), s.get_size(), t.get_offset(), s.get_offset());
-        cout << "____________________________" << endl;
-        cout << sumexpr.get_sr().size() << ',' << sumexpr.get_sh().size() << endl;
-        cout << sum_restr.get_sr().size() << ',' << sum_restr.get_sh().size() << endl;
-    }
+    // auto &child = root_hmatrix_21.get_children();
+    // for (int k = 0; k < child.size(); ++k) {
+    //     auto &child_k                                         = child[k];
+    //     auto &t                                               = child_k->get_target_cluster();
+    //     auto &s                                               = child_k->get_source_cluster();
+    //     SumExpression<T, htool::underlying_type<T>> sum_restr = sumexpr.Restrict(t.get_size(), s.get_size(), t.get_offset(), s.get_offset());
+    //     cout << "____________________________" << endl;
+    //     cout << sumexpr.get_sr().size() << ',' << sumexpr.get_sh().size() << endl;
+    //     cout << sum_restr.get_sr().size() << ',' << sum_restr.get_sh().size() << endl;
+    // }
     cout << "test evaluate" << endl;
-    // normalement si je lui donne sumexpr = 32*21 je devrais tomber sur le produit
+    // // normalement si je lui donne sumexpr = 32*21 je devrais tomber sur le produit
 
     Matrix<T> eval = sumexpr.Evaluate();
     cout << normFrob(eval - reference_dense_matrix) << endl;
 
-    // // C'est vraimùent pas des tests incroyables mais pour l'instant tout marche
-    // // Par contre on a pas pus tester la composante sr , mais bon techniquement c'est des matrices donc il devrait pas il y avoir de pb
+    // // // C'est vraimùent pas des tests incroyables mais pour l'instant tout marche
+    // // // Par contre on a pas pus tester la composante sr , mais bon techniquement c'est des matrices donc il devrait pas il y avoir de pb
 
     cout << "hmult" << endl;
     // shared_ptr<const Cluster<double>> clust1;
@@ -173,25 +194,26 @@ bool test_hmatrix_hmatrix_product(int size_1, int size_2, int size_3, htool::und
     // HMatrix<T, htool::underlying_type<T>> L(root_hmatrix_32.get_root_target(), root_hmatrix_32.get_root_source());
     // sumexpr.Hmult(&L);
     HMatrix<T, htool::underlying_type<T>> L = root_hmatrix_32.hmatrix_product(&root_hmatrix_32, &root_hmatrix_21);
-    // cout << "hmult ok" << endl;
+    cout << "hmult ok" << endl;
     // vector<T> xxx ( L.get_source_cluster().get_size() , 1);
     // vector<T> yyy ( L.get_target_cluster().get_size(),0);
     // L.add_vector_product('N',1.0, xxx.data(), 0.0, yyy.data());
     // cout << norm2 ( yyy-reference_dense_matrix*xxx ) << endl;
     Matrix<T> L_hmult(L.get_target_cluster().get_size(), L.get_source_cluster().get_size());
-    cout << "hmult ok" << endl;
-    auto testmult = L.get_leaves();
-    auto testleav = root_hmatrix_21.get_leaves();
-    std::cout << testleav.size() << std::endl;
-    cout << testmult.size() << endl;
-    // cout << "leaves ok" << endl;
-    // vector<T> xxx(L.get_source_cluster().get_size(), 1);
-    // vector<T> yyy(L.get_target_cluster().get_size(), 0);
-    // L.add_vector_product('N', 1.0, xxx.data(), 0.0, yyy.data());
-    // cout << "matrice vecteur " << endl;
-    // cout << norm2(yyy - reference_dense_matrix * xxx) << endl;
+    // cout << "hmult ok" << endl;
+    // auto testmult = L.get_leaves();
+    // auto testleav = root_hmatrix_21.get_leaves();
+    // std::cout << testleav.size() << std::endl;
+    // cout << testmult.size() << endl;
+    // // cout << "leaves ok" << endl;
+    // // vector<T> xxx(L.get_source_cluster().get_size(), 1);
+    // // vector<T> yyy(L.get_target_cluster().get_size(), 0);
+    // // L.add_vector_product('N', 1.0, xxx.data(), 0.0, yyy.data());
+    // // cout << "matrice vecteur " << endl;
+    // // cout << norm2(yyy - reference_dense_matrix * xxx) << endl;
     copy_to_dense(L, L_hmult.data());
     cout << "erreur Hmult" << endl;
     cout << normFrob(L_hmult - reference_dense_matrix) << endl;
+    cout << normFrob(reference_dense_matrix) << endl;
     return is_error;
 }
