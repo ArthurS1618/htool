@@ -130,7 +130,6 @@ class HMatrix : public TreeNode<HMatrix<CoefficientPrecision, CoordinatePrecisio
     // Test properties
     bool is_dense() const { return m_storage_type == StorageType::Dense; }
     bool is_low_rank() const { return m_storage_type == StorageType::LowRank; }
-    // je rajoute ca
     bool is_hierarchical() const { return m_storage_type == StorageType::Hierarchical; }
 
     // HMatrix Tree setters
