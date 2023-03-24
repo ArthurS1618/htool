@@ -27,27 +27,26 @@ class HMatrix;
 template <typename CoefficientPrecision, typename CoordinatePrecision>
 class SumExpression : public VirtualGenerator<CoefficientPrecision> {
   private:
-    std::vector<HMatrix<CoefficientPrecision, CoordinatePrecision> *> Sr;
-    std::vector<HMatrix<CoefficientPrecision, CoordinatePrecision> *> Sh;
+    using HMatrixType = HMatrix<CoefficientPrecision, CoordinatePrecision>;
+
+    std::vector<const HMatrixType *> Sr;
+    std::vector<const HMatrixType *> Sh;
     int target_size;
     int target_offset;
     int source_size;
     int source_offset;
 
   public:
-    SumExpression(HMatrix<CoefficientPrecision, CoordinatePrecision> *A, HMatrix<CoefficientPrecision, CoordinatePrecision> *B) {
-        std::vector<HMatrix<CoefficientPrecision, CoordinatePrecision> *> sr, sh;
-        sh.push_back(A);
-        sh.push_back(B);
-        Sr            = sr;
-        Sh            = sh;
+    SumExpression(const HMatrixType *A, const HMatrixType *B) {
+        Sh.push_back(A);
+        Sh.push_back(B);
         target_size   = A->get_target_cluster().get_size();
         target_offset = A->get_target_cluster().get_offset();
         source_size   = B->get_source_cluster().get_size();
         source_offset = B->get_source_cluster().get_offset();
     }
 
-    SumExpression(std::vector<HMatrix<CoefficientPrecision, CoordinatePrecision> *> sr, std::vector<HMatrix<CoefficientPrecision, CoordinatePrecision> *> sh, int target_size0, int target_offset0, int source_size0, int source_offset0) {
+    SumExpression(std::vector<const HMatrixType *> sr, std::vector<const HMatrixType *> sh, int target_size0, int target_offset0, int source_size0, int source_offset0) {
         Sr            = sr;
         Sh            = sh;
         target_size   = target_size0;
@@ -56,8 +55,8 @@ class SumExpression : public VirtualGenerator<CoefficientPrecision> {
         source_offset = source_offset0;
     }
 
-    std::vector<HMatrix<CoefficientPrecision, CoordinatePrecision> *> get_sr() { return Sr; }
-    std::vector<HMatrix<CoefficientPrecision, CoordinatePrecision> *> get_sh() { return Sh; }
+    std::vector<const HMatrixType *> get_sr() { return Sr; }
+    std::vector<const HMatrixType *> get_sh() { return Sh; }
     int get_nr() { return target_size; }
     int get_nc() { return source_size; }
     int get_target_offset() { return target_offset; }
@@ -65,21 +64,15 @@ class SumExpression : public VirtualGenerator<CoefficientPrecision> {
 
     std::vector<CoefficientPrecision> prod(const std::vector<CoefficientPrecision> &x) {
         std::vector<CoefficientPrecision> y(target_size, 0.0);
-        for (int k = 0; k < Sr.size() / 2; ++k) {
-            auto A    = Sr[2 * k];
-            auto B    = Sr[2 * k + 1];
-            auto A_lr = A->get_low_rank_data();
-            auto B_lr = B->get_low_rank_data();
-            std::vector<CoefficientPrecision> y_temp(target_size, 0.0);
-            B_lr->add_vector_product('N', 1.0, x.data(), 1.0, y_temp.data());
-            A_lr->add_vector_product('N', 1.0, y_temp.data(), 1.0, y.data());
+        for (auto low_rank_leaf_hmatrix : Sr) {
+            low_rank_leaf_hmatrix->add_vector_product('N', 1.0, x.data(), 1.0, y.data());
         }
         for (int k = 0; k < Sh.size() / 2; ++k) {
-            auto H = Sh[2 * k];
-            auto K = Sh[2 * k + 1];
-            std::vector<CoefficientPrecision> y_temp(K->get_target_cluster().get_size(), 0.0);
-            K->add_vector_product('N', 1.0, x.data(), 0.0, y_temp.data());
-            H->add_vector_product('N', 1.0, y_temp.data(), 1.0, y.data());
+            const HMatrixType &H = *Sh[2 * k];
+            const HMatrixType &K = *Sh[2 * k + 1];
+            std::vector<CoefficientPrecision> y_temp(K.get_target_cluster().get_size(), 0.0);
+            K.add_vector_product('N', 1.0, x.data(), 0.0, y_temp.data());
+            H.add_vector_product('N', 1.0, y_temp.data(), 1.0, y.data());
         }
         return (y);
     }
@@ -96,10 +89,9 @@ class SumExpression : public VirtualGenerator<CoefficientPrecision> {
         for (int k = 0; k < M; ++k) {
             for (int l = 0; l < N; ++l) {
                 std::vector<CoefficientPrecision> xl(source_size, 0.0);
-                xl[l + col_offset] = 1.0;
-                // std::vector<CoefficientPrecision> y(nr, 0.0);
+                xl[l]                               = 1.0;
                 std::vector<CoefficientPrecision> y = H.prod(xl);
-                ptr[k + M * l]                      = y[k + row_offset];
+                ptr[k + M * l]                      = y[k];
             }
         }
     }
@@ -109,8 +101,8 @@ class SumExpression : public VirtualGenerator<CoefficientPrecision> {
     // /////////////////////////////////////////////
 
     SumExpression Restrict(int target_size0, int target_offset0, int source_size0, int source_offset0) const {
-        std::vector<HMatrix<CoefficientPrecision, CoordinatePrecision> *> sh;
-        std::vector<HMatrix<CoefficientPrecision, CoordinatePrecision> *> sr;
+        std::vector<const HMatrixType *> sh;
+        std::vector<const HMatrixType *> sr;
         sr = Sr;
         for (int rep = 0; rep < Sh.size() / 2; ++rep) {
             auto &H          = Sh[2 * rep];
@@ -118,11 +110,9 @@ class SumExpression : public VirtualGenerator<CoefficientPrecision> {
             auto &H_children = H->get_children();
             auto &K_children = K->get_children();
             if ((H_children.size() > 0) and (K_children.size() > 0)) {
-                for (int k = 0; k < H_children.size(); ++k) {
-                    auto &H_child = H_children[k];
+                for (auto &H_child : H_children) {
                     if ((H_child->get_target_cluster().get_size() == target_size0) and (H_child->get_target_cluster().get_offset() == target_offset0)) {
-                        for (int l = 0; l < K_children.size(); ++l) {
-                            auto &K_child = K_children[l];
+                        for (auto &K_child : K_children) {
                             if ((K_child->get_source_cluster().get_size() == source_size0) and (K_child->get_source_cluster().get_offset() == source_offset0)) {
                                 if ((K_child->get_target_cluster().get_size() == H_child->get_source_cluster().get_size())
                                     and (K_child->get_target_cluster().get_offset() == H_child->get_source_cluster().get_offset())) {
@@ -178,7 +168,7 @@ class SumExpression : public VirtualGenerator<CoefficientPrecision> {
                             auto &target    = H_target_children[flag];
                             auto target_ptr = std::shared_ptr<const htool::Cluster<double>>(target.get(), [](htool::Cluster<double> *p) {});
                             auto source_ptr = std::shared_ptr<const htool::Cluster<double>>(&K_child->get_target_cluster(), [](const htool::Cluster<double> *p) {});
-                            HMatrix<CoefficientPrecision, CoordinatePrecision> H_k(target_ptr, source_ptr);
+                            HMatrixType H_k(target_ptr, source_ptr);
                             DenseGenerator<CoefficientPrecision> mat_H(H_restr);
                             H_k.compute_dense_data(mat_H);
                             sh.push_back(&H_k);
@@ -224,7 +214,7 @@ class SumExpression : public VirtualGenerator<CoefficientPrecision> {
                             auto source_ptr = std::shared_ptr<const htool::Cluster<CoordinatePrecision>>(source.get(), [](htool::Cluster<CoordinatePrecision> *p) {});
                             auto target_ptr = std::shared_ptr<const htool::Cluster<CoordinatePrecision>>(&H_child->get_source_cluster(), [](const htool::Cluster<CoordinatePrecision> *p) {});
 
-                            HMatrix<CoefficientPrecision, CoordinatePrecision> K_k(target_ptr, source_ptr);
+                            HMatrixType K_k(target_ptr, source_ptr);
                             DenseGenerator<CoefficientPrecision> mat_K(K_restr);
                             K_k.compute_dense_data(mat_K);
                             sh.push_back(H_child.get());
@@ -285,9 +275,9 @@ class SumExpression : public VirtualGenerator<CoefficientPrecision> {
                     auto target_ptr = std::shared_ptr<const htool::Cluster<CoordinatePrecision>>(target.get(), [](htool::Cluster<CoordinatePrecision> *p) {});
                     auto mid_ptr    = std::shared_ptr<const htool::Cluster<CoordinatePrecision>>(&H->get_source_cluster(), [](const htool::Cluster<CoordinatePrecision> *p) {});
 
-                    HMatrix<CoefficientPrecision, CoordinatePrecision> H_k(target_ptr, mid_ptr);
+                    HMatrixType H_k(target_ptr, mid_ptr);
                     H_k.compute_dense_data(mat_H);
-                    HMatrix<CoefficientPrecision, CoordinatePrecision> K_k(mid_ptr, source_ptr);
+                    HMatrixType K_k(mid_ptr, source_ptr);
                     H_k.compute_dense_data(mat_K);
                     sh.push_back(&H_k);
                     sh.push_back(&K_k);

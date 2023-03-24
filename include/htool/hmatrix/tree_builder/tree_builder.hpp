@@ -128,6 +128,8 @@ HMatrix<CoefficientPrecision, CoordinatePrecision> HMatrixTreeBuilder<Coefficien
 
     // Create root hmatrix
     HMatrixType root_hmatrix(m_target_root_cluster, m_source_root_cluster);
+    root_hmatrix.set_admissibility_condition(m_admissibility_condition);
+    root_hmatrix.set_low_rank_generator(m_low_rank_generator);
 
     // Build hierarchical block structure
     bool not_pushed = false;
