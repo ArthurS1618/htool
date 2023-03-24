@@ -178,7 +178,7 @@ class HMatrix : public TreeNode<HMatrix<CoefficientPrecision, CoordinatePrecisio
     void add_vector_product(char trans, CoefficientPrecision alpha, const CoefficientPrecision *in, CoefficientPrecision beta, CoefficientPrecision *out) const;
     void add_matrix_product_row_major(char trans, CoefficientPrecision alpha, const CoefficientPrecision *in, CoefficientPrecision beta, CoefficientPrecision *out, int mu) const;
 
-    HMatrix hmatrix_product(HMatrix *A, HMatrix *B) const;
+    HMatrix hmatrix_product(const HMatrix &B) const;
 
     // void add_vector_product(char trans, CoefficientPrecision alpha, const CoefficientPrecision *in, CoefficientPrecision beta, CoefficientPrecision *out) const;
     // void add_matrix_product(CoefficientPrecision alpha, const CoefficientPrecision *in, CoefficientPrecision beta, CoefficientPrecision *out, int mu) const;
@@ -997,12 +997,12 @@ void HMatrix<CoefficientPrecision, CoordinatePrecision>::threaded_hierarchical_a
 
 // root_hmatrix = A*B (A.hmatrix_product(B))
 template <typename CoefficientPrecision, typename CoordinatePrecision>
-HMatrix<CoefficientPrecision, CoordinatePrecision> HMatrix<CoefficientPrecision, CoordinatePrecision>::hmatrix_product(HMatrix *A, HMatrix *B) const {
-    // HMatrix temp = *this;
-    HMatrix root_hmatrix(A->m_tree_data->m_target_cluster_tree, B->m_tree_data->m_source_cluster_tree);
-    root_hmatrix.set_admissibility_condition(A->m_tree_data->m_admissibility_condition);
-    root_hmatrix.set_low_rank_generator(A->m_tree_data->m_low_rank_generator);
-    SumExpression<CoefficientPrecision, CoordinatePrecision> root_sum_expression(A, B);
+HMatrix<CoefficientPrecision, CoordinatePrecision> HMatrix<CoefficientPrecision, CoordinatePrecision>::hmatrix_product(const HMatrix &B) const {
+    HMatrix root_hmatrix(this->m_tree_data->m_target_cluster_tree, B.m_tree_data->m_source_cluster_tree);
+    root_hmatrix.set_admissibility_condition(this->m_tree_data->m_admissibility_condition);
+    root_hmatrix.set_low_rank_generator(this->m_tree_data->m_low_rank_generator);
+
+    SumExpression<CoefficientPrecision, CoordinatePrecision> root_sum_expression(this, &B);
 
     root_hmatrix.recursive_build_hmatrix_product(root_sum_expression);
 
@@ -1016,17 +1016,14 @@ void HMatrix<CoefficientPrecision, CoordinatePrecision>::recursive_build_hmatrix
     auto &source_cluster  = this->get_source_cluster();
     auto &target_children = target_cluster.get_children();
     auto &source_children = source_cluster.get_children();
+
     // critère pour descendre : on est sur une feuille ou pas:
-    bool admissible = 2 * std::min(target_cluster.get_radius(), source_cluster.get_radius()) < this->m_tree_data->m_eta * std::max((norm2(target_cluster.get_center() - source_cluster.get_center()) - target_cluster.get_radius() - source_cluster.get_radius()), 0.);
-    std::cout << "bool ok " << std::endl;
+    bool admissible = this->m_tree_data->m_admissibility_condition->ComputeAdmissibility(target_cluster, source_cluster, 10);
+
     if (admissible) {
-        const Matrix<CoefficientPrecision> troncature = sum_expr.Evaluate();
-        DenseGenerator<CoefficientPrecision> feuille_lr(troncature);
-        this->compute_dense_data(feuille_lr);
+        this->compute_dense_data(sum_expr);
     } else if ((target_children.size() == 0) and (source_children.size() == 0)) {
-        Matrix<CoefficientPrecision> eval = sum_expr.Evaluate();
-        DenseGenerator<CoefficientPrecision> feuille_dense(eval);
-        this->compute_dense_data(feuille_dense);
+        this->compute_dense_data(sum_expr);
     } else {
         if ((target_children.size() > 0) and (source_children.size() > 0)) {
             std::cout << "H mat Hmat " << std::endl;
@@ -1046,6 +1043,12 @@ void HMatrix<CoefficientPrecision, CoordinatePrecision>::recursive_build_hmatrix
             }
 
         } else if ((source_children.size() == 0) and (target_children.size() > 0)) {
+            for (const auto &target_child : target_children) {
+                HMatrix<CoefficientPrecision, CoordinatePrecision> *hmatrix_child  = this->add_child(target_child.get(), &source_cluster);
+                SumExpression<CoefficientPrecision, CoordinatePrecision> sum_restr = sum_expr.Restrict(target_child->get_size(), target_child->get_offset(), source_cluster.get_size(), source_cluster.get_offset());
+                hmatrix_child->recursive_build_hmatrix_product(sum_restr);
+            }
+        } else {
             for (const auto &target_child : target_children) {
                 HMatrix<CoefficientPrecision, CoordinatePrecision> *hmatrix_child  = this->add_child(target_child.get(), &source_cluster);
                 SumExpression<CoefficientPrecision, CoordinatePrecision> sum_restr = sum_expr.Restrict(target_child->get_size(), target_child->get_offset(), source_cluster.get_size(), source_cluster.get_offset());
