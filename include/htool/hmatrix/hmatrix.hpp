@@ -81,7 +81,9 @@ class HMatrix : public TreeNode<HMatrix<CoefficientPrecision, CoordinatePrecisio
 
     void
     threaded_hierarchical_add_vector_product(char trans, CoefficientPrecision alpha, const CoefficientPrecision *in, CoefficientPrecision beta, CoefficientPrecision *out) const;
-    void hierarchical_add_matrix_product(char trans, CoefficientPrecision alpha, const CoefficientPrecision *in, CoefficientPrecision beta, CoefficientPrecision *out, int mu) const;
+    void threaded_hierarchical_add_matrix_product_row_major(char trans, CoefficientPrecision alpha, const CoefficientPrecision *in, CoefficientPrecision beta, CoefficientPrecision *out, int mu) const;
+
+    void recursive_build_hmatrix_product(SumExpression<CoefficientPrecision, CoordinatePrecision> &sum_expr);
 
     void recursive_build_hmatrix_product(SumExpression<CoefficientPrecision, CoordinatePrecision> &sum_expr);
 
@@ -141,12 +143,11 @@ class HMatrix : public TreeNode<HMatrix<CoefficientPrecision, CoordinatePrecisio
     // Test properties
     bool is_dense() const { return m_storage_type == StorageType::Dense; }
     bool is_low_rank() const { return m_storage_type == StorageType::LowRank; }
-    // je rajoute ca
     bool is_hierarchical() const { return m_storage_type == StorageType::Hierarchical; }
 
     // HMatrix Tree setters
     void set_eta(CoordinatePrecision eta) { this->m_tree_data->m_eta = eta; }
-    void set_epsilon(CoefficientPrecision eta) { this->m_tree_data->m_epsilon = eta; } // il y avait écrit m_eta ca parait bizzard
+    void set_epsilon(underlying_type<CoefficientPrecision> epsilon) { this->m_tree_data->m_epsilon = epsilon; }
     void set_low_rank_generator(std::shared_ptr<VirtualLowRankGenerator<CoefficientPrecision, CoordinatePrecision>> ptr) { this->m_tree_data->m_low_rank_generator = ptr; };
     void set_admissibility_condition(std::shared_ptr<VirtualAdmissibilityCondition<CoordinatePrecision>> ptr) { this->m_tree_data->m_admissibility_condition = ptr; };
     void set_maximal_block_size(int maxblock_size) { this->m_tree_data->m_maxblocksize = maxblock_size; }
@@ -186,6 +187,9 @@ class HMatrix : public TreeNode<HMatrix<CoefficientPrecision, CoordinatePrecisio
 
     // Linear algebra
     void add_vector_product(char trans, CoefficientPrecision alpha, const CoefficientPrecision *in, CoefficientPrecision beta, CoefficientPrecision *out) const;
+    void add_matrix_product_row_major(char trans, CoefficientPrecision alpha, const CoefficientPrecision *in, CoefficientPrecision beta, CoefficientPrecision *out, int mu) const;
+
+    HMatrix hmatrix_product(const HMatrix &B) const;
 
     HMatrix hmatrix_product(HMatrix *A, HMatrix *B) const;
 
@@ -242,6 +246,25 @@ void HMatrix<CoefficientPrecision, CoordinatePrecision>::add_vector_product(char
         break;
     default:
         threaded_hierarchical_add_vector_product(trans, alpha, in, beta, out);
+        break;
+    }
+}
+
+template <typename CoefficientPrecision, typename CoordinatePrecision>
+void HMatrix<CoefficientPrecision, CoordinatePrecision>::add_matrix_product_row_major(char trans, CoefficientPrecision alpha, const CoefficientPrecision *in, CoefficientPrecision beta, CoefficientPrecision *out, int mu) const {
+    switch (m_storage_type) {
+    case StorageType::Dense:
+        if (m_symmetry == 'N') {
+            m_dense_data->add_matrix_product_row_major(trans, alpha, in, beta, out, mu);
+        } else {
+            m_dense_data->add_matrix_product_symmetric_row_major(trans, alpha, in, beta, out, mu, m_UPLO, m_symmetry);
+        }
+        break;
+    case StorageType::LowRank:
+        m_low_rank_data->add_matrix_product_row_major(trans, alpha, in, beta, out, mu);
+        break;
+    default:
+        threaded_hierarchical_add_matrix_product_row_major(trans, alpha, in, beta, out, mu);
         break;
     }
 }
@@ -868,8 +891,8 @@ void HMatrix<CoefficientPrecision, CoordinatePrecision>::threaded_hierarchical_a
     int in_offset(m_source_cluster->get_offset());
     auto get_output_cluster{&HMatrix::get_target_cluster};
     auto get_input_cluster{&HMatrix::get_source_cluster};
-    int local_input_offset  = m_target_cluster->get_offset();
-    int local_output_offset = m_source_cluster->get_offset();
+    int local_input_offset  = m_source_cluster->get_offset();
+    int local_output_offset = m_target_cluster->get_offset();
     char trans_sym          = (m_symmetry_type_for_leaves == 'S') ? 'T' : 'C';
 
     if (trans != 'N') {
@@ -879,14 +902,14 @@ void HMatrix<CoefficientPrecision, CoordinatePrecision>::threaded_hierarchical_a
         out_offset          = m_source_cluster->get_offset();
         get_input_cluster   = &HMatrix::get_target_cluster;
         get_output_cluster  = &HMatrix::get_source_cluster;
-        local_input_offset  = m_source_cluster->get_offset();
-        local_output_offset = m_target_cluster->get_offset();
+        local_input_offset  = m_target_cluster->get_offset();
+        local_output_offset = m_source_cluster->get_offset();
         trans_sym           = 'N';
     }
 
     int incx(1), incy(1);
     CoefficientPrecision da(1);
-    if (CoefficientPrecision(beta) != 1) {
+    if (CoefficientPrecision(beta) != CoefficientPrecision(1)) {
         // TODO: use blas
         std::transform(out, out + out_size, out, [&beta](CoefficientPrecision &c) { return c * beta; });
     }
@@ -914,8 +937,80 @@ void HMatrix<CoefficientPrecision, CoordinatePrecision>::threaded_hierarchical_a
             for (int b = 0; b < m_leaves_for_symmetry.size(); b++) {
                 int input_offset  = (m_leaves_for_symmetry[b]->*get_input_cluster)().get_offset();
                 int output_offset = (m_leaves_for_symmetry[b]->*get_output_cluster)().get_offset();
-                // std::cout << input_offset << " " << output_offset << "\n";
-                m_leaves_for_symmetry[b]->add_vector_product(trans_sym, 1, in + output_offset - local_output_offset, 1, temp.data() + (input_offset - local_input_offset));
+                m_leaves_for_symmetry[b]->add_vector_product(trans_sym, 1, in + output_offset - local_input_offset, 1, temp.data() + (input_offset - local_output_offset));
+            }
+        }
+
+#if _OPENMP
+#    pragma omp critical
+#endif
+        Blas<CoefficientPrecision>::axpy(&out_size, &alpha, temp.data(), &incx, out, &incy);
+    }
+}
+
+template <typename CoefficientPrecision, typename CoordinatePrecision>
+void HMatrix<CoefficientPrecision, CoordinatePrecision>::threaded_hierarchical_add_matrix_product_row_major(char trans, CoefficientPrecision alpha, const CoefficientPrecision *in, CoefficientPrecision beta, CoefficientPrecision *out, int mu) const {
+
+    set_leaves_in_cache();
+
+    if ((trans == 'T' && m_symmetry_type_for_leaves == 'H')
+        || (trans == 'C' && m_symmetry_type_for_leaves == 'S')) {
+        throw std::invalid_argument("[Htool error] Operation is not supported (" + std::string(1, trans) + " with " + m_symmetry_type_for_leaves + ")"); // LCOV_EXCL_LINE
+    }
+
+    int out_size(m_target_cluster->get_size() * mu);
+    int in_size(m_source_cluster->get_size() * mu);
+    int out_offset(m_target_cluster->get_offset());
+    int in_offset(m_source_cluster->get_offset());
+    auto get_output_cluster{&HMatrix::get_target_cluster};
+    auto get_input_cluster{&HMatrix::get_source_cluster};
+    int local_output_offset = m_target_cluster->get_offset();
+    int local_input_offset  = m_source_cluster->get_offset();
+    char trans_sym          = (m_symmetry_type_for_leaves == 'S') ? 'T' : 'C';
+
+    if (trans != 'N') {
+        in_size             = m_target_cluster->get_size() * mu;
+        out_size            = m_source_cluster->get_size() * mu;
+        in_offset           = m_target_cluster->get_offset();
+        out_offset          = m_source_cluster->get_offset();
+        get_input_cluster   = &HMatrix::get_target_cluster;
+        get_output_cluster  = &HMatrix::get_source_cluster;
+        local_input_offset  = m_target_cluster->get_offset();
+        local_output_offset = m_source_cluster->get_offset();
+        trans_sym           = 'N';
+    }
+
+    int incx(1), incy(1);
+    CoefficientPrecision da(1);
+    if (CoefficientPrecision(beta) != CoefficientPrecision(1)) {
+        // TODO: use blas
+        std::transform(out, out + out_size, out, [&beta](CoefficientPrecision &c) { return c * beta; });
+    }
+
+// Contribution champ lointain
+#if _OPENMP
+#    pragma omp parallel
+#endif
+    {
+        std::vector<CoefficientPrecision> temp(out_size, 0);
+#if _OPENMP
+#    pragma omp for schedule(guided) nowait
+#endif
+        for (int b = 0; b < m_leaves.size(); b++) {
+            int input_offset  = (m_leaves[b]->*get_input_cluster)().get_offset();
+            int output_offset = (m_leaves[b]->*get_output_cluster)().get_offset();
+            m_leaves[b]->add_matrix_product_row_major(trans, 1, in + (input_offset - local_input_offset) * mu, 1, temp.data() + (output_offset - local_output_offset) * mu, mu);
+        }
+
+        // Symmetry part of the diagonal part
+        if (m_symmetry_type_for_leaves != 'N') {
+#if _OPENMP
+#    pragma omp for schedule(guided) nowait
+#endif
+            for (int b = 0; b < m_leaves_for_symmetry.size(); b++) {
+                int input_offset  = (m_leaves_for_symmetry[b]->*get_input_cluster)().get_offset();
+                int output_offset = (m_leaves_for_symmetry[b]->*get_output_cluster)().get_offset();
+                m_leaves_for_symmetry[b]->add_matrix_product_row_major(trans_sym, 1, in + (output_offset - local_input_offset) * mu, 1, temp.data() + (input_offset - local_output_offset) * mu, mu);
             }
         }
 
@@ -928,12 +1023,12 @@ void HMatrix<CoefficientPrecision, CoordinatePrecision>::threaded_hierarchical_a
 
 // root_hmatrix = A*B (A.hmatrix_product(B))
 template <typename CoefficientPrecision, typename CoordinatePrecision>
-HMatrix<CoefficientPrecision, CoordinatePrecision> HMatrix<CoefficientPrecision, CoordinatePrecision>::hmatrix_product(HMatrix *A, HMatrix *B) const {
-    // HMatrix temp = *this;
-    HMatrix root_hmatrix(A->m_tree_data->m_target_cluster_tree, B->m_tree_data->m_source_cluster_tree);
-    root_hmatrix.set_admissibility_condition(A->m_tree_data->m_admissibility_condition);
-    root_hmatrix.set_low_rank_generator(A->get_lr());
-    SumExpression<CoefficientPrecision, CoordinatePrecision> root_sum_expression(A, B);
+HMatrix<CoefficientPrecision, CoordinatePrecision> HMatrix<CoefficientPrecision, CoordinatePrecision>::hmatrix_product(const HMatrix &B) const {
+    HMatrix root_hmatrix(this->m_tree_data->m_target_cluster_tree, B.m_tree_data->m_source_cluster_tree);
+    root_hmatrix.set_admissibility_condition(this->m_tree_data->m_admissibility_condition);
+    root_hmatrix.set_low_rank_generator(this->m_tree_data->m_low_rank_generator);
+
+    SumExpression<CoefficientPrecision, CoordinatePrecision> root_sum_expression(this, &B);
 
     root_hmatrix.recursive_build_hmatrix_product(root_sum_expression);
 
@@ -947,17 +1042,14 @@ void HMatrix<CoefficientPrecision, CoordinatePrecision>::recursive_build_hmatrix
     auto &source_cluster  = this->get_source_cluster();
     auto &target_children = target_cluster.get_children();
     auto &source_children = source_cluster.get_children();
+
     // critère pour descendre : on est sur une feuille ou pas:
-    bool admissible = 2 * std::min(target_cluster.get_radius(), source_cluster.get_radius()) < this->m_tree_data->m_eta * std::max((norm2(target_cluster.get_center() - source_cluster.get_center()) - target_cluster.get_radius() - source_cluster.get_radius()), 0.);
-    std::cout << "bool ok " << std::endl;
+    bool admissible = this->m_tree_data->m_admissibility_condition->ComputeAdmissibility(target_cluster, source_cluster, 10);
+
     if (admissible) {
-        const Matrix<CoefficientPrecision> troncature = sum_expr.Evaluate();
-        DenseGenerator<CoefficientPrecision> feuille_lr(troncature);
-        this->compute_dense_data(feuille_lr);
+        this->compute_dense_data(sum_expr);
     } else if ((target_children.size() == 0) and (source_children.size() == 0)) {
-        Matrix<CoefficientPrecision> eval = sum_expr.Evaluate();
-        DenseGenerator<CoefficientPrecision> feuille_dense(eval);
-        this->compute_dense_data(feuille_dense);
+        this->compute_dense_data(sum_expr);
     } else {
         if ((target_children.size() > 0) and (source_children.size() > 0)) {
             std::cout << "H mat Hmat " << std::endl;
@@ -977,6 +1069,12 @@ void HMatrix<CoefficientPrecision, CoordinatePrecision>::recursive_build_hmatrix
             }
 
         } else if ((source_children.size() == 0) and (target_children.size() > 0)) {
+            for (const auto &target_child : target_children) {
+                HMatrix<CoefficientPrecision, CoordinatePrecision> *hmatrix_child  = this->add_child(target_child.get(), &source_cluster);
+                SumExpression<CoefficientPrecision, CoordinatePrecision> sum_restr = sum_expr.Restrict(target_child->get_size(), target_child->get_offset(), source_cluster.get_size(), source_cluster.get_offset());
+                hmatrix_child->recursive_build_hmatrix_product(sum_restr);
+            }
+        } else {
             for (const auto &target_child : target_children) {
                 HMatrix<CoefficientPrecision, CoordinatePrecision> *hmatrix_child  = this->add_child(target_child.get(), &source_cluster);
                 SumExpression<CoefficientPrecision, CoordinatePrecision> sum_restr = sum_expr.Restrict(target_child->get_size(), target_child->get_offset(), source_cluster.get_size(), source_cluster.get_offset());
@@ -2083,7 +2181,6 @@ void copy_to_dense(const HMatrix<CoefficientPrecision, CoordinatePrecision> &hma
     }
 
     char symmetry_type = hmatrix.get_symmetry_for_leaves();
-    // std::cout << symmetry_type << " " << hmatrix.get_leaves_for_symmetry().size() << "\n";
     for (auto leaf : hmatrix.get_leaves_for_symmetry()) {
         int local_nr = leaf->get_target_cluster().get_size();
         int local_nc = leaf->get_source_cluster().get_size();

@@ -62,9 +62,9 @@ class HMatrixTreeBuilder {
                        && source_cluster.get_offset() >= (target_cluster.get_offset() + target_cluster.get_size())
                        && ((m_target_partition_number == -1)
                            || source_cluster.get_offset() < m_source_root_cluster->get_clusters_on_partition()[m_target_partition_number]->get_offset() + m_source_root_cluster->get_clusters_on_partition()[m_target_partition_number]->get_size())
-                       && ((m_target_partition_number != -1)
-                           //    || source_cluster.get_offset() < target_cluster.get_offset() + target_cluster.get_size()
-                           )));
+                       //    && ((m_target_partition_number != -1)
+                       //    || source_cluster.get_offset() < target_cluster.get_offset() + target_cluster.get_size())
+                       ));
     }
     bool is_block_diagonal(const HMatrixType &hmatrix) {
         bool is_there_a_target_partition = (m_target_partition_number != -1);
@@ -94,7 +94,11 @@ class HMatrixTreeBuilder {
               && (m_UPLO_type == 'N' || m_UPLO_type == 'L' || m_UPLO_type == 'U')
               && ((m_symmetry_type == 'N' && m_UPLO_type == 'N') || (m_symmetry_type != 'N' && m_UPLO_type != 'N'))
               && ((m_symmetry_type == 'H' && is_complex<CoefficientPrecision>()) || m_symmetry_type != 'H'))) {
-            throw std::invalid_argument("[Htool error] Invalid arguments to create HMatrix"); // LCOV_EXCL_LINE
+            std::string error_message = "[Htool error] Invalid arguments to create HMatrix: m_symmetry_type=";
+            error_message.push_back(m_symmetry_type);
+            error_message += " and m_UPLO_type=";
+            error_message.push_back(m_UPLO_type);
+            throw std::invalid_argument(error_message); // LCOV_EXCL_LINE
         }
     };
 
@@ -124,6 +128,8 @@ HMatrix<CoefficientPrecision, CoordinatePrecision> HMatrixTreeBuilder<Coefficien
 
     // Create root hmatrix
     HMatrixType root_hmatrix(m_target_root_cluster, m_source_root_cluster);
+    root_hmatrix.set_admissibility_condition(m_admissibility_condition);
+    root_hmatrix.set_low_rank_generator(m_low_rank_generator);
 
     // Build hierarchical block structure
     bool not_pushed = false;
