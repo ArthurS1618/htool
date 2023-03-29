@@ -85,8 +85,6 @@ class HMatrix : public TreeNode<HMatrix<CoefficientPrecision, CoordinatePrecisio
 
     void recursive_build_hmatrix_product(SumExpression<CoefficientPrecision, CoordinatePrecision> &sum_expr);
 
-    void recursive_build_hmatrix_product(SumExpression<CoefficientPrecision, CoordinatePrecision> &sum_expr);
-
   public:
     // Root constructor
     HMatrix(std::shared_ptr<const Cluster<CoordinatePrecision>> target_cluster, std::shared_ptr<const Cluster<CoordinatePrecision>> source_cluster) : TreeNode<HMatrix, HMatrixTreeData<CoefficientPrecision, CoordinatePrecision>>(), m_target_cluster(target_cluster.get()), m_source_cluster(source_cluster.get()) {
@@ -190,8 +188,6 @@ class HMatrix : public TreeNode<HMatrix<CoefficientPrecision, CoordinatePrecisio
     void add_matrix_product_row_major(char trans, CoefficientPrecision alpha, const CoefficientPrecision *in, CoefficientPrecision beta, CoefficientPrecision *out, int mu) const;
 
     HMatrix hmatrix_product(const HMatrix &B) const;
-
-    HMatrix hmatrix_product(HMatrix *A, HMatrix *B) const;
 
     // void add_vector_product(char trans, CoefficientPrecision alpha, const CoefficientPrecision *in, CoefficientPrecision beta, CoefficientPrecision *out) const;
     // void add_matrix_product(CoefficientPrecision alpha, const CoefficientPrecision *in, CoefficientPrecision beta, CoefficientPrecision *out, int mu) const;

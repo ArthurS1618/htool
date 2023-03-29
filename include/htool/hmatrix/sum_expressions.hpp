@@ -433,5 +433,3 @@ class SumExpression : public VirtualGenerator<CoefficientPrecision> {
 } // namespace htool
 
 #endif
-
-#endif
