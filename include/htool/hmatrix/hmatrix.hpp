@@ -1029,30 +1029,36 @@ void HMatrix<CoefficientPrecision, CoordinatePrecision>::recursive_build_hmatrix
             std::cout << "H mat Hmat " << std::endl;
             for (const auto &target_child : target_children) {
                 for (const auto &source_child : source_children) {
-                    HMatrix<CoefficientPrecision, CoordinatePrecision> *hmatrix_child  = this->add_child(target_child.get(), source_child.get());
-                    SumExpression<CoefficientPrecision, CoordinatePrecision> sum_restr = sum_expr.Restrict(target_child->get_size(), target_child->get_offset(), source_child->get_size(), source_child->get_offset());
-                    hmatrix_child->recursive_build_hmatrix_product(sum_restr);
+                    if () {
+                        HMatrix<CoefficientPrecision, CoordinatePrecision> *hmatrix_child  = this->add_child(target_child.get(), source_child.get());
+                        SumExpression<CoefficientPrecision, CoordinatePrecision> sum_restr = sum_expr.Restrict(target_child->get_size(), target_child->get_offset(), source_child->get_size(), source_child->get_offset());
+                        hmatrix_child->recursive_build_hmatrix_product(sum_restr);
+                    } else {
+                        this->compute_dense_data(sum_expr);
+                    }
                 }
             }
         } else if ((target_children.size() == 0) and (source_children.size() > 0)) {
             std::cout << "cas 2 " << std::endl;
             for (const auto &source_child : source_children) {
-                HMatrix<CoefficientPrecision, CoordinatePrecision> *hmatrix_child  = this->add_child(&target_cluster, source_child.get());
-                SumExpression<CoefficientPrecision, CoordinatePrecision> sum_restr = sum_expr.Restrict(target_cluster.get_size(), target_cluster.get_offset(), source_child->get_size(), source_child->get_offset());
-                hmatrix_child->recursive_build_hmatrix_product(sum_restr);
+                if () {
+                    HMatrix<CoefficientPrecision, CoordinatePrecision> *hmatrix_child  = this->add_child(&target_cluster, source_child.get());
+                    SumExpression<CoefficientPrecision, CoordinatePrecision> sum_restr = sum_expr.Restrict(target_cluster.get_size(), target_cluster.get_offset(), source_child->get_size(), source_child->get_offset());
+                    hmatrix_child->recursive_build_hmatrix_product(sum_restr);
+                } else {
+                    this->compute_dense_data(sum_expr);
+                }
             }
 
         } else if ((source_children.size() == 0) and (target_children.size() > 0)) {
             for (const auto &target_child : target_children) {
-                HMatrix<CoefficientPrecision, CoordinatePrecision> *hmatrix_child  = this->add_child(target_child.get(), &source_cluster);
-                SumExpression<CoefficientPrecision, CoordinatePrecision> sum_restr = sum_expr.Restrict(target_child->get_size(), target_child->get_offset(), source_cluster.get_size(), source_cluster.get_offset());
-                hmatrix_child->recursive_build_hmatrix_product(sum_restr);
-            }
-        } else {
-            for (const auto &target_child : target_children) {
-                HMatrix<CoefficientPrecision, CoordinatePrecision> *hmatrix_child  = this->add_child(target_child.get(), &source_cluster);
-                SumExpression<CoefficientPrecision, CoordinatePrecision> sum_restr = sum_expr.Restrict(target_child->get_size(), target_child->get_offset(), source_cluster.get_size(), source_cluster.get_offset());
-                hmatrix_child->recursive_build_hmatrix_product(sum_restr);
+                HMatrix<CoefficientPrecision, CoordinatePrecision> *hmatrix_child = this->add_child(target_child.get(), &source_cluster);
+                if () {
+                    SumExpression<CoefficientPrecision, CoordinatePrecision> sum_restr = sum_expr.Restrict(target_child->get_size(), target_child->get_offset(), source_cluster.get_size(), source_cluster.get_offset());
+                    hmatrix_child->recursive_build_hmatrix_product(sum_restr);
+                } else {
+                    this->compute_dense_data(sum_expr);
+                }
             }
         }
     }

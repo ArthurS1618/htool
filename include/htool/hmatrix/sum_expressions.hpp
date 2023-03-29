@@ -36,8 +36,14 @@ class SumExpression : public VirtualGenerator<CoefficientPrecision> {
     int source_size;
     int source_offset;
 
-  public:
-    SumExpression(const HMatrixType *A, const HMatrixType *B) {
+    struct RestrictedLowRankMatrix {
+        int target_offset;
+        int source_offset;
+        lrmat
+
+    }
+
+    public : SumExpression(const HMatrixType *A, const HMatrixType *B) {
         Sh.push_back(A);
         Sh.push_back(B);
         target_size   = A->get_target_cluster().get_size();
@@ -116,9 +122,8 @@ class SumExpression : public VirtualGenerator<CoefficientPrecision> {
                             if ((K_child->get_source_cluster().get_size() == source_size0) and (K_child->get_source_cluster().get_offset() == source_offset0)) {
                                 if ((K_child->get_target_cluster().get_size() == H_child->get_source_cluster().get_size())
                                     and (K_child->get_target_cluster().get_offset() == H_child->get_source_cluster().get_offset())) {
-                                    if ((H_child->is_low_rank() and K_child->is_low_rank() or (H_child->is_low_rank() and !(K_child->is_low_rank())) or (!(H_child->is_low_rank()) and K_child->is_low_rank()))) {
-                                        sr.push_back(H_child.get());
-                                        sr.push_back(K_child.get());
+                                    if (H_child->is_low_rank() or K_child->is_low_rank()) {
+                                        sr.emplace_back(H_child.low_rank_multiplication(K_child));
                                     } else {
                                         sh.push_back(H_child.get());
                                         sh.push_back(K_child.get());
@@ -128,161 +133,162 @@ class SumExpression : public VirtualGenerator<CoefficientPrecision> {
                         }
                     }
                 }
-            } else if (H_children.size() == 0 and K_children.size() > 0) {
-                if (H->is_low_rank()) {
-                    for (int l = 0; l < K_children.size(); ++l) {
-                        auto &K_child = K_children[l];
-                        if (K_child->get_source_cluster().get_size() == source_size and K_child->get_source_cluster().get_offset() == source_offset) {
-                            sr.push_back(H);
-                            sr.push_back(K_child.get());
-                        }
-                    }
-                } else {
-                    Matrix<CoefficientPrecision> H_dense(H->get_target_cluster().get_size(), H->get_source_cluster().get_size());
-                    copy_to_dense(*H, H_dense.data());
-                    auto &H_target_children = H->get_target_cluster().get_children();
-                    int flag                = 0;
-                    for (int k = 0; k < H_target_children.size(); ++k) {
-                        auto &target_k = H_target_children[k];
-                        if (target_k->get_size() == target_size0 and target_k->get_offset() == target_offset0) {
-                            flag = k;
-                        }
-                    }
-                    for (int l = 0; l < K_children.size(); ++l) {
-                        auto &K_child = K_children[l];
-                        if ((K_child->get_source_cluster().get_size() == source_size) and (K_child->get_source_cluster().get_offset() == source_offset0)) {
-                            Matrix<CoefficientPrecision> H_restr(target_size0, K_child->get_target_cluster().get_offset());
-                            CoefficientPrecision *ptr = new CoefficientPrecision[target_size * K_child->get_target_cluster().get_size()];
-                            for (int j = 0; j < K_child->get_target_cluster().get_size(); ++j) {
-                                for (int i = 0; i < target_size0; ++i) {
-                                    ptr[i + j * target_size0] = H_dense(i + target_offset0 - H->get_target_cluster().get_offset(), j + K_child->get_target_cluster().get_offset() - H->get_source_cluster().get_offset());
-                                }
-                            }
-                            H_restr.assign(target_size0, K_child->get_target_cluster().get_size(), ptr, true);
-                            // auto &target_k                                               = *const_cast<std::unique_ptr<Cluster<CoordinatePrecision>> *>(&H_target_children[flag]);
-                            // std::shared_ptr<Cluster<CoordinatePrecision>> target_cluster = std::make_shared<Cluster<CoordinatePrecision>>(*(target_k.get()));
-
-                            // std::unique_ptr<Cluster<CoordinatePrecision>> target_cluster(target_k.release());
-                            // std::unique_ptr<Cluster<CoordinatePrecision>> unique_target_cluster = std::move(target_cluster);
-                            // std::unique_ptr<Cluster<CoordinatePrecision>> source_cluster(K_child->get_target_cluster());
-                            auto &target    = H_target_children[flag];
-                            auto target_ptr = std::shared_ptr<const htool::Cluster<double>>(target.get(), [](htool::Cluster<double> *p) {});
-                            auto source_ptr = std::shared_ptr<const htool::Cluster<double>>(&K_child->get_target_cluster(), [](const htool::Cluster<double> *p) {});
-                            HMatrixType H_k(target_ptr, source_ptr);
-                            DenseGenerator<CoefficientPrecision> mat_H(H_restr);
-                            H_k.compute_dense_data(mat_H);
-                            sh.push_back(&H_k);
-                            sh.push_back(K_child.get());
-                        }
-                    }
-                }
-            } else if (H_children.size() > 0 and K_children.size() == 0) {
-                if (K->is_low_rank()) {
-                    for (int k = 0; k < H_children.size(); ++k) {
-                        auto &H_child = H_children[k];
-                        if (H_child->get_target_cluster().get_size() == target_size0 and H_child->get_target_cluster().get_offset() == target_offset0) {
-                            sr.push_back(H_child.get());
-                            sr.push_back(K);
-                        }
-                    }
-                } else {
-                    Matrix<CoefficientPrecision> K_dense(K->get_target_cluster().get_size(), K->get_source_cluster().get_size());
-                    copy_to_dense(*K, K_dense.data());
-                    auto &K_source_children = K->get_target_cluster().get_children();
-                    int flag                = 0;
-                    for (int k = 0; k < K_source_children.size(); ++k) {
-                        auto &source_k = K_source_children[k];
-                        if ((source_k->get_size() == source_size0) and (source_k->get_offset() == source_offset0)) {
-                            flag = k;
-                        }
-                    }
-                    for (int l = 0; l < H_children.size(); ++l) {
-                        auto &H_child = H_children[l];
-                        if (H_child->get_target_cluster().get_size() == target_size0 and H_child->get_target_cluster().get_offset() == target_offset0) {
-                            Matrix<CoefficientPrecision> K_restr(H_child->get_source_cluster().get_size(), source_size0);
-                            CoefficientPrecision *ptr = new CoefficientPrecision[source_size0 * H_child->get_source_cluster().get_size()];
-                            for (int j = 0; j < source_size0; ++j) {
-                                for (int i = 0; i < H_child->get_source_cluster().get_size(); ++i) {
-                                    ptr[i + j * H_child->get_source_cluster().get_size()] = K_dense(i + H->get_target_cluster().get_offset() - K->get_source_cluster().get_offset(), j + source_size0 - H->get_source_cluster().get_offset());
-                                }
-                            }
-                            //                      // K_restr.assign(H_child->get_source_cluster().get_size(), source_size0, ptr, true);
-                            //                      // std::shared_ptr<Cluster<CoordinatePrecision>> target_cluster = std::make_shared<Cluster<CoordinatePrecision>>(H_child->get_source_cluster());
-                            //                      // std::shared_ptr<Cluster<CoordinatePrecision>> source_cluster = std::make_shared<Cluster<CoordinatePrecision>>(K_source_children[flag]);
-
-                            auto &source    = K_source_children[flag];
-                            auto source_ptr = std::shared_ptr<const htool::Cluster<CoordinatePrecision>>(source.get(), [](htool::Cluster<CoordinatePrecision> *p) {});
-                            auto target_ptr = std::shared_ptr<const htool::Cluster<CoordinatePrecision>>(&H_child->get_source_cluster(), [](const htool::Cluster<CoordinatePrecision> *p) {});
-
-                            HMatrixType K_k(target_ptr, source_ptr);
-                            DenseGenerator<CoefficientPrecision> mat_K(K_restr);
-                            K_k.compute_dense_data(mat_K);
-                            sh.push_back(H_child.get());
-                            sh.push_back(&K_k);
-                        }
-                    }
-                }
-            } else if ((H_children.size() == 0) and (K_children.size() == 0)) {
-                if ((H->is_low_rank()) or (K->is_low_rank())) {
-                    sr.push_back(H);
-                    sr.push_back(K);
-                } else {
-                    Matrix<CoefficientPrecision> H_dense(H->get_target_cluster().get_size(), H->get_source_cluster().get_size());
-                    Matrix<CoefficientPrecision> K_dense(K->get_target_cluster().get_size(), K->get_source_cluster().get_size());
-                    copy_to_dense(*H, H_dense.data());
-                    copy_to_dense(*K, K_dense.data());
-                    Matrix<CoefficientPrecision> H_restr(target_size0, H->get_source_cluster().get_size());
-                    Matrix<CoefficientPrecision> K_restr(K->get_target_cluster().get_size(), source_size0);
-                    CoefficientPrecision *ptr_H = new CoefficientPrecision[target_size0 * H->get_source_cluster().get_size()];
-                    CoefficientPrecision *ptr_K = new CoefficientPrecision[source_size0 * K->get_target_cluster().get_size()];
-                    for (int j = 0; j < H->get_source_cluster().get_size(); ++j) {
-                        for (int i = 0; i < target_size0; ++i) {
-                            ptr_H[i + j * target_size0] = H_dense(i + target_offset - H->get_target_cluster().get_offset(), j);
-                        }
-                    }
-                    for (int j = 0; j < source_size0; ++j) {
-                        for (int i = 0; i < K->get_target_cluster().get_size(); ++i) {
-                            ptr_K[i + j * K->get_target_cluster().get_size()] = K_dense(i + target_offset0 - H->get_target_cluster().get_offset(), j);
-                        }
-                    }
-                    H_restr.assign(target_size0, H->get_source_cluster().get_size(), ptr_H, true);
-                    K_restr.assign(K->get_target_cluster().get_size(), source_size0, ptr_K, true);
-                    auto &target_children = H->get_target_cluster().get_children();
-                    auto &source_children = K->get_source_cluster().get_children();
-                    int flag_h            = 0;
-                    int flag_k            = 0;
-                    for (int k = 0; k < target_children.size(); ++k) {
-                        auto &child = target_children[k];
-                        if ((child->get_size() == target_size0) and (child->get_offset() == target_offset0)) {
-                            flag_h = k;
-                        }
-                    }
-                    for (int k = 0; k < source_children.size(); ++k) {
-                        auto &child = source_children[k];
-                        if ((child->get_size() == source_size0) and (child->get_offset() == source_offset0)) {
-                            flag_h = k;
-                        }
-                    }
-                    DenseGenerator<CoefficientPrecision> mat_H(H_restr);
-                    DenseGenerator<CoefficientPrecision> mat_K(K_restr);
-                    //   std::shared_ptr<Cluster<CoordinatePrecision>> target_cluster = std::make_shared<Cluster<CoordinatePrecision>>(target_children[flag_h]);
-                    //   std::shared_ptr<Cluster<CoordinatePrecision>> source_cluster = std::make_shared<Cluster<CoordinatePrecision>>(source_children[flag_k]);
-                    //   std::shared_ptr<Cluster<CoordinatePrecision>> mid_cluster    = std::make_shared<Cluster<CoordinatePrecision>>(H->get_source_cluster());
-
-                    auto &source    = source_children[flag_k];
-                    auto source_ptr = std::shared_ptr<const htool::Cluster<CoordinatePrecision>>(source.get(), [](htool::Cluster<CoordinatePrecision> *p) {});
-                    auto &target    = target_children[flag_h];
-                    auto target_ptr = std::shared_ptr<const htool::Cluster<CoordinatePrecision>>(target.get(), [](htool::Cluster<CoordinatePrecision> *p) {});
-                    auto mid_ptr    = std::shared_ptr<const htool::Cluster<CoordinatePrecision>>(&H->get_source_cluster(), [](const htool::Cluster<CoordinatePrecision> *p) {});
-
-                    HMatrixType H_k(target_ptr, mid_ptr);
-                    H_k.compute_dense_data(mat_H);
-                    HMatrixType K_k(mid_ptr, source_ptr);
-                    H_k.compute_dense_data(mat_K);
-                    sh.push_back(&H_k);
-                    sh.push_back(&K_k);
-                }
             }
+            //  else if (H_children.size() == 0 and K_children.size() > 0) {
+            //     // if (H->is_low_rank()) {
+            //     //     for (int l = 0; l < K_children.size(); ++l) {
+            //     //         auto &K_child = K_children[l];
+            //     //         if (K_child->get_source_cluster().get_size() == source_size and K_child->get_source_cluster().get_offset() == source_offset) {
+            //     //             sr.emplace_back(H.low_rank_multiplication(K_child));
+            //     //         }
+            //     //     }
+            //     // } else {
+            //     // H is dense
+            //     Matrix<CoefficientPrecision> H_dense(H->get_target_cluster().get_size(), H->get_source_cluster().get_size());
+            //     copy_to_dense(*H, H_dense.data());
+            //     auto &H_target_children = H->get_target_cluster().get_children();
+            //     int flag                = 0;
+            //     for (int k = 0; k < H_target_children.size(); ++k) {
+            //         auto &target_k = H_target_children[k];
+            //         if (target_k->get_size() == target_size0 and target_k->get_offset() == target_offset0) {
+            //             flag = k;
+            //         }
+            //     }
+            //     for (int l = 0; l < K_children.size(); ++l) {
+            //         auto &K_child = K_children[l];
+            //         if ((K_child->get_source_cluster().get_size() == source_size) and (K_child->get_source_cluster().get_offset() == source_offset0)) {
+            //             Matrix<CoefficientPrecision> H_restr(target_size0, K_child->get_target_cluster().get_offset());
+            //             CoefficientPrecision *ptr = new CoefficientPrecision[target_size * K_child->get_target_cluster().get_size()];
+            //             for (int j = 0; j < K_child->get_target_cluster().get_size(); ++j) {
+            //                 for (int i = 0; i < target_size0; ++i) {
+            //                     ptr[i + j * target_size0] = H_dense(i + target_offset0 - H->get_target_cluster().get_offset(), j + K_child->get_target_cluster().get_offset() - H->get_source_cluster().get_offset());
+            //                 }
+            //             }
+            //             H_restr.assign(target_size0, K_child->get_target_cluster().get_size(), ptr, true);
+            //             // auto &target_k                                               = *const_cast<std::unique_ptr<Cluster<CoordinatePrecision>> *>(&H_target_children[flag]);
+            //             // std::shared_ptr<Cluster<CoordinatePrecision>> target_cluster = std::make_shared<Cluster<CoordinatePrecision>>(*(target_k.get()));
+
+            //             // std::unique_ptr<Cluster<CoordinatePrecision>> target_cluster(target_k.release());
+            //             // std::unique_ptr<Cluster<CoordinatePrecision>> unique_target_cluster = std::move(target_cluster);
+            //             // std::unique_ptr<Cluster<CoordinatePrecision>> source_cluster(K_child->get_target_cluster());
+            //             auto &target    = H_target_children[flag];
+            //             auto target_ptr = std::shared_ptr<const htool::Cluster<double>>(target.get(), [](htool::Cluster<double> *p) {});
+            //             auto source_ptr = std::shared_ptr<const htool::Cluster<double>>(&K_child->get_target_cluster(), [](const htool::Cluster<double> *p) {});
+            //             HMatrixType H_k(target_ptr, source_ptr);
+            //             DenseGenerator<CoefficientPrecision> mat_H(H_restr);
+            //             H_k.compute_dense_data(mat_H);
+            //             sh.push_back(&H_k);
+            //             sh.push_back(K_child.get());
+            //         }
+            //     }
+            //     // }
+            // } else if (H_children.size() > 0 and K_children.size() == 0) {
+            //     // if (K->is_low_rank()) {
+            //     //     for (int k = 0; k < H_children.size(); ++k) {
+            //     //         auto &H_child = H_children[k];
+            //     //         if (H_child->get_target_cluster().get_size() == target_size0 and H_child->get_target_cluster().get_offset() == target_offset0) {
+            //     //             sr.emplace_back(H.low_rank_multiplication(K_child));
+            //     //         }
+            //     //     }
+            //     // } else {
+            //     // K is dense
+            //     Matrix<CoefficientPrecision> K_dense(K->get_target_cluster().get_size(), K->get_source_cluster().get_size());
+            //     copy_to_dense(*K, K_dense.data());
+            //     auto &K_source_children = K->get_target_cluster().get_children();
+            //     int flag                = 0;
+            //     for (int k = 0; k < K_source_children.size(); ++k) {
+            //         auto &source_k = K_source_children[k];
+            //         if ((source_k->get_size() == source_size0) and (source_k->get_offset() == source_offset0)) {
+            //             flag = k;
+            //         }
+            //     }
+            //     for (int l = 0; l < H_children.size(); ++l) {
+            //         auto &H_child = H_children[l];
+            //         if (H_child->get_target_cluster().get_size() == target_size0 and H_child->get_target_cluster().get_offset() == target_offset0) {
+            //             Matrix<CoefficientPrecision> K_restr(H_child->get_source_cluster().get_size(), source_size0);
+            //             CoefficientPrecision *ptr = new CoefficientPrecision[source_size0 * H_child->get_source_cluster().get_size()];
+            //             for (int j = 0; j < source_size0; ++j) {
+            //                 for (int i = 0; i < H_child->get_source_cluster().get_size(); ++i) {
+            //                     ptr[i + j * H_child->get_source_cluster().get_size()] = K_dense(i + H->get_target_cluster().get_offset() - K->get_source_cluster().get_offset(), j + source_size0 - H->get_source_cluster().get_offset());
+            //                 }
+            //             }
+            //             //                      // K_restr.assign(H_child->get_source_cluster().get_size(), source_size0, ptr, true);
+            //             //                      // std::shared_ptr<Cluster<CoordinatePrecision>> target_cluster = std::make_shared<Cluster<CoordinatePrecision>>(H_child->get_source_cluster());
+            //             //                      // std::shared_ptr<Cluster<CoordinatePrecision>> source_cluster = std::make_shared<Cluster<CoordinatePrecision>>(K_source_children[flag]);
+
+            //             auto &source    = K_source_children[flag];
+            //             auto source_ptr = std::shared_ptr<const htool::Cluster<CoordinatePrecision>>(source.get(), [](htool::Cluster<CoordinatePrecision> *p) {});
+            //             auto target_ptr = std::shared_ptr<const htool::Cluster<CoordinatePrecision>>(&H_child->get_source_cluster(), [](const htool::Cluster<CoordinatePrecision> *p) {});
+
+            //             HMatrixType K_k(target_ptr, source_ptr);
+            //             DenseGenerator<CoefficientPrecision> mat_K(K_restr);
+            //             K_k.compute_dense_data(mat_K);
+            //             sh.push_back(H_child.get());
+            //             sh.push_back(&K_k);
+            //             // }
+            //         }
+            //     }
+            // } else if ((H_children.size() == 0) and (K_children.size() == 0)) {
+            //     // if ((H->is_low_rank()) or (K->is_low_rank())) {
+            //     //     sr.emplace_back(H.low_rank_multiplication(K_child));
+            //     // } else {
+            //     // H and K are dense
+            //     Matrix<CoefficientPrecision> H_dense(H->get_target_cluster().get_size(), H->get_source_cluster().get_size());
+            //     Matrix<CoefficientPrecision> K_dense(K->get_target_cluster().get_size(), K->get_source_cluster().get_size());
+            //     copy_to_dense(*H, H_dense.data());
+            //     copy_to_dense(*K, K_dense.data());
+            //     Matrix<CoefficientPrecision> H_restr(target_size0, H->get_source_cluster().get_size());
+            //     Matrix<CoefficientPrecision> K_restr(K->get_target_cluster().get_size(), source_size0);
+            //     CoefficientPrecision *ptr_H = new CoefficientPrecision[target_size0 * H->get_source_cluster().get_size()];
+            //     CoefficientPrecision *ptr_K = new CoefficientPrecision[source_size0 * K->get_target_cluster().get_size()];
+            //     for (int j = 0; j < H->get_source_cluster().get_size(); ++j) {
+            //         for (int i = 0; i < target_size0; ++i) {
+            //             ptr_H[i + j * target_size0] = H_dense(i + target_offset - H->get_target_cluster().get_offset(), j);
+            //         }
+            //     }
+            //     for (int j = 0; j < source_size0; ++j) {
+            //         for (int i = 0; i < K->get_target_cluster().get_size(); ++i) {
+            //             ptr_K[i + j * K->get_target_cluster().get_size()] = K_dense(i + target_offset0 - H->get_target_cluster().get_offset(), j);
+            //         }
+            //     }
+            //     H_restr.assign(target_size0, H->get_source_cluster().get_size(), ptr_H, true);
+            //     K_restr.assign(K->get_target_cluster().get_size(), source_size0, ptr_K, true);
+            //     auto &target_children = H->get_target_cluster().get_children();
+            //     auto &source_children = K->get_source_cluster().get_children();
+            //     int flag_h            = 0;
+            //     int flag_k            = 0;
+            //     for (int k = 0; k < target_children.size(); ++k) {
+            //         auto &child = target_children[k];
+            //         if ((child->get_size() == target_size0) and (child->get_offset() == target_offset0)) {
+            //             flag_h = k;
+            //         }
+            //     }
+            //     for (int k = 0; k < source_children.size(); ++k) {
+            //         auto &child = source_children[k];
+            //         if ((child->get_size() == source_size0) and (child->get_offset() == source_offset0)) {
+            //             flag_h = k;
+            //         }
+            //     }
+            //     DenseGenerator<CoefficientPrecision> mat_H(H_restr);
+            //     DenseGenerator<CoefficientPrecision> mat_K(K_restr);
+            //     //   std::shared_ptr<Cluster<CoordinatePrecision>> target_cluster = std::make_shared<Cluster<CoordinatePrecision>>(target_children[flag_h]);
+            //     //   std::shared_ptr<Cluster<CoordinatePrecision>> source_cluster = std::make_shared<Cluster<CoordinatePrecision>>(source_children[flag_k]);
+            //     //   std::shared_ptr<Cluster<CoordinatePrecision>> mid_cluster    = std::make_shared<Cluster<CoordinatePrecision>>(H->get_source_cluster());
+
+            //     auto &source    = source_children[flag_k];
+            //     auto source_ptr = std::shared_ptr<const htool::Cluster<CoordinatePrecision>>(source.get(), [](htool::Cluster<CoordinatePrecision> *p) {});
+            //     auto &target    = target_children[flag_h];
+            //     auto target_ptr = std::shared_ptr<const htool::Cluster<CoordinatePrecision>>(target.get(), [](htool::Cluster<CoordinatePrecision> *p) {});
+            //     auto mid_ptr    = std::shared_ptr<const htool::Cluster<CoordinatePrecision>>(&H->get_source_cluster(), [](const htool::Cluster<CoordinatePrecision> *p) {});
+
+            //     HMatrixType H_k(target_ptr, mid_ptr);
+            //     H_k.compute_dense_data(mat_H);
+            //     HMatrixType K_k(mid_ptr, source_ptr);
+            //     H_k.compute_dense_data(mat_K);
+            //     sh.push_back(&H_k);
+            //     sh.push_back(&K_k);
+            //     // }
+            // }
         }
         SumExpression res(sr, sh, target_size0, target_offset0, source_size0, source_offset0);
         return res;
@@ -292,7 +298,8 @@ class SumExpression : public VirtualGenerator<CoefficientPrecision> {
     // //// EVALUATE
     // //////////////////////////////////////////////
 
-    Matrix<CoefficientPrecision> Evaluate() {
+    Matrix<CoefficientPrecision>
+    Evaluate() {
         Matrix<CoefficientPrecision> res(target_size, source_size);
         for (int k = 0; k < Sr.size() / 2; ++k) {
             auto H = Sr[2 * k];
