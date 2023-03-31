@@ -17,3 +17,8 @@ add_subdirectory(hmatrix_product)
 add_custom_target(build-tests-hmatrix-hmatrix-product)
 add_dependencies(build-tests-hmatrix build-tests-hmatrix-hmatrix-product)
 add_subdirectory(hmatrix_hmatrix_product)
+
+add_executable(Test_compression_freefem test_compression_freefem.cpp)
+target_link_libraries(Test_compression_freefem htool)
+add_test(Test_compression_freefem Test_compression_freefem)
+

@@ -155,6 +155,12 @@ class LowRankMatrix {
 
         return os;
     }
+
+    LowRankMatrix lrmult(const LowRankMatrix *B) {
+        auto U = m_U;
+        auto V = m_V * (B->Get_U()) * (B->Get_V());
+        return LowRankMatrix(U, V);
+    }
 };
 
 template <typename CoefficientPrecision, typename CoordinatePrecision>
