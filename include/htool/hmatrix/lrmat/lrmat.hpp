@@ -35,7 +35,7 @@ class LowRankMatrix {
         }
     };
     // Je rajoute ce constructeur ppour moi -> on lui donne la décomposition UV
-    LowRankMatrix(const Matrix<CoefficientPrecision>& U , const Matrix<CoefficientPrecision>& V): m_rank(U.nb_cols()), m_number_of_rows(U.nb_rows()) , m_number_of_columns(V.nb_cols()), m_U(U), m_V(V){}
+    LowRankMatrix(const Matrix<CoefficientPrecision> &U, const Matrix<CoefficientPrecision> &V) : m_rank(U.nb_cols()), m_number_of_rows(U.nb_rows()), m_number_of_columns(V.nb_cols()), m_U(U), m_V(V) {}
     // Getters
     int nb_rows() const { return m_number_of_rows; }
     int nb_cols() const { return m_number_of_columns; }
@@ -43,10 +43,10 @@ class LowRankMatrix {
 
     CoefficientPrecision get_U(int i, int j) const { return m_U(i, j); }
     CoefficientPrecision get_V(int i, int j) const { return m_V(i, j); }
-    //Je rajoute ca pour avoir U et V en entier
+    // Je rajoute ca pour avoir U et V en entier
     ///////////////////////////////////////////
-    Matrix<CoefficientPrecision> Get_U() const {return m_U;}
-    Matrix<CoefficientPrecision> Get_V() const {return m_V;}
+    Matrix<CoefficientPrecision> Get_U() const { return m_U; }
+    Matrix<CoefficientPrecision> Get_V() const { return m_V; }
     ///////////////////////////////////////////
     void assign_U(int i, int j, CoefficientPrecision *ptr) { return m_U.assign(i, j, ptr); }
     void assign_V(int i, int j, CoefficientPrecision *ptr) { return m_V.assign(i, j, ptr); }
@@ -154,6 +154,12 @@ class LowRankMatrix {
         os << m.m_V << std::endl;
 
         return os;
+    }
+
+    LowRankMatrix lrmult(const LowRankMatrix *B) {
+        auto U = m_U;
+        auto V = m_V * (B->Get_U()) * (B->Get_V());
+        return LowRankMatrix(U, V);
     }
 };
 

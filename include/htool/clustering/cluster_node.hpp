@@ -4,6 +4,7 @@
 #include "../basic_types/tree.hpp"
 #include "../misc/user.hpp"
 #include "cluster_tree_data.hpp"
+#include <algorithm>
 #include <functional>
 #include <memory>
 #include <numeric>
@@ -23,6 +24,8 @@ class Cluster : public TreeNode<Cluster<CoordinatesPrecision>, ClusterTreeData<C
     int m_offset;                                 // Offset of the current cluster in the global numbering
     int m_size;                                   // number of geometric points
     int m_counter;                                // numbering of the nodes level-wise
+    std::vector<CoordinatesPrecision> convection;
+    CoordinatesPrecision alpha;
 
   public:
     // Root constructor
@@ -184,6 +187,35 @@ void local_to_local_cluster(const Cluster<CoordinatesPrecision> &cluster, int in
         out[i] = in[permutation[cluster_on_partition->get_offset() + i] - cluster_on_partition->get_offset()];
     }
 }
+
+// template <typename CoefficientPrecision, typename CoordinatesPrecision = CoefficientPrecision, class SplittingStrategy>
+// std::pair<Cluster<CoordinatesPrecision>, Cluster<CoordinatesPrecision>> leborne_split(Cluster<CoordinatesPrecision> root, std::vector<CoordinatesPrecision> direction) {
+//     std::sort(root->m_tree_data->permutation.begin() + root->m_tree_data->current_offset, root->m_tree_data->permutation.begin() + root->m_tree_data->current_offset + root->m_tree_data->current_size, [&](int a, int b) {
+//         CoefficientPrecision c = std::inner_product(root->m_tree_data->m_coordinates + root->m_tree_data->m_spatial_dimension * a, root->m_tree_data->m_coordinates + root->m_tree_data->m_spatial_dimension * (1 + a), direction.data(), CoordinatesPrecision(0));
+//         CoefficientPrecision d = std::inner_product(root->m_tree_data->m_coordinates + root->m_tree_data->m_spatial_dimension * b, root->m_tree_data->m_coordinates + root->m_tree_data->m_spatial_dimension * (1 + b), direction.data(), CoordinatesPrecision(0));
+//         return c < d;
+//     });
+
+//     // Compute numbering
+//     SplittingStrategy::splitting(root->m_tree_data->current_cluster, root->m_tree_data->permutation, root->m_tree_data->m_spatial_dimension, root->m_tree_data->m_coordinates, root->m_tree_data->current_number_of_children, root->m_tree_data->m_minclustersize, direction, root->m_tree_data->current_splitting);
+//     std::vector<Cluster<CoordinatesPrecision> *> children;
+//     for (int p = 0; p < 2; p++) {
+//         std::vector<CoordinatesPrecision> center = compute_center(root->m_tree_data->current_splitting[p].first, root->m_tree_data->current_splitting[p].second, root->m_tree_data->permutation.data());
+//         std::vector<CoordinatesPrecision> radius = compute_radius(root->m_tree_data->center, root->m_tree_data->current_splitting[p].first, root->m_tree_data->current_splitting[p].second, root->m_tree_data->permutation.data());
+
+//         int rank_of_child = root->m_tree_data->current_cluster->get_rank();
+//         if ((root->m_tree_data->current_cluster->get_depth() == 0)) {
+//             rank_of_child                            = p;
+//             root->m_tree_data->is_child_on_partition = true;
+//         }
+//         children.emplace_back(root->m_tree_data->current_cluster->add_child(radius, center, rank_of_child, root->m_tree_data->current_splitting[p].first, root->m_tree_data->current_splitting[p].second, root->m_tree_data->current_cluster->get_counter() * root->m_tree_data->current_number_of_children + p, root->m_tree_data->is_child_on_partition));
+//     }
+
+//     // Recursivity
+//     for (auto &child : children) {
+//         root->m_tree_data->cluster_stack.push(child);
+//     }
+// }
 
 } // namespace htool
 #endif

@@ -58,6 +58,7 @@ class ClusterTreeBuilder {
 
     void set_minclustersize(int minclustersize) { m_minclustersize = minclustersize; };
     Cluster<T> create_cluster_tree();
+    Cluster<T> create_directional_tree();
 };
 
 template <typename T, class DirectionComputationStrategy, class SplittingStrategy>
