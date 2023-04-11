@@ -164,9 +164,8 @@ int main() {
     //     // hmatrix_normal_builder.set_admissibility_condition(directional_admissibility10);
     //     b10[0] = 1;
     //     MatGenerator<double, double> M10(1970, 1970, *root_normal, *root_normal, file_name10);
-    ////////////////////////////////
-    // pour test avec boucles
-    //////////////////////////////////
+
+    /// TESTS POUR ANI
     std::vector<double> error10;
     std::vector<double> error11;
     std::vector<double> compression10;
@@ -181,25 +180,111 @@ int main() {
     double eta     = 10;
     double epsilon = 0.0001;
 
-    string path10         = "/work/sauniear/Documents/matrice_test/FreeFem Data/Regulier/Vertices1970/inv_Vertices1970_reg_b10_esp";
-    string path11         = "/work/sauniear/Documents/matrice_test/FreeFem Data/Regulier/Vertices1970/inv_Vertices1970_reg_b11_esp";
-    int pow_eps           = 0;
-    string eps            = to_string(pow_eps);
-    string file_name10    = path10 + eps + ".txt";
+    string path10 = "/work/sauniear/Documents/matrice_test/FreeFem Data/Regulier/Vertices1970/inv_Vertices1970_reg_b10_esp";
+    string path11 = "/work/sauniear/Documents/matrice_test/FreeFem Data/Regulier/Vertices1970/inv_Vertices1970_reg_b11_esp";
+    // int pow_eps           = 0;
+    // string eps            = to_string(pow_eps);
+    // string file_name10    = path10 + eps + ".txt";
     vector<double> points = to_mesh("/work/sauniear/Documents/matrice_test/FreeFem Data/Regulier/Vertices1970/mesh_reg_vertices1970.txt");
-    ClusterTreeBuilder<double, ComputeLargestExtent<double>, RegularSplitting<double>> normal_build(points.size() / 3, 3, points.data(), 2, 2);
-    std::shared_ptr<Cluster<double>> root_normal = make_shared<Cluster<double>>(normal_build.create_cluster_tree());
-    MatGenerator<double, double> M(root_normal->get_size(), root_normal->get_size(), *root_normal, *root_normal, file_name10);
-    HMatrixTreeBuilder<double, double> hmatrix_builder(root_normal, root_normal, epsilon, eta, 'N', 'N');
-    auto hmatrix(hmatrix_builder.build(M));
-    Matrix<double> reference = M.get_perm_mat();
-    Matrix<double> test(root_normal->get_size(), root_normal->get_size());
-    copy_to_dense(hmatrix, test.data());
-    std::cout << "error" << std::endl;
-    std::cout << normFrob(test - reference) / normFrob(reference) << std::endl;
+    // ClusterTreeBuilder<double, ComputeLargestExtent<double>, RegularSplitting<double>> normal_build(points.size() / 3, 3, points.data(), 2, 2);
+    // std::shared_ptr<Cluster<double>> root_normal = make_shared<Cluster<double>>(normal_build.create_cluster_tree());
+    // MatGenerator<double, double> M(root_normal->get_size(), root_normal->get_size(), *root_normal, *root_normal, file_name10);
+    // HMatrixTreeBuilder<double, double> hmatrix_builder(root_normal, root_normal, epsilon, eta, 'N', 'N');
+    // auto hmatrix(hmatrix_builder.build(M));
+    // Matrix<double> reference = M.get_perm_mat();
+    // Matrix<double> test(root_normal->get_size(), root_normal->get_size());
+    // copy_to_dense(hmatrix, test.data());
+    // std::cout << "error" << std::endl;
+    // std::cout << normFrob(test - reference) / normFrob(reference) << std::endl;
+
+    // TEST DIRECTIONAL PLUS
+    for (int k = 0; k < 6; ++k) {
+        int pow_eps        = k;
+        string eps         = to_string(pow_eps);
+        string file_name10 = path10 + eps + ".txt";
+        string file_name11 = path11 + eps + ".txt";
+        std::vector<double> b10(3, 0.0);
+        b10[0] = 1;
+        std::vector<double> b11(3, 0.0);
+        b11[0] = 1;
+        b11[1] = 1;
+        ClusterTreeBuilder<double, ComputeLargestExtent<double>, RegularSplitting<double>> normal_build(points.size() / 3, 3, points.data(), 2, 2);
+        std::shared_ptr<Cluster<double>> root_normal = make_shared<Cluster<double>>(normal_build.create_cluster_tree());
+        MatGenerator<double, double> M10(root_normal->get_size(), root_normal->get_size(), *root_normal, *root_normal, file_name10);
+        MatGenerator<double, double> M11(root_normal->get_size(), root_normal->get_size(), *root_normal, *root_normal, file_name11);
+        HMatrixTreeBuilder<double, double> hmatrix_builder(root_normal, root_normal, epsilon, eta, 'N', 'N');
+
+        // ICI ON CHOISIT LA CONDITION D'ADMISSIBILITE
+        std::shared_ptr<directional_plus<double>> directional_10 = std::make_shared<directional_plus<double>>(b10);
+        std::shared_ptr<directional_plus<double>> directional_11 = std::make_shared<directional_plus<double>>(b11);
+
+        // build H10
+        hmatrix_builder.set_admissibility_condition(directional_10);
+        auto H10(hmatrix_builder.build(M10));
+
+        // reference
+        Matrix<double> reference10 = M10.get_perm_mat();
+        Matrix<double> test10(root_normal->get_size(), root_normal->get_size());
+        copy_to_dense(H10, test10.data());
+
+        double er10              = normFrob(test10 - reference10) / normFrob(reference10);
+        double compr10           = H10.get_compression();
+        std::vector<double> rk10 = H10.get_rank_info();
+        // build H11
+        hmatrix_builder.set_admissibility_condition(directional_11);
+
+        auto H11(hmatrix_builder.build(M11));
+
+        Matrix<double> reference11 = M11.get_perm_mat();
+        Matrix<double> test11(root_normal->get_size(), root_normal->get_size());
+        copy_to_dense(H11, test11.data());
+        double er11              = normFrob(test11 - reference11) / normFrob(reference11);
+        double compr11           = H11.get_compression();
+        std::vector<double> rk11 = H11.get_rank_info();
+
+        error10.push_back(er10);
+        compression10.push_back(compr10);
+        rank10.push_back(rk10);
+        error11.push_back(er11);
+        compression11.push_back(compr11);
+        rank11.push_back(rk11);
+    }
+    std::cout << "info 10" << std::endl;
+    std::cout << "error : " << std::endl;
+    for (int k = 0; k < error10.size(); ++k) {
+        std::cout << error10[k] << ',';
+    }
+    std::cout << std::endl;
+    std::cout << "compression : " << std::endl;
+    for (int k = 0; k < compression10.size(); ++k) {
+        std::cout << compression10[k] << ',';
+    }
+    std::cout << std::endl;
+    std::cout << "rank : " << std::endl;
+    for (int k = 0; k < rank10.size(); ++k) {
+        auto rk = rank10[k];
+        std::cout << '[' << rk[0] << ',' << rk[1] << ',' << rk[2] << ']' << ',';
+    }
+
+    std::cout << "info 11" << std::endl;
+    std::cout << "error : " << std::endl;
+    for (int k = 0; k < error11.size(); ++k) {
+        std::cout << error11[k] << ',';
+    }
+    std::cout << std::endl;
+    std::cout << "compression : " << std::endl;
+    for (int k = 0; k < compression11.size(); ++k) {
+        std::cout << compression11[k] << ',';
+    }
+    std::cout << std::endl;
+    std::cout << "rank : " << std::endl;
+    for (int k = 0; k < rank11.size(); ++k) {
+        auto rk = rank11[k];
+        std::cout << '[' << rk[0] << ',' << rk[1] << ',' << rk[2] << ']' << ',';
+    }
 
     // Hmult
-    HMatrix<double, double> L = hmatrix.hmatrix_product(hmatrix);
+    // HMatrix<double, double> L = hmatrix.hmatrix_product(hmatrix);
     // for (int kk = 0; kk < 6; ++kk) {
 
     //     ///// tests pour les générateurs et la lecture du maillage

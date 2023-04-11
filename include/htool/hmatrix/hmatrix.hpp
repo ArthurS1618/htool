@@ -83,7 +83,7 @@ class HMatrix : public TreeNode<HMatrix<CoefficientPrecision, CoordinatePrecisio
     threaded_hierarchical_add_vector_product(char trans, CoefficientPrecision alpha, const CoefficientPrecision *in, CoefficientPrecision beta, CoefficientPrecision *out) const;
     void threaded_hierarchical_add_matrix_product_row_major(char trans, CoefficientPrecision alpha, const CoefficientPrecision *in, CoefficientPrecision beta, CoefficientPrecision *out, int mu) const;
 
-    void recursive_build_hmatrix_product(SumExpression<CoefficientPrecision, CoordinatePrecision> &sum_expr);
+    void recursive_build_hmatrix_product(const SumExpression<CoefficientPrecision, CoordinatePrecision> &sum_expr);
 
   public:
     // Root constructor
@@ -273,19 +273,29 @@ class HMatrix : public TreeNode<HMatrix<CoefficientPrecision, CoordinatePrecisio
 
     // routine por mult Hmat/lrmat ou lrmat Hmat
 
-    Matrix<CoefficientPrecision> mult(Matrix<CoefficientPrecision> B, char C) {
+    const Matrix<CoefficientPrecision> mult(const Matrix<CoefficientPrecision> &B, char C) const {
         // bon c'est vraiment affreux mais je comprend pas comment utiliser mult  , ce cas ca sert a faire Hmat*lrmat en faisant Hmat*mat*mat
         Matrix<CoefficientPrecision> res;
+        std::cout << "hoho" << std::endl;
         if (C == 'N') {
             Matrix<CoefficientPrecision> H_dense(this->get_target_cluster().get_size(), this->get_source_cluster().get_size());
             auto &H = *this;
+            // add_matrix_product_row_major('N', 1, B.data(), 1, Coefficient, 1);
+            // void add_matrix_product_row_major(char trans, CoefficientPrecision alpha, CoefficientPrecision *in, CoefficientPrecision 0, CoefficientPrecision *res.data(), int 1);
             copy_to_dense(H, H_dense.data());
-            res = H_dense * B;
+            res.assign(H_dense.nb_rows(), B.nb_cols(), (H_dense * B).data(), true);
+            // res = H_dense * B;
         } else {
+            std::cout << "héhé 1" << std::endl;
             Matrix<CoefficientPrecision> H_dense(this->get_target_cluster().get_size(), this->get_source_cluster().get_size());
+            std::cout << "héhé 2" << std::endl;
             auto &H = *this;
+            std::cout << "héhé 3" << std::endl;
             copy_to_dense(H, H_dense.data());
-            res = B * H_dense;
+            std::cout << "héhé 4" << std::endl;
+            res.assign(B.nb_rows(), H_dense.nb_cols(), (B * H_dense).data(), true);
+            std::cout << "héhé 5" << std::endl;
+            // res = B * H_dense;
         }
         return res;
     }
@@ -1112,29 +1122,70 @@ HMatrix<CoefficientPrecision, CoordinatePrecision> HMatrix<CoefficientPrecision,
 }
 
 template <typename CoefficientPrecision, typename CoordinatePrecision>
-void HMatrix<CoefficientPrecision, CoordinatePrecision>::recursive_build_hmatrix_product(SumExpression<CoefficientPrecision, CoordinatePrecision> &sum_expr) {
-    std::cout << "recursif build " << std::endl;
+void HMatrix<CoefficientPrecision, CoordinatePrecision>::recursive_build_hmatrix_product(const SumExpression<CoefficientPrecision, CoordinatePrecision> &sum_expr) {
+    // std::cout << "recursif build " << std::endl;
+    // std::cout << "rec build" << std::endl;
+    // std::cout << "appel de recursiv build sur " << this->get_target_cluster().get_size() << ',' << this->get_source_cluster().get_size() << std::endl;
     auto &target_cluster  = this->get_target_cluster();
     auto &source_cluster  = this->get_source_cluster();
     auto &target_children = target_cluster.get_children();
     auto &source_children = source_cluster.get_children();
-
+    // if (sum_expr.get_sr().size() > 0) {
+    //     std::cout << "ici   !!!!   " << sum_expr.get_sr()[0].nb_rows() << ',' << sum_expr.get_sr()[0].nb_cols() << ',' << sum_expr.get_sr()[1].nb_rows() << ',' << sum_expr.get_sr()[1].nb_cols() << std::endl;
+    // }
     // critère pour descendre : on est sur une feuille ou pas:
     bool admissible    = this->m_tree_data->m_admissibility_condition->ComputeAdmissibility(target_cluster, source_cluster, 10);
     auto test_restrict = sum_expr.is_restrictible();
     if (admissible) {
+        // std::cout << "======================================" << std::endl;
+        //  std::cout << "info sr " << std::endl;
+        auto sr = sum_expr.get_sr();
+        // std::cout << "sr ok" << std::endl;
+        //  for (int k = 0; k < sr.size() / 2; ++k) {
+        //      std::cout << k << '/' << sr.size() / 2 << std::endl;
+        //      auto u = sr[2 * k];
+        //      auto v = sr[2 * k + 1];
+        //      std::cout << u.nb_rows() << ',' << u.nb_cols() << ',' << v.nb_rows() << ',' << v.nb_cols() << std::endl;
+        //      std::cout << normFrob(u * v) << std::endl;
+        //  }
+        auto sh = sum_expr.get_sh();
+        // std::cout << "sh ok" << std::endl;
+        //  for (int i = 0; i < sh.size() / 2; ++i) {
+        //      //     auto &h = sh[2 * i];
+        //      //     auto &k = sh[2 * i + 1];
+        //      //     Matrix<CoefficientPrecision> hh(h->get_target_cluster().get_size(), h->get_source_cluster().get_size());
+        //      //     Matrix<CoefficientPrecision> kk(k->get_target_cluster().get_size(), k->get_source_cluster().get_size());
+        //      //     copy_to_dense(*h, hh.data());
+        //      //     copy_to_dense(*k, kk.data());
+        //      //     std::cout << "size : " << hh.nb_rows() << ',' << hh.nb_cols() << ',' << kk.nb_rows() << ',' << kk.nb_cols() << std::endl;
+        //      //     std::cout << "offset" << h->get_target_cluster().get_offset() << ',' << h->get_source_cluster().get_offset() << ',' << k->get_target_cluster().get_offset() << ',' << k->get_source_cluster().get_offset() << std::endl;
+        //      //     std::cout << "norme " << normFrob(hh * kk) << std::endl;
+        //  }
+        //  std::cout << "sum_expr ok" << std::endl;
+        // for (int k = 0; k < this->get_target_cluster().get_size(); ++k) {
+        //     for (int l = 0; l < this->get_source_cluster().get_size(); ++l) {
+        //         std::cout << sum_expr.get_coeff(k, l) << ',';
+        //     }
+        //     std::cout << std::endl;
+        // }
         this->compute_dense_data(sum_expr);
     } else if ((target_children.size() == 0) and (source_children.size() == 0)) {
         this->compute_dense_data(sum_expr);
     } else {
         if ((target_children.size() > 0) and (source_children.size() > 0)) {
-            std::cout << "H mat Hmat " << std::endl;
+            // std::cout << "H mat Hmat " << std::endl;
             if ((test_restrict[0] == 0) and (test_restrict[1] == 0)) {
                 for (const auto &target_child : target_children) {
                     for (const auto &source_child : source_children) {
                         // On veut spliter en ligne et en colonne -> il faut qu'il y ait aucun bloc dense dans Sh
                         HMatrix<CoefficientPrecision, CoordinatePrecision> *hmatrix_child  = this->add_child(target_child.get(), source_child.get());
                         SumExpression<CoefficientPrecision, CoordinatePrecision> sum_restr = sum_expr.Restrict(target_child->get_size(), target_child->get_offset(), source_child->get_size(), source_child->get_offset());
+                        // if (sum_expr.get_sr().size() > 0) {
+                        //     std::cout << "ici !      " << sum_expr.get_sr()[0].nb_rows() << ',' << sum_expr.get_sr()[0].nb_cols() << ',' << sum_expr.get_sr()[1].nb_rows() << ',' << sum_expr.get_sr()[1].nb_cols() << std::endl;
+                        // }
+                        // if (sum_restr.get_sr().size() > 0) {
+                        //     std::cout << "ici      " << sum_restr.get_sr()[0].nb_rows() << ',' << sum_restr.get_sr()[0].nb_cols() << ',' << sum_restr.get_sr()[1].nb_rows() << ',' << sum_restr.get_sr()[1].nb_cols() << std::endl;
+                        // }
                         hmatrix_child->recursive_build_hmatrix_product(sum_restr);
                     }
                 }
@@ -1144,7 +1195,7 @@ void HMatrix<CoefficientPrecision, CoordinatePrecision>::recursive_build_hmatrix
         }
 
         else if ((target_children.size() == 0) and (source_children.size() > 0)) {
-            std::cout << "cas 2 " << std::endl;
+            // std::cout << "cas 2 " << std::endl;
             if (test_restrict[1] == 0) {
                 for (const auto &source_child : source_children) {
 

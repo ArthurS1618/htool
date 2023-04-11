@@ -45,8 +45,8 @@ class LowRankMatrix {
     CoefficientPrecision get_V(int i, int j) const { return m_V(i, j); }
     // Je rajoute ca pour avoir U et V en entier
     ///////////////////////////////////////////
-    Matrix<CoefficientPrecision> Get_U() const { return m_U; }
-    Matrix<CoefficientPrecision> Get_V() const { return m_V; }
+    const Matrix<CoefficientPrecision> Get_U() const { return m_U; }
+    const Matrix<CoefficientPrecision> Get_V() const { return m_V; }
     ///////////////////////////////////////////
     void assign_U(int i, int j, CoefficientPrecision *ptr) { return m_U.assign(i, j, ptr); }
     void assign_V(int i, int j, CoefficientPrecision *ptr) { return m_V.assign(i, j, ptr); }
