@@ -52,13 +52,56 @@ bool test_hmatrix_hmatrix_product(int size_1, int size_2, int size_3, htool::und
     // build
     auto root_hmatrix_21 = hmatrix_tree_builder_21.build(generator_21);
     auto root_hmatrix_32 = hmatrix_tree_builder_32.build(generator_32);
+    // auto leaf            = root_hmatrix_21.get_leaves();
+    // std::vector<const HMatrix<T, htool::underlying_type<T>> *> lowrank;
+    // std::vector<const HMatrix<T, htool::underlying_type<T>> *> hmat;
+    // std::vector<const LowRankMatrix<T, htool::underlying_type<T>> *> vect_lr;
+    // std::cout << leaf.size() << std::endl;
+    // for (int k = 0; k < leaf.size(); ++k) {
+    //     auto &l = leaf[k];
+    //     if (l->is_low_rank()) {
+    //         lowrank.push_back(l);
+    //         auto lr = l->get_low_rank_data();
+    //         vect_lr.push_back(lr);
+    //     } else {
+    //         hmat.push_back(l);
+    //     }
+    // }
+
+    // auto &H_children = root_hmatrix_21.get_children();
+    // for (int k = 0; k < H_children.size(); ++k) {
+    //     auto &Hk = H_children[k];
+    //     std::cout << Hk->get_target_cluster().get_size() << ',' << Hk->get_source_cluster().get_size() << std::endl;
+    // }
+    // SumExpression<T, htool::underlying_type<T>> sumexpr(&root_hmatrix_21, &root_hmatrix_21);
+    // auto srestr = sumexpr.Restrict(100, 0, 100, 0);
+    // std::cout << srestr.get_sh().size() << ',' << srestr.get_sr().size() << std::endl;
+    // auto srestr1 = srestr.Restrict(50, 0, 50, 0);
+    // std::cout << srestr1.get_sh().size() << ',' << srestr1.get_sr().size() << std::endl;
+    // auto ssr = srestr1.get_sr();
+    // auto lr  = ssr[0];
+    // std::cout << lr->nb_rows() << ',' << lr->nb_cols() << ',' << lr->rank_of() << std::endl;
+    // auto srestr2 = srestr1.Restrict(25, 0, 25, 0);
+    // std::cout << srestr2.get_sh().size() << ',' << srestr2.get_sr().size() << std::endl;
+    // auto sssr = srestr2.get_sr();
+    // for (int k = 0; k < sssr.size(); ++k) {
+    //     auto lllr = sssr[k];
+    //     std::cout << lllr->nb_rows() << ',' << lllr->nb_cols() << ',' << lllr->rank_of() << std::endl;
+    // }
+
+    SumExpression<T, htool::underlying_type<T>> stest(&root_hmatrix_32, &root_hmatrix_21);
+    std::cout << stest.get_coeff(3, 8) << ',' << reference_dense_matrix(3, 8) << std::endl;
+    std::cout << stest.get_coeff(3, 8) << std::endl;
+    // //////////////////////////////////////
     auto root_hmatrix_31 = root_hmatrix_32.hmatrix_product(root_hmatrix_21);
 
     // Compute error
     Matrix<T> hmatrix_to_dense_31(root_hmatrix_31.get_target_cluster().get_size(), root_hmatrix_31.get_source_cluster().get_size());
     copy_to_dense(root_hmatrix_31, hmatrix_to_dense_31.data());
+    std::cout << "?????" << std::endl;
     std::cout << normFrob(reference_dense_matrix - hmatrix_to_dense_31) / normFrob(reference_dense_matrix) << "\n";
 
+    ////////////////////////////////////////////////////////////////
     // Matrix<T> hmatrix_to_dense_21(root_hmatrix_21.get_target_cluster().get_size(), root_hmatrix_21.get_source_cluster().get_size()), hmatrix_to_dense_32(root_hmatrix_32.get_target_cluster().get_size(), root_hmatrix_32.get_source_cluster().get_size());
     // copy_to_dense(root_hmatrix_21, hmatrix_to_dense_21.data());
     // copy_to_dense(root_hmatrix_32, hmatrix_to_dense_32.data());

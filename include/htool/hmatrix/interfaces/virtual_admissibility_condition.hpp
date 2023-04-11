@@ -188,6 +188,82 @@ class directional_plus final : public VirtualAdmissibilityCondition<CoordinatePr
 };
 
 // template <typename CoordinatePrecision>
+// class vrai_directional final : public VirtualAdmissibilityCondition<CoordinatePrecision> {
+//   private:
+//     std::vector<CoordinatePrecision> convection;
+//     std::vector<CoordinatePrecision> points;
+
+//   public:
+//     vrai_directional(std::vector<CoordinatePrecision> &convection0) { convection = convection0; }
+//     bool ComputeAdmissibility(const Cluster<CoordinatePrecision> &target, const Cluster<CoordinatePrecision> &source, double eta) const override {
+//         std::vector<std::vector<CoordinatePrecision>> Perp(convection.size() - 1);
+//         bool admissible_directional;
+//         if (convection.size() == 2) {
+//             std::vector<CoordinatePrecision> perp(2);
+//             perp[0] = -convection[1];
+//             perp[1] = convection[0];
+//             for (int i = 0; i < perp.size(); ++i) {
+//                 perp[i] = perp[i] / norm2(perp);
+//             }
+//             Perp[0] = perp;
+//         } else if (convection.size() == 3) {
+//             std::vector<CoordinatePrecision> perp1(3);
+//             std::vector<CoordinatePrecision> perp2(3);
+//             perp1[0] = -convection[0] * convection[2];
+//             perp1[1] = -convection[1] * convection[2];
+//             perp1[2] = convection[0] * convection[0] + convection[1] * convection[1];
+//             perp2[0] = -convection[1];
+//             perp2[1] = convection[0];
+//             for (int i = 0; i < perp1.size(); ++i) {
+//                 perp1[i] = perp1[i] / norm2(perp1);
+//                 perp2[i] = perp2[i] / norm2(perp2);
+//             }
+//             Perp[0] = perp1;
+//             Perp[1] = perp2;
+//         }
+//         auto direction = target.get_center() - source.get_center();
+//         double test    = 0.0;
+//         for (int k = 0; k < 3; ++k) {
+//             test += convection[k] * direction[k];
+//         }
+//         if (test > 0) {
+//             std::vector<CoordinatePrecision> projection(convection.size());
+//             for (int i = 0; i < Perp.size(); ++i) {
+//                 auto e_i  = Perp[i];
+//                 double dd = 0.0;
+//                 for (int kk = 0; kk < e_i.size(); ++kk) {
+//                     dd += (e_i[kk] * direction[kk]);
+//                 }
+//                 std::vector<CoordinatePrecision> temp(e_i.size());
+//                 for (int kk = 0; kk < e_i.size(); ++kk) {
+//                     temp[kk] = e_i[kk] * dd;
+//                 }
+//                 projection = projection + temp;
+//             }
+//             // calcul rayon:
+//             auto permutation = target.get_permutation();
+
+//             for (int k = 0; k < target.size(); ++k) {
+//                 std::vector<CoordinatePrecision> X(convection.size());
+//                 for (int i = 0; i < convection.size(); ++i) {
+//                     X[i] = points[convection.size() * permutation[k + cluster->get_offset()] + i];
+//                 }
+//                 for (int l = 0; l < convection.size(); ++l) {
+//                     std::vector<CoordinatePrecision> Y(convection.size());
+//                     for (int i = 0; i < convection.size(); ++i) {
+//                         Y[i] = points[convection.size() * permutation[k + cluster->get_offset()] + i];
+//                     }
+//                 }
+//             }
+//             admissible_directional = norm2(projection) > (target.get_radius() + source.get_radius());
+//         } else {
+//             admissible_directional = 2 * std::min(target.get_radius(), source.get_radius()) < eta * std::max((norm2(target.get_center() - source.get_center()) - target.get_radius() - source.get_radius()), 0.);
+//         }
+//         return (admissible_directional);
+//     }
+// };
+
+// template <typename CoordinatePrecision>
 // class directional_heavy final : public VirtualAdmissibilityCondition<CoordinatePrecision> {
 //   private:
 //     std::vector<CoordinatePrecision> convection;

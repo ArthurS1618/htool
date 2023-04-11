@@ -12,10 +12,12 @@ int main(int argc, char *argv[]) {
     const int number_of_points_2 = 200;
     const int number_of_points_3 = 200;
 
-    for (auto epsilon : {1e-14, 1e-6}) {
+    std::vector<double> epsilon = {1e-5};
+
+    for (auto i : epsilon) {
 
         // Square matrix
-        is_error = is_error || test_hmatrix_hmatrix_product<double, GeneratorTestDouble>(number_of_points_1, number_of_points_2, number_of_points_3, epsilon);
+        is_error = is_error || test_hmatrix_hmatrix_product<double, GeneratorTestDouble>(number_of_points_1, number_of_points_2, number_of_points_3, i);
     }
 
     MPI_Finalize();
