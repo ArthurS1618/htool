@@ -233,7 +233,700 @@ class HMatrix : public TreeNode<HMatrix<CoefficientPrecision, CoordinatePrecisio
     void add_matrix_product_row_major(char trans, CoefficientPrecision alpha, const CoefficientPrecision *in, CoefficientPrecision beta, CoefficientPrecision *out, int mu) const;
 
     HMatrix hmatrix_product(const HMatrix &B) const;
+    // trouver x tq Lx= y
+    // trouver x tqt Lx = y
 
+    // je voulais vraiment pas faire cette fonction mais on est obligé de pouvoir atteindre des blocs qui sont pas forcemment des blocs fils dans ForwardM du coup je vois pas d'autres solutions
+    HMatrix<CoefficientPrecision, CoordinatePrecision> *get_block(const int &szt, const int &szs, const int &oft, const int &ofs) const {
+        if ((this->get_target_cluster().get_size() == szt) && (this->get_target_cluster().get_offset() == oft) && (this->get_source_cluster().get_size() == szs) && (this->get_source_cluster().get_offset() == ofs)) {
+            return const_cast<HMatrix<CoefficientPrecision, CoordinatePrecision> *>(this);
+        } else {
+            for (auto &child : this->get_children()) {
+                auto &target_cluster = child->get_target_cluster();
+                auto &source_cluster = child->get_source_cluster();
+                if (((szt + (oft - child->get_target_cluster().get_offset()) <= child->get_target_cluster().get_size()) and (szt <= child->get_target_cluster().get_size()) and (oft >= child->get_target_cluster().get_offset()))
+                    and (((szs + (ofs - child->get_source_cluster().get_offset()) <= child->get_source_cluster().get_size()) and (szs <= child->get_source_cluster().get_size()) and (ofs >= child->get_source_cluster().get_offset())))) {
+                    return child->get_block(szt, szs, oft, ofs);
+                }
+            }
+        }
+        return nullptr;
+    }
+
+    // ca marche
+    void forward_substitution_extract(const Cluster<CoordinatePrecision> &t, std::vector<CoefficientPrecision> &y, std::vector<CoefficientPrecision> &x) const {
+        auto Lt = this->get_block(t.get_size(), t.get_size(), t.get_offset(), t.get_offset());
+
+        if (Lt->get_children().size() == 0) {
+            auto M = *(Lt->get_dense_data());
+            for (int j = t.get_offset(); j < t.get_offset() + t.get_size(); ++j) {
+                x[j] = y[j];
+                for (int i = j + 1; i < t.get_offset() + t.get_size(); ++i) {
+                    y[i] = y[i] - M(i - t.get_offset(), j - t.get_offset()) * x[j];
+                }
+            }
+        } else {
+            for (auto &ti : Lt->get_target_cluster().get_children()) {
+                this->forward_substitution_extract(*ti, y, x);
+                for (auto &tj : Lt->get_target_cluster().get_children()) {
+                    if (tj->get_offset() > ti->get_offset()) {
+                        auto Lij = this->get_block(tj->get_size(), ti->get_size(), tj->get_offset(), ti->get_offset());
+                        std::vector<CoefficientPrecision> y_temp(tj->get_size(), 0.0);
+                        for (int k = 0; k < tj->get_size(); ++k) {
+                            y_temp[k] = y[k + tj->get_offset()];
+                        }
+                        std::vector<CoefficientPrecision> yy(tj->get_size(), 0.0);
+                        std::vector<CoefficientPrecision> x_temp(ti->get_size());
+                        for (int l = 0; l < ti->get_size(); ++l) {
+                            x_temp[l] = x[l + ti->get_offset()];
+                        }
+                        Lij->add_vector_product('N', 1.0, x_temp.data(), 0.0, yy.data());
+                        for (int k = 0; k < tj->get_size(); ++k) {
+                            y[k + tj->get_offset()] = y[k + tj->get_offset()] - yy[k];
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // void backward_substitution_extract(const Cluster<CoordinatePrecision> &t, std::vector<CoefficientPrecision> &y, std::vector<CoefficientPrecision> &x) {
+    //     auto Ut = this->get_block(t.get_size(), t.get_size(), t.get_offset(), t.get_offset());
+    //     if (Ut->get_children().size() == 0) {
+    //         auto M = *(Ut->get_dense_data());
+    //         for (int jj = t.get_size() - 1; jj >= 0; --jj) {
+    //             x[t.get_offset() + jj] = y[t.get_offset() + jj] / M(jj, jj);
+    //             for (int i = t.get_offset(); i < t.get_offset() + jj; ++i) {
+    //                 y[i] = y[i] - M(i - t.get_offset(), jj) * x[t.get_offset() + jj];
+    //             }
+    //         }
+    //     } else {
+    //         auto child = Ut->get_target_cluster().get_children();
+    //         std::vector<Cluster<CoordinatePrecision> *> Child;
+    //         Child.reserve(child.size());
+    //         for (const auto &ptr : child) {
+    //             Child.push_back(ptr.get());
+    //         }
+    //         for (auto &ti : child) {
+    //             for (auto ti = child.rbegin(); ti != child.rend(); ++ti) {
+    //                 for (int i = Child.size() - 1; i >= 0; --i) {
+    //                     auto ti = Child[i];
+
+    //                     for (auto &ti = Ut->get_target_cluster().get_children().rbegin(); ti != Ut->get_target_cluster().get_children().rend(); ++ti) {
+    //                         this->backward_substitution_extract(*ti, y, x);
+    //                         for (auto &tj : Ut->get_target_cluster().get_children()) {
+    //                             if (tj->get_offset() < ti->get_offset()) {
+    //                                 std::vector<CoefficientPrecision> ytemp(tj->get_size(), 0.0);
+    //                                 for (int k = 0; k < tj->get_size(); ++k) {
+    //                                     ytemp[k] = y[k + tj->get_offset()];
+    //                                 }
+    //                                 std::vector<CoefficientPrecision> xtemp(ti->get_size(), 0.0);
+    //                                 for (int l = 0; l < ti->get_size(); ++l) {
+    //                                     std::cout << "ici" << x[l + ti->get_offset()] << std::endl;
+    //                                     xtemp[l] = x[l + ti->get_offset()];
+    //                                 }
+    //                                 std::vector<CoefficientPrecision> yy(tj->get_size(), 0.0);
+    //                                 auto Uts = this->get_block(tj->get_size(), ti->get_size(), tj->get_offset(), ti->get_offset());
+    //                                 Uts->add_vector_product('N', 1.0, xtemp.data(), 0.0, yy.data());
+    //                                 for (int k = 0; k < tj->get_size(); ++k) {
+    //                                     y[k + tj->get_offset()] = y[k + tj->get_offset()] - yy[k];
+    //                                 }
+    //                             }
+    //                         }
+    //                     }
+    //                 }
+    //             }
+
+    void backward_substitution_extract(const int &szt, const int &oft, std::vector<CoefficientPrecision> &y, std::vector<CoefficientPrecision> &x) const {
+        auto Ut = this->get_block(szt, szt, oft, oft);
+        if (Ut->get_children().size() == 0) {
+            auto M = *(Ut->get_dense_data());
+            for (int jj = szt - 1; jj >= 0; --jj) {
+                x[oft + jj] = y[oft + jj] / M(jj, jj);
+                for (int i = oft; i < oft + jj; ++i) {
+                    y[i] = y[i] - M(i - oft, jj) * x[oft + jj];
+                }
+            }
+        } else {
+            std::vector<int> sizes;
+            std::vector<int> offsets;
+            for (auto &c : Ut->get_target_cluster().get_children()) {
+                int s = c->get_size();
+                int o = c->get_offset();
+                sizes.push_back(s);
+                offsets.push_back(o);
+            }
+            for (int i = sizes.size() - 1; i >= 0; --i) {
+                int size_i = sizes[i];
+                int of_i   = offsets[i];
+                // std::cout << "i =" << i << ',' << "szt = " << size_i << ',' << "ofi" << std::endl;
+                //  for (auto &ti = Ut->get_target_cluster().get_children().rbegin(); ti != Ut->get_target_cluster().get_children().rend(); ++ti) {
+                this->backward_substitution_extract(size_i, of_i, y, x);
+                for (int j = 0; j < i; ++j) {
+                    int size_j = sizes[j];
+                    int of_j   = offsets[j];
+                    std::vector<CoefficientPrecision> ytemp(size_j, 0.0);
+                    for (int k = 0; k < size_j; ++k) {
+                        ytemp[k] = y[k + of_j];
+                    }
+                    std::vector<CoefficientPrecision> xtemp(size_i, 0.0);
+                    for (int l = 0; l < size_i; ++l) {
+                        // std::cout << "ici" << x[l + ti->get_offset()] << std::endl;
+                        xtemp[l] = x[l + of_i];
+                    }
+                    std::vector<CoefficientPrecision> yy(size_j, 0.0);
+                    auto Uts = this->get_block(size_j, size_i, of_j, of_i);
+                    Uts->add_vector_product('N', 1.0, xtemp.data(), 0.0, yy.data());
+                    for (int k = 0; k < size_j; ++k) {
+                        y[k + of_j] = y[k + of_j] - yy[k];
+                    }
+                }
+            }
+        }
+    }
+
+    // void backward_substitution_extract(const Cluster<CoordinatePrecision> &t, std::vector<CoefficientPrecision> &y, std::vector<CoefficientPrecision> &x) {
+    //     auto Ut = this->get_block(t.get_size(), t.get_size(), t.get_offset(), t.get_offset());
+    //     if (Ut->get_children().size() == 0) {
+    //         auto M = *(Ut->get_dense_data());
+    //         for (int jj = 0; jj < t.get_size(); ++jj) {
+    //             int j = t.get_size() + t.get_offset() - jj;
+    //             x[j]  = y[j] / M(j - t.get_offset(), j - t.get_offset());
+    //             for (int i = t.get_offset(); i < j; ++i) {
+    //                 y[i] = y[i] - M(i - t.get_offset(), j - t.get_offset()) * x[j];
+    //             }
+    //         }
+    //     } else {
+    //         for (auto &ti : Ut->get_target_cluster().get_children()) {
+    //             // for (auto &ti = Ut->get_target_cluster().get_children().rbegin(); ti != Ut->get_target_cluster().get_children().rend(); ++ti) {
+    //             this->backward_substitution_extract(*ti, y, x);
+    //             for (auto &tj : Ut->get_target_cluster().get_children()) {
+    //                 if (tj->get_offset() < ti->get_offset()) {
+    //                     std::vector<CoefficientPrecision> ytemp(tj->get_size());
+    //                     for (int k = 0; k < tj->get_size(); ++k) {
+    //                         ytemp[k] = y[k + tj->get_offset()];
+    //                     }
+    //                     std::vector<CoefficientPrecision> xtemp(ti->get_size());
+    //                     for (int l = 0; l < ti->get_size(); ++l) {
+    //                         xtemp[l] = x[l + ti->get_size()];
+    //                     }
+    //                     std::vector<CoefficientPrecision> yy(tj->get_size(), 0.0);
+    //                     auto Uts = this->get_block(tj->get_size(), ti->get_size(), tj->get_offset(), ti->get_offset());
+    //                     Uts->add_vector_product('N', 1.0, xtemp.data(), 0.0, yy.data());
+    //                     for (int k = 0; k < tj->get_size(); ++k) {
+    //                         y[k + tj->get_offset()] = ytemp[k] - yy[k];
+    //                     }
+    //                 }
+    //             }
+    //         }
+    //     }
+    // }
+
+    // void forward_substitution_extract(const Cluster<CoordinatePrecision> &t, std::vector<CoefficientPrecision> &y, std::vector<CoefficientPrecision> &x) {
+    //     auto Lt = this->get_block(t, t);
+    //     if (Lt->get_children().size() == 0) {
+    //         auto M = *(Lt->get_dense_data());
+    //         for (int j = t.get_offset(); j < t.get_offset() + t.get_size(); ++j) {
+    //             x[j] = y[j];
+    //             for (int i = j + 1; i < t.get_offset() + t.get_size(); ++i) {
+    //                 y[i] = y[i] - M(i, j) * y[j];
+    //             }
+    //         }
+    //     } else {
+    //         std::vector<Cluster<CoordinatePrecision>> target_son;
+    //         std::vector<Cluster<CoordinatePrecision>> source_son;
+    //         for (auto &child : Lt->get_target_cluster().get_children()) {
+    //             target_son.push_back(*child.get());
+    //         }
+    // for (auto &child : Lt->get_source_cluster().get_children()) {
+    //     source_son.push_back(*child);
+    // }
+    // auto L21 = this->get_block(target_son[1], source_son[0]);
+    //  // for (auto &child : Lt->get_children()) {
+    //  //     if (child->get_target_cluster() == child->get_source_cluster()) {
+    //  //         this->forward_substitution_extract(child->get_target_cluster(), y, x);
+    //  //     }
+    //  //     if (child->get_target_cluster().get_offset() > child->get_source_cluster().get_offset()) {
+    //  //         std::vector<CoefficientPrecision> y_temp(child->get_target_cluster().get_size());
+    //  //         for (int k = 0; k < child->get_target_cluster().get_size(); ++k) {
+    //  //             y_temp[k] = y[k + child->get_target_cluster().get_offset()];
+    //  //         }
+    //  //         std::vector<CoefficientPrecision> yy(child->get_target_cluster().get_size());
+    //  //         std::vector<CoefficientPrecision> x_temp(child->get_source_cluster().get_size());
+    //  //         for (int l = 0; l < child->get_source_cluster().get_size(); ++l) {
+    //  //             x_temp[l] = x[l + child->get_source_cluster().get_size()];
+    //  //         }
+
+    // //         child->add_vector_product('N', 1.0, x_temp.data(), 0.0, yy.data());
+    // //         for (int k = 0; k < child->get_target_cluster().get_size(); ++k) {
+    // //             y[k + child->get_target_cluster().get_offset()] = y[k + child->get_target_cluster().get_offset()] - yy[k];
+    // //         }
+    // //     }
+    // // }
+    // this->forward_substitution_extract(target_son[0], y, x);
+    // std::vector<CoefficientPrecision> y_temp(target_son[1].get_size());
+    // for (int k = 0; k < target_son[1].get_size(); ++k) {
+    //     y_temp[k] = y[k + target_son[1].get_offset()];
+    // }
+    // std::vector<CoefficientPrecision> yy(target_son[1].get_size());
+    // std::vector<CoefficientPrecision> x_temp(source_son[0].get_size());
+    // for (int l = 0; l < source_son[0].get_size(); ++l) {
+    //     x_temp[l] = x[l + target_son[1].get_size()];
+    // }
+
+    // L21->add_vector_product('N', 1.0, x_temp.data(), 0.0, yy.data());
+    // for (int k = 0; k < target_son[1].get_size(); ++k) {
+    //     y[k + target_son[1].get_offset()] = y[k + target_son[1].get_offset()] - yy[k];
+    // }
+    // this->forward_substitution_extract(target_son[1], y, x);
+    //     }
+    // }
+
+    // void forward_substitution_extract(const Cluster<CoordinatePrecision> &t, std::vector<CoefficientPrecision> &y, std::vector<CoefficientPrecision> &x) {
+    //     auto Lt = this->get_block(t, t);
+    //     std::cout << "Lt info" << Lt->get_target_cluster().get_offset() << ',' << Lt->get_source_cluster().get_offset() << '!' << Lt->get_target_cluster().get_size() << ',' << Lt->get_source_cluster().get_size() << std::endl;
+    //     if (Lt == nullptr) {
+    //         std::cout << "wtf" << std::endl;
+    //     }
+    //     if (this->get_block(t, t)->get_children().size() == 0) {
+    //         auto M = *(Lt->get_dense_data());
+    //         for (int j = t.get_offset(); j < t.get_offset() + t.get_size(); ++j) {
+    //             x[j] = y[j];
+    //             for (int i = j + 1; i < t.get_offset() + t.get_size(); ++i) {
+    //                 y[i] = y[i] - M(i, j) * y[j];
+    //             }
+    //         }
+    //     } else {
+    //         for (auto &child_s : t.get_children()) {
+    //             this->forward_substitution_extract(*child_s, y, x);
+    //             for (auto &child_t : t.get_children()) {
+    //                 std::cout << "cluster info " << child_t->get_offset() << ',' << child_s->get_offset() << '!' << child_t->get_size() << ',' << child_s->get_size() << std::endl;
+    //                 if (child_t->get_offset() > child_s->get_offset()) {
+    //                     auto Lts = this->get_block(*child_t, *child_s);
+    //                     std::vector<CoefficientPrecision> y_temp(child_t->get_size());
+    //                     for (int k = 0; k < child_t->get_size(); ++k) {
+    //                         y_temp[k] = y[k + child_t->get_offset()];
+    //                     }
+    //                     std::vector<CoefficientPrecision> yy(child_t->get_size());
+    //                     std::vector<CoefficientPrecision> x_temp(child_s->get_size());
+    //                     for (int l = 0; l < child_s->get_size(); ++l) {
+    //                         x_temp[l] = x[l + child_s->get_offset()];
+    //                     }
+    //                     std::cout << "info son LT" << Lt->get_children().size() << std::endl;
+    //                     std::cout << "LTS info " << Lts->get_target_cluster().get_size() << ',' << Lts->get_source_cluster().get_size() << std::endl;
+
+    //                     Lts->add_vector_product('N', 1.0, x_temp.data(), 0.0, yy.data());
+    //                     for (int k = 0; k < child_t->get_size(); ++k) {
+    //                         y[k + child_t->get_offset()] = y[k + child_t->get_offset()] - yy[k];
+    //                     }
+    //                 }
+    //             }
+    //         }
+    //     }
+    // }
+
+    void
+    forward_substitution_extract_T(const Cluster<CoordinatePrecision> &t, std::vector<CoefficientPrecision> y, std::vector<CoefficientPrecision> x) {
+        auto Ut = this->get_block(t, t);
+        if (Ut->is_leaf()) {
+            auto M = Ut->get_dense_data();
+            for (int j = t.get_offset(); j < t.get_offset() + t.get_size(); ++j) {
+                x[j] = y[j] / M(j, j);
+                for (int i = j + 1; i < t.get_offset() + t.get_size(); ++i) {
+                    y[i] = y[i] - M(j, i) * y[j];
+                }
+            }
+        } else {
+            for (auto &child_s : t.get_children()) {
+                this->forward_substitution(child_s, y, x);
+                for (auto &child_t : t.get_children()) {
+                    if (child_t.get_offset() > child_s.get_offset()) {
+                        auto Uts = this->get_block(child_t, child_s);
+                        std::vector<CoefficientPrecision> y_temp(child_t->get_size());
+                        for (int k = 0; k < child_t->get_size(); ++k) {
+                            y_temp[k] = y[k + child_t->get_offset()];
+                        }
+                        std::vector<CoefficientPrecision> yy(child_t->get_size());
+                        std::vector<CoefficientPrecision> x_temp(child_s->get_size());
+                        for (int l = 0; l < child_s->get_size(); ++l) {
+                            x_temp[l] = x[l + child_s->get_offset()];
+                        }
+                        Uts->add_vector_product('T', 1.0, x_temp.data(), 0.0, yy.data());
+                        for (int k = 0; k < child_t->get_size(); ++k) {
+                            y[k + child_t->get_offset()] = y[k + child_t->get_offset()] - yy[k];
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    friend void forward_backward(const HMatrix &L, const HMatrix &U, const Cluster<CoordinatePrecision> &root, std::vector<CoefficientPrecision> &y, std::vector<CoordinatePrecision> &x) {
+        std::vector<CoefficientPrecision> ux(L.get_source_cluster().get_size(), 0.0);
+        L.forward_substitution_extract(root, y, ux);
+        U.backward_substitution_extract(root.get_size(), root.get_offset(), ux, x);
+    }
+
+    // LX =Z
+
+    friend void Forward_M_extract(const HMatrix &L, const HMatrix &Z, const Cluster<CoordinatePrecision> &t, const Cluster<CoordinatePrecision> &s, HMatrix &X) {
+        auto Zts = Z.get_block(t, s);
+        auto Xts = X.get_block(t, s);
+        if (Zts->is_dense()) {
+            auto Zdense = Zts->get_dense_data();
+            auto Xdense = Xts->get_dense_data();
+            Matrix<CoefficientPrecision> Xupdate(t.get_size(), s.get_size());
+            for (int j = 0; j < s.get_size(); ++j) {
+                std::vector<CoefficientPrecision> Xtj(t.get_size());
+                std::vector<CoefficientPrecision> Ztj(t.get_size());
+                for (int k = 0; k < t.get_size(); ++k) {
+                    Xtj[k] = Xdense(k, j);
+                    Ztj[k] = Zdense(k, j);
+                }
+                L.forward_substitution_extract(t, Ztj, Xtj);
+                for (int k = 0; k < t.get_size(); ++k) {
+                    Xupdate(k, j) = Xtj[k];
+                }
+            }
+            MatrixGenerator<CoefficientPrecision> mat(Xupdate);
+            Xts->compute_dense_data(mat);
+        } else if (Zts->is_low_rank()) {
+            auto Zlr = Zts.get_low_rank_data();
+            auto U   = Zlr->Get_U();
+            auto V   = Zlr->Get_V();
+            Matrix<CoefficientPrecision> Xu(t.get_size(), Zlr->get_rank_of());
+            for (int j = 0; j < Zlr->get_rank_of(); ++j) {
+                std::vector<CoefficientPrecision> Uj(t.get_size());
+                std::vector<CoefficientPrecision> Aj(t.get_size());
+                for (int k = 0; k < t.get_size(); ++k) {
+                    Uj[k] = U(k, j);
+                }
+                L.forward_substitution_extract(t, Uj, Aj);
+                for (int k = 0; k < t.get_size(); ++k) {
+                    Xu(k, j) = Aj[k];
+                }
+            }
+            LowRankMatrix<CoefficientPrecision, CoordinatePrecision> Xlr(Xu, V);
+            Xts->set_low_rank_data(Xlr);
+        } else {
+            for (auto &child_t : t.get_children()) {
+                for (auto &child_s : s.get_children()) {
+                    Forward_M_extract(L, Z, child_t, child_s, X);
+
+                    for (auto &child_tt : t.get_children()) {
+                        if (child_tt->get_offset() > child_t->get_offset()) {
+                            auto Ztemp = Z.get_block(child_tt, child_s);
+                            auto Ltemp = L.get_block(child_tt, child_t);
+                            auto Xtemp = X.get_block(child_t, child_s);
+                            *Ztemp     = *Ztemp - Ltemp->hmatrix_product(Xtemp);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // X U = Z
+    friend void ForwardT_M_extract(const HMatrix &U, const HMatrix &Z, const Cluster<CoordinatePrecision> &t, const Cluster<CoordinatePrecision> &s, HMatrix &X) {
+        auto Zts = Z.get_block(t, s);
+        auto Xts = X.get_block(t, s);
+        if (Zts->is_dense()) {
+            auto Zdense = Zts->get_dense_data();
+            auto Xdense = Xts->get_dense_data();
+            Matrix<CoefficientPrecision> Xupdate(t.get_size(), s.get_size());
+            for (int j = 0; j < t.get_size(); ++j) {
+                std::vector<CoefficientPrecision> Xtj(s.get_size());
+                std::vector<CoefficientPrecision> Ztj(s.get_size());
+                for (int k = 0; k < s.get_size(); ++k) {
+                    Xtj[k] = Xdense(j, k);
+                    Ztj[k] = Zdense(j, k);
+                }
+                U.forward_substitution_extractT(t, Ztj, Xtj);
+                for (int k = 0; k < s.get_size(); ++k) {
+                    Xupdate(j, k) = Xtj[k];
+                }
+            }
+            MatrixGenerator<CoefficientPrecision> mat(Xupdate);
+            Xts->compute_dense_data(mat);
+        } else if (Zts->is_low_rank()) {
+            auto Zlr = Zts.get_low_rank_data();
+            auto Uz  = Zlr->Get_U();
+            auto Vz  = Zlr->Get_V();
+            Matrix<CoefficientPrecision> Xv(Zlr->get_rank_of(), s.get_size());
+            for (int j = 0; j < Zlr->get_rank_of(); ++j) {
+                std::vector<CoefficientPrecision> Vj(s.get_size());
+                std::vector<CoefficientPrecision> Aj(s.get_size());
+                for (int k = 0; k < s.get_size(); ++k) {
+                    Vj[k] = Vz(j, k);
+                }
+                U.forward_substitution_extractT(t, Vj, Aj);
+                for (int k = 0; k < t.get_size(); ++k) {
+                    Xv(j, k) = Aj[k];
+                }
+            }
+            LowRankMatrix<CoefficientPrecision, CoordinatePrecision> Xlr(U, Xv);
+            Xts->set_low_rank_data(Xlr);
+        } else {
+            for (auto &child_t : t.get_children()) {
+                for (auto &child_s : s.get_children()) {
+                    Forward_M_extractT(U, Z, child_t, child_s, X);
+
+                    for (auto &child_tt : t.get_children()) {
+                        if (child_tt->get_offset() > child_t->get_offset()) {
+                            auto Ztemp = Z.get_block(child_tt, child_s);
+                            auto Utemp = U.get_block(child_t, child_tt);
+                            auto Xtemp = X.get_block(child_t, child_s);
+                            *Ztemp     = *Ztemp - Utemp->hmatrix_product(Xtemp);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    void friend H_LU(const HMatrix &M, HMatrix &L, HMatrix &U, const Cluster<CoordinatePrecision> &t) {
+        auto Mt = M.get_block(t, t);
+        if (Mt->is_leaf()) {
+            auto m = Mt->get_dense_data();
+            // l, u = lu(m) , L.get_block(t,t).set_danse_data(l)
+        } else {
+            for (auto &child_t : t.get_children()) {
+                H_LU(M, L, U, child_t);
+                for (auto &child_tt : t.get_children()) {
+                    if (child_tt->get_offset() > child_t.get_offset()) {
+                        ForwardT_M_extract(U, L, M, child_tt, child_t);
+                        Forward_M_extract(L, U, M, child_t, child_tt);
+                        for (auto &child : t.get_children()) {
+                            if (child->get_offset() > child_t.get_offset()) {
+                                auto Mts = M.get_block(child_tt, child);
+                                auto Lts = L.get_block(child_tt, child_t);
+                                auto Uts = U.get_block(child_t, child);
+                                *Mts     = *Mts - Lts.hmatrix_product(Uts);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // void forward_substitution(std::vector<CoefficientPrecision> &y, std::vector<CoefficientPrecision> &x) {
+
+    //     if (this->is_leaf()) {
+    //         auto M = this->get_dense_data();
+    //         for (int j = this->get_target_cluster().get_offset(); j < this->get_target_cluster().get_size() + this->get_target_cluster().get_offset(); ++j) {
+    //             x[j] = y[j];
+    //             for (int i = j + 1; j < this->get_target_cluster().get_size() + this->get_source_cluster().get_offset(); ++i) {
+    //                 y[i] = y[i] - M(i, j) * x[j];
+    //             }
+    //         }
+    //     } else {
+    //         auto child = this->get_children();
+    //         for (int k = 0; k < child.size(); ++k) {
+    //             auto &hk = child[k];
+    //             if (hk->get_target_cluster() == hk->get_source_cluster()) {
+    //                 hk->forward_substitution(y, x);
+    //             } else if (hk->get_target_cluster().get_offset() > hk->get_source_cluster().get_offset()) {
+    //                 std::vector<CoefficientPrecision> y_restr(hk->get_target_cluster().get_size());
+    //                 std::vector<CoefficientPrecision> x_restr(hk->get_source_cluster().get_size());
+    //                 for (int i = 0; i < hk->get_source_cluster().get_size(); ++i) {
+    //                     x_restr[i] = x[i + hk->get_source_cluster().get_offset()];
+    //                 }
+    //                 for (int j = 0; j < hk->get_target_cluster().get_size(); ++j) {
+    //                     y_restr[j] = y[j + hk->get_target_cluster().get_offset()];
+    //                 }
+    //                 y_restr = y_restr - hk->add_vector_product('N', 1.0, x_restr.data(), 0.0, y_restr.data());
+
+    //                 for (int j = 0; j < hk->get_target_cluster().get_size(); ++j) {
+    //                     y[j + hk->get_target_cluster().get_offset()] = y_restr[j];
+    //                 }
+    //             }
+    //         }
+    //     }
+    // }
+
+    // // void backward_substitution(const Cluster t, std::vectort<CoefficientPecision>)
+    // void forward_substitution(const Cluster &tau, std::vector<CoefficientPrecision> &y, std::vector<CoefficientPrecision> &x) {
+    //     auto M = this->get_dense_data();
+    //     if (this->is_leaf()) {
+    //         for (int j = this->get_target_cluster().get_offset(); j < this->get_target_cluster().get_size() + this->get_target_cluster().get_offset(); ++j) {
+    //             x[j] = y[j];
+    //             for (int i = j + 1; j < this->get_target_cluster().get_size() + this->get_source_cluster().get_offset(); ++i) {
+    //                 y[i] = y[i] - M(i, j) * x[j];
+    //             }
+    //         }
+    //     } else {
+    //         auto child = this->get_children();
+    //         for (int k = 0; k < child.size(); ++k) {
+    //             auto &hk = child[k];
+    //             if (hk->get_target_cluster() == hk->get_source_cluster()) {
+    //                 hk->forward_substitution(y, x);
+    //             } else if (hk->get_target_cluster().get_offset() > hk->get_source_cluster().get_offset()) {
+    //                 std::vector<CoefficientPrecision> y_restr(hk->get_target_cluster().get_size());
+    //                 std::vector<CoefficientPrecision> x_restr(hk->get_source_cluster().get_size());
+    //                 for (int i = 0; i < hk->get_source_cluster().get_size(); ++i) {
+    //                     x_restr[i] = x[i + hk->get_source_cluster().get_offset()];
+    //                 }
+    //                 for (int j = 0; j < hk->get_target_cluster().get_size(); ++j) {
+    //                     y_restr[j] = y[j + hk->get_target_cluster().get_offset()];
+    //                 }
+    //                 y_restr = y_restr - hk->add_vector_product('N', 1.0, x_restr.data(), 0.0, y_restr.data());
+
+    //                 for (int j = 0; j < hk->get_target_cluster().get_size(); ++j) {
+    //                     y[j + hk->get_target_cluster().get_offset()] = y_restr[j];
+    //                 }
+    //             }
+    //         }
+    //     }
+    // }
+
+    // void backward_substitution(std::vector<CoefficientPrecision> &y, std::vector<CoefficientPrecision> &x) {
+    //     if (this->is_leaf()) {
+    //         for (int j = 0; j < this->get_target_cluster().get_size(); ++j) {
+    //             auto U                                          = this->get_dense_data();
+    //             int jj                                          = this->get_target_cluster().get_size() - j - 1;
+    //             x[jj + this->get_target_cluster().get_offset()] = y[jj + this->get_target_cluster().get_offset()] / U(jj, jj);
+    //             for (int i = 0; i < jj; ++i) {
+    //                 y[i + this->get_target_cluster().get_offset()] = y[i + this->get_target_cluster().get_offset()] - U(i, jj) * x[jj + this->get_target_cluster().get_offset()];
+    //             }
+    //         }
+
+    //     } else {
+    //         auto child = this->get_children();
+    //         for (int k = 0; k < child.size(); ++k) {
+    //             auto hk = child[k];
+    //             if (hk->get_target_cluster() == hk->get_source_cluster()) {
+    //                 backward_substitution(y, x);
+    //             } else if (hk->get_source_cluster().get_offset() > hk->get_target_cluster().get_offset()) {
+    //                 std::vector<CoefficientPrecision> y_restr(hk->get_target_cluster().get_size());
+    //                 std::vector<CoefficientPrecision> x_restr(hk->get_source_cluster().get_size());
+    //                 for (int i = 0; i < hk->get_target_cluster().get_size(); ++i) {
+    //                     y_restr[i] = y[i + hk->get_target_cluster().get_offset()];
+    //                 }
+    //                 for (int j = 0; j < hk->get_source_cluster().get_size(); ++j) {
+    //                     x_restr[j] = x[j + hk->get_source_cluster().get_offset()];
+    //                 }
+    //                 y_restr = y_restr - hk->add_vector_product('N', 1.0, x_restr.data(), 0.0, y_restr.data());
+    //                 for (int i = 0; i < hk->get_target_cluster().get_size(); ++i) {
+    //                     y[i + hk->get_target_cluster().get_size()] = y_restr[i];
+    //                 }
+    //             }
+    //         }
+    //     }
+    // }
+
+    // void forward_backward(const HMatrix<CoefficientPrecision, CoordinatePrecision> &L, const HMatrix<CoefficientPrecision, CoordinatePrecision> &U, std::vector<CoefficientPrecision> y, std::vector<CoefficientPrecision> x) {
+    //     std::vector<CoefficientPrecision> ux(U.get_atrget_cluster().get_size(), 0.0);
+    //     L.forward_substitution(y, ux);
+    //     U.backward_substitution(ux, x);
+    // }
+
+    // // résoudre x^t U = y^t
+    // void forward_substitutionT(std::vector<CoefficientPrecision> &y, std::vector<CoefficientPrecision> &x) {
+    //     auto M = this->get_dense_data();
+    //     if (this->is_leaf()) {
+    //         for (int j = this->get_target_cluster().get_offset(); j < this->get_target_cluster().get_size() + this->get_target_cluster().get_offset(); ++j) {
+    //             x[j] = y[j] / M(j, j);
+    //             for (int i = j + 1; j < this->get_target_cluster().get_size() + this->get_source_cluster().get_offset(); ++i) {
+    //                 y[i] = y[i] - M(j, i) * x[j];
+    //             }
+    //         }
+    //     } else {
+    //         auto child = this->get_children();
+    //         for (int k = 0; k < child.size(); ++k) {
+    //             auto &hk = child[k];
+    //             if (hk->get_target_cluster() == hk->get_source_cluster()) {
+    //                 hk->forward_substitution(y, x);
+    //             } else if (hk->get_target_cluster().get_offset() < hk->get_source_cluster().get_offset()) {
+    //                 std::vector<CoefficientPrecision> x_restr(hk->get_target_cluster().get_size());
+    //                 std::vector<CoefficientPrecision> y_restr(hk->get_source_cluster().get_size());
+    //                 for (int i = 0; i < hk->get_source_cluster().get_size(); ++i) {
+    //                     y_restr[i] = y[i + hk->get_source_cluster().get_offset()];
+    //                 }
+    //                 for (int j = 0; j < hk->get_target_cluster().get_size(); ++j) {
+    //                     x_restr[j] = x[j + hk->get_target_cluster().get_offset()];
+    //                 }
+    //                 y_restr = y_restr - hk->add_vector_product('T', 1.0, x_restr.data(), 0.0, y_restr.data());
+
+    //                 for (int j = 0; j < hk->get_source_cluster().get_size(); ++j) {
+    //                     y[j + hk->get_source_cluster().get_offset()] = y_restr[j];
+    //                 }
+    //             }
+    //         }
+    //     }
+    // }
+
+    // // résoudre LX =Z ,
+    // friend void Forward_M(HMatrix<CoefficientPrecision, CoordinatePrecision> *L, HMatrix<CoefficientPrecision, CoordinatePrecision> *X, HMatrix<CoefficientPrecision, CoordinatePrecision> *Z) {
+    //     if (Z.is_dense()) {
+    //         auto Zd = Z->get_dense_data();
+    //         auto Xd = X->get_dense_data();
+    //         for (int k = 0; k < Z.get_source_cluster().get_size(); ++k) {
+    //             std::vector<CoefficientPrecision> Zk(Z->get_target_cluster().get_size());
+    //             for (int l = 0; l < Z->target_cluster().get_size(); ++l) {
+    //                 Zk[l] = Zd(l, k);
+    //             }
+    //             // sous entendu X tau sigma dense aussi
+    //             auto Xd = X->get_dense_data();
+    //             std::vector<CoefficientPrecision> Zk(Z->get_target_cluster().get_size());
+    //             for (int l = 0; l < Z->target_cluster().get_size(); ++l) {
+    //                 Xk[l] = Xd(l, k);
+    //             }
+
+    //             L->forward_substitution(Zk, Xk);
+    //             for (int l = 0; l < Z->target_cluster().get_size(); ++l) {
+    //                 Zd(l, k) = Zk[l];
+    //             }
+    //             // sous entendu X tau sigma dense aussi
+    //             for (int l = 0; l < Z->target_cluster().get_size(); ++l) {
+    //                 Xd(l, k) = Xk[l];
+    //             }
+    //         }
+    //         MatrixGenerator<CoefficientPrecision> mz(Zd);
+    //         MatrixGenerator<CoefficientPrecision> mx(Xd);
+    //         Z->compute_dense_data(Zd);
+    //         X->compute_dense_data(Xd);
+    //     }
+
+    //     else if (Z.is_low_rank()) {
+    //         auto lrz                        = Z->get_low_rank_data();
+    //         Matrix<CoefficientPrecision> Uz = lrz->Get_U();
+    //         Matrix<COefficientPrecision> Vz = lrz->Get_V();
+    //         int r                           = lrz->rank_of();
+    //         Matrix<CoefficientPrecision> Ux(X->get_target_cluster().get_size(), r);
+    //         for (int k = 0; k < r; ++k) {
+    //             std::vector<CoefficientPrecision> uxk(X->get_target_cluster().get_size());
+    //             std::vector<CoefficientPrecision> uzk(Z->get_target_cluster().get_size());
+    //             for (int l = 0; l < Z->get_target_cluster().get_size(); ++l) {
+    //                 uzk[l] = Uz(l, k);
+    //             }
+    //             L->forward_substitution(uzk, uxk);
+    //             for (int l = 0; l < X->get_target_clsuter().get_size(); ++l) {
+    //                 Ux(l, k) = uxk[l];
+    //             }
+    //         }
+    //         LowRankMatrix<CoefficientPrecision, CoordinatePrecision> lrx(Ux, Vz);
+    //         X->set_low_rank_data(lrx);
+    //     } else {
+    //         auto lchild = L->get_childen();
+    //         for (int k = 0; k < lchild.size(); ++l) {
+    //             auto &lk = lchild[k];
+    //             if (lk->get_target_cluster() == lk->get_source_cluster()) {
+    //                 for (auto &xk : X->get_children()) {
+    //                     if (xk->get_target_cluster() == lk->get_target_cluster()) {
+    //                         for (auto &zk : Z->get_children()) {
+    //                             if (zk->get_target_cluser() == X->get_target_cluster() and zk->get_slurce_cluster() == X->get_source_cluster()) {
+    //                                 lk->Forward_M(zk, xk);
+    //                             }
+    //                         }
+    //                     }
+    //                 }
+    //                 for (auto &xxk : X->get_children()) {
+    //                 }
+    //             }
+    //         }
+    //     }
+    // }
     // void add_vector_product(char trans, CoefficientPrecision alpha, const CoefficientPrecision *in, CoefficientPrecision beta, CoefficientPrecision *out) const;
     // void add_matrix_product(CoefficientPrecision alpha, const CoefficientPrecision *in, CoefficientPrecision beta, CoefficientPrecision *out, int mu) const;
 
@@ -273,7 +966,8 @@ class HMatrix : public TreeNode<HMatrix<CoefficientPrecision, CoordinatePrecisio
 
     // routine por mult Hmat/lrmat ou lrmat Hmat
 
-    const Matrix<CoefficientPrecision> mult(const Matrix<CoefficientPrecision> &B, char C) const {
+    const Matrix<CoefficientPrecision>
+    mult(const Matrix<CoefficientPrecision> &B, char C) const {
         // bon c'est vraiment affreux mais je comprend pas comment utiliser mult  , ce cas ca sert a faire Hmat*lrmat en faisant Hmat*mat*mat
         Matrix<CoefficientPrecision> res;
         std::cout << "hoho" << std::endl;

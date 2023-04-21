@@ -28,6 +28,7 @@
 #    include "wrappers/wrapper_hpddm.hpp"
 #endif
 #include "wrappers/wrapper_blas.hpp"
+#include "wrappers/wrapper_lapack.hpp"
 #include "wrappers/wrapper_mpi.hpp"
 
 #endif

@@ -675,6 +675,23 @@ class Matrix {
         os.close();
         return 0;
     }
+
+    // friend Matrix LU(const Matrix &M) {
+    //     Matrix mat = M;
+    //     for (int i = 1; i < M.nb_cols(); ++i) {
+    //         for (int j = 0; j < M.nb_cols(); ++j) {
+    //             if (std::abs(mat(i, j)) < 1e-15) {
+    //                 mat(i, j) = mat(i, j) / mat(j, j);
+    //                 for (int k = j + 1; k < M.nb_cols(); ++k) {
+    //                     if (std::abs(mat(i, k)) < 1e-15) {
+    //                         mat(i, k) = mat(i, k) - mat(i, j) * mat(j, k);
+    //                     }
+    //                 }
+    //             }
+    //         }
+    //     }
+    //     return mat;
+    // }
 };
 
 //! ### Computation of the Frobenius norm
@@ -690,6 +707,40 @@ double normFrob(const Matrix<T> &A) {
         }
     }
     return sqrt(norm);
+}
+
+template <typename T>
+Matrix<T> LU(const Matrix<T> &M) {
+    Matrix<T> mat = M;
+    int n         = mat.nb_cols();
+    for (int j = 0; j < n; ++j) {
+        for (int i = j + 1; i < n; ++i) {
+            mat(i, j) = mat(i, j) / mat(j, j);
+            for (int k = j + 1; k < n; ++k) {
+                mat(i, k) = mat(i, k) - mat(i, j) * mat(j, k);
+            }
+        }
+    }
+    return mat;
+}
+
+template <typename T>
+std::pair<Matrix<T>, Matrix<T>> get_lu(const Matrix<T> &M) {
+    Matrix<T> L(M.nb_rows(), M.nb_cols());
+    Matrix<T> U(M.nb_rows(), M.nb_cols());
+    for (int k = 0; k < M.nb_rows(); ++k) {
+        L(k, k) = 1.0, U(k, k) = M(k, k);
+        for (int l = 0; l < k; ++l) {
+            L(k, l) = M(k, l);
+        }
+        for (int l = k + 1; l < M.nb_rows(); ++l) {
+            U(k, l) = M(k, l);
+        }
+    }
+    std::pair<Matrix<T>, Matrix<T>> res;
+    res.first  = L;
+    res.second = U;
+    return res;
 }
 
 } // namespace htool
