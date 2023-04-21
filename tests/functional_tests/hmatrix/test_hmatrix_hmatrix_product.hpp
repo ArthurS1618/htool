@@ -7,10 +7,124 @@
 #include <htool/testing/generator_test.hpp>
 #include <htool/testing/geometry.hpp>
 #include <htool/testing/partition.hpp>
+#include <htool/wrappers/wrapper_lapack.hpp>
 
 using namespace std;
 using namespace htool;
+vector<double> to_mesh(const string &file_name) {
+    ifstream file(file_name);
+    string line;
+    vector<double> p;
+    double zz             = 3.1415;
+    bool follow           = true;
+    bool reading_vertices = false;
 
+    while ((getline(file, line)) and (follow)) {
+        if (line.find("Vertices") != string::npos) {
+            reading_vertices = true;
+            getline(file, line);
+        }
+        if (reading_vertices) {
+            if (line.find("Edges") != string::npos) {
+                follow = false;
+            }
+            double x, y, z;
+            sscanf(line.c_str(), "%lf %lf %lf", &x, &y, &z);
+            p.push_back(x);
+            p.push_back(y);
+            p.push_back(zz);
+        }
+    }
+    file.close();
+    p.erase(p.begin());
+    p.erase(p.begin());
+    p.erase(p.begin());
+    p.pop_back();
+    p.pop_back();
+    p.pop_back();
+    p.pop_back();
+    p.pop_back();
+    p.pop_back();
+    return p;
+}
+template <class CoefficientPrecision, class CoordinatePrecision>
+class MatGenerator : public VirtualGenerator<CoefficientPrecision> {
+  private:
+    Matrix<CoefficientPrecision> mat;
+    const Cluster<CoordinatePrecision> &target;
+    const Cluster<CoordinatePrecision> &source;
+
+  public:
+    MatGenerator(Matrix<CoefficientPrecision> &mat0, const Cluster<CoordinatePrecision> &target0, const Cluster<CoordinatePrecision> &source0) : mat(mat0), target(target0), source(source0){};
+
+    MatGenerator(int nr, int nc, const Cluster<CoordinatePrecision> &target0, const Cluster<CoordinatePrecision> &source0, const string &matfile) : target(target0), source(source0) {
+        ifstream file;
+        file.open(matfile);
+        CoefficientPrecision *data = new CoefficientPrecision[nr * nc];
+        std::vector<CoefficientPrecision> file_content;
+        if (!file) {
+            std::cerr << "Error : Can't open the file" << std::endl;
+        } else {
+            std::string word;
+            std::vector<std::string> file_content;
+            int count      = 0;
+            char delimiter = ',';
+            string line;
+            int i = 0;
+            while (getline(file, line)) {
+                stringstream ss(line);
+                string word;
+                int j = 0;
+                while (getline(ss, word, delimiter)) {
+                    CoefficientPrecision d1;
+                    stringstream stream1;
+                    stream1 << word;
+                    stream1 >> d1;
+                    data[i * nc + j] = d1;
+                    j += 1;
+                }
+                i += 1;
+            }
+        }
+        file.close();
+        Matrix<CoefficientPrecision> temp(nr, nc);
+        temp.assign(nr, nc, data, true);
+        mat = temp;
+    }
+
+    void copy_submatrix(int M, int N, int row_offset, int col_offset, double *ptr) const override {
+        const auto &target_permutation = target.get_permutation();
+        const auto &source_permutation = source.get_permutation();
+        for (int i = 0; i < M; i++) {
+            for (int j = 0; j < N; j++) {
+                ptr[i + M * j] = mat(target_permutation[i + row_offset], source_permutation[j + col_offset]);
+            }
+        }
+    }
+
+    Matrix<CoefficientPrecision> get_mat() { return mat; }
+
+    Matrix<CoefficientPrecision> get_perm_mat() {
+        CoefficientPrecision *ptr = new CoefficientPrecision[target.get_size() * source.get_size()];
+        this->copy_submatrix(target.get_size(), target.get_size(), 0, 0, ptr);
+        Matrix<CoefficientPrecision> M;
+        M.assign(target.get_size(), source.get_size(), ptr, true);
+        return M;
+    }
+    Matrix<CoefficientPrecision> get_unperm_mat() {
+        CoefficientPrecision *ptr      = new CoefficientPrecision[target.get_size() * source.get_size()];
+        const auto &target_permutation = target.get_permutation();
+        const auto &source_permutation = source.get_permutation();
+        for (int i = 0; i < target.get_size(); i++) {
+            for (int j = 0; j < source.get_size(); j++) {
+                ptr[target_permutation[i] + source_permutation[j] * target.get_size()] = mat(i, j);
+            }
+        }
+        Matrix<CoefficientPrecision> M;
+        M.assign(target.get_size(), source.get_size(), ptr, true);
+        return M;
+    }
+};
 template <typename T, typename GeneratorTestType>
 bool test_hmatrix_hmatrix_product(int size_1, int size_2, int size_3, htool::underlying_type<T> epsilon) {
 
@@ -89,17 +203,168 @@ bool test_hmatrix_hmatrix_product(int size_1, int size_2, int size_3, htool::und
     //     std::cout << lllr->nb_rows() << ',' << lllr->nb_cols() << ',' << lllr->rank_of() << std::endl;
     // }
 
-    SumExpression<T, htool::underlying_type<T>> stest(&root_hmatrix_32, &root_hmatrix_21);
-    std::cout << stest.get_coeff(3, 8) << ',' << reference_dense_matrix(3, 8) << std::endl;
-    std::cout << stest.get_coeff(3, 8) << std::endl;
-    // //////////////////////////////////////
+    // SumExpression<T, htool::underlying_type<T>> stest(&root_hmatrix_32, &root_hmatrix_21);
+    // std::cout << stest.get_coeff(3, 8) << ',' << reference_dense_matrix(3, 8) << std::endl;
+    // std::cout << stest.get_coeff(3, 8) << std::endl;
+    // // //////////////////////////////////////
     auto root_hmatrix_31 = root_hmatrix_32.hmatrix_product(root_hmatrix_21);
 
-    // Compute error
+    // // Compute error
     Matrix<T> hmatrix_to_dense_31(root_hmatrix_31.get_target_cluster().get_size(), root_hmatrix_31.get_source_cluster().get_size());
     copy_to_dense(root_hmatrix_31, hmatrix_to_dense_31.data());
-    std::cout << "?????" << std::endl;
-    std::cout << normFrob(reference_dense_matrix - hmatrix_to_dense_31) / normFrob(reference_dense_matrix) << "\n";
+    // std::cout << "?????" << std::endl;
+    std::cout << "erreur multiplication" << normFrob(reference_dense_matrix - hmatrix_to_dense_31) / normFrob(reference_dense_matrix) << "\n";
+
+    // // test LU
+    // std::cout << "test LU" << std::endl;
+    // auto tlu  = LU(reference_dense_matrix);
+    // auto LetU = get_lu(tlu);
+    // auto L    = LetU.first;
+    // auto U    = LetU.second;
+    // std::cout << "norm(aA-L*U)/norm(a) " << normFrob(reference_dense_matrix - L * U) / normFrob(reference_dense_matrix) << std::endl;
+    // std::cout << "test Lx = y" << std::endl;
+
+    // HMatrixTreeBuilder<T, htool::underlying_type<T>> hmatrix_tree_builder_L(root_cluster_3, root_cluster_2, epsilon, eta, 'N', 'N');
+    // HMatrixTreeBuilder<T, htool::underlying_type<T>> hmatrix_tree_builder_U(root_cluster_2, root_cluster_1, epsilon, eta, 'N', 'N');
+
+    // GeneratorTestType generator_L(3, size_2, size_1, p2, p1, root_cluster_2, root_cluster_1);
+    // GeneratorTestType generator_U(3, size_3, size_2, p3, p2, root_cluster_3, root_cluster_2);
+    // auto ll = L;
+    // auto uu = U;
+    // generator_L.copy_submatrix(L.nb_rows(), L.nb_cols(), 0, 0, ll.data());
+    // generator_U.copy_submatrix(U.nb_rows(), U.nb_cols(), 0, 0, uu.data());
+    // auto reflu = L * U;
+
+    // auto Lh = hmatrix_tree_builder_L.build(generator_L);
+    // auto Uh = hmatrix_tree_builder_U.build(generator_U);
+
+    // Matrix<T> LhUh(root_cluster_1->get_size(), root_cluster_1->get_size());
+    // Matrix<T> lh(root_cluster_1->get_size(), root_cluster_1->get_size());
+    // Matrix<T> uh(root_cluster_1->get_size(), root_cluster_1->get_size());
+    // copy_to_dense(Lh, lh.data());
+    // copy_to_dense(Uh, uh.data());
+    // auto LU = Lh.hmatrix_product(Uh);
+    // copy_to_dense(LU, LhUh.data());
+    // std::cout << "compression L" << Lh.get_compression() << std::endl;
+    // std::cout << "compression U" << Uh.get_compression() << std::endl;
+    // std::cout << " l contre Lh" << normFrob(L - lh) / normFrob(L) << std::endl;
+    // std::cout << " u contre Uh" << normFrob(U - uh) / normFrob(U) << std::endl;
+    // std::cout << "LhUh contre LU" << normFrob(L * U - LhUh) / normFrob(L * U) << std::endl;
+
+    // ///////////////////////////////////////////////////////////
+    // ////// TEST LU AVEC MATRICE DE POISSON
+    // //////////////////////////////////////////////////
+    // std::cout << "______________________________________________________" << std::endl;
+    // std::vector<htool::underlying_type<T>> points = to_mesh("/work/sauniear/Documents/matrice_test/FreeFem Data/H_LU/mesh_poisson518.txt");
+
+    // ClusterTreeBuilder<htool::underlying_type<T>, ComputeLargestExtent<htool::underlying_type<T>>, RegularSplitting<htool::underlying_type<T>>> recursive_build_strategy(points.size() / 3, 3, points.data(), 2, 2);
+
+    // std::shared_ptr<Cluster<htool::underlying_type<T>>> root_poisson = make_shared<Cluster<htool::underlying_type<T>>>(recursive_build_strategy.create_cluster_tree());
+
+    // MatGenerator<double, htool::underlying_type<double>> Mpoisson(root_poisson->get_size(), root_poisson->get_size(), *root_poisson, *root_poisson, "/work/sauniear/Documents/matrice_test/FreeFem Data/H_LU/Poisson518.txt");
+    // Matrix<double> poisson_perm = Mpoisson.get_perm_mat();
+    // auto mat                    = poisson_perm;
+    // std::cout << "test lu " << std::endl;
+    // // std::vector<int> ipiv(518);
+    // // int t    = 518;
+    // // int *LDA = &t;
+    // // int *nr  = &t;
+    // // int *nc  = &t;
+    // // // Lapack<double>::getrf(nr, nc, mat.data(), LDA, ipiv.data(), 0);
+    // auto LetU = LU(poisson_perm);
+    // // Matrix<double> MM(518, 518);
+    // // MM.assign(518, 518, mat.data(), true);
+    // // auto LetU = get_lu(MM);
+    // auto L = get_lu(LetU).first;
+    // auto U = get_lu(LetU).second;
+    // std::cout << normFrob(L * U - poisson_perm) / normFrob(poisson_perm) << std::endl;
+
+    // MatGenerator<double, double> lh(L, *root_poisson, *root_poisson);
+    // MatGenerator<double, double> uh(U, *root_poisson, *root_poisson);
+
+    // auto lperm = lh.get_unperm_mat();
+    // auto uperm = uh.get_unperm_mat();
+    // MatGenerator<double, double> lll(lperm, *root_poisson, *root_poisson);
+    // MatGenerator<double, double> uuu(uperm, *root_poisson, *root_poisson);
+
+    // HMatrixTreeBuilder<T, htool::underlying_type<T>> hmatrix_tree_builder1(root_poisson, root_poisson, epsilon, eta, 'N', 'N');
+    // HMatrixTreeBuilder<T, htool::underlying_type<T>> hmatrix_tree_builder2(root_poisson, root_poisson, epsilon, eta, 'N', 'N');
+
+    // auto Lh = hmatrix_tree_builder1.build(lll);
+    // auto Uh = hmatrix_tree_builder2.build(uuu);
+    // // auto LhUh = Lh.hmatrix_product(Uh);
+    // Matrix<double> ll(518, 518);
+    // Matrix<double> uu(518, 518);
+    // copy_to_dense(Lh, ll.data());
+    // copy_to_dense(Uh, uu.data());
+    // // std::cout << Lh.get_compression() << std::endl;
+    // std::cout << Uh.get_compression() << std::endl;
+
+    // std::cout << "erreur sur Lh " << normFrob(ll - L) / normFrob(L) << std::endl;
+    // std::cout << "erreur uh " << normFrob(U - uu) / normFrob(U) << std::endl;
+
+    // Matrix<double> temp(518, 518);
+    // // copy_to_dense(LhUh, temp.data());
+    // // std::cout << "erreur a-LhUh " << normFrob(mat - temp) / normFrob(mat) << std::endl;
+
+    // for (auto &child_L : Lh.get_children()) {
+    //     std::cout << "_____________________" << std::endl;
+    //     std::cout << child_L->get_target_cluster().get_size() << ',' << child_L->get_target_cluster().get_offset() << std::endl;
+    //     std::cout << child_L->get_source_cluster().get_size() << ',' << child_L->get_source_cluster().get_offset() << std::endl;
+    //     std::cout << "______________________" << std::endl;
+    // }
+    // auto L1 = Lh.get_block(129, 129, 0, 0);
+    // std::cout << L1->get_target_cluster().get_size() << ',' << L1->get_target_cluster().get_offset() << '!' << L1->get_source_cluster().get_size() << ',' << L1->get_source_cluster().get_offset() << std::endl;
+    // for (auto &child : L1->get_children()) {
+    //     std::cout << child->get_target_cluster().get_size() << ',' << child->get_target_cluster().get_offset() << '!' << child->get_source_cluster().get_size() << ',' << L1->get_source_cluster().get_offset() << std::endl;
+    // }
+
+    // std::vector<double> x_sol(root_poisson->get_size(), 1.0);
+    // std::vector<double> x_solu(root_poisson->get_size(), 1.0);
+    // std::vector<double> yl(root_poisson->get_size(), 0.0);
+    // std::vector<double> yu(root_poisson->get_size(), 0.0);
+    // Lh.add_vector_product('N', 1.0, x_sol.data(), 0.0, yl.data());
+    // Uh.add_vector_product('N', 1.0, x_solu.data(), 0.0, yu.data());
+    // std::vector<double> x_u(root_poisson->get_size(), 0.0);
+    // // std::cout << "xu " << norm2(x_u) << ',' << x_u.size() << std::endl;
+    // std::vector<double> x_l(root_poisson->get_size(), 0.0);
+    // Lh.forward_substitution_extract(*root_poisson, yl, x_l);
+    // Uh.backward_substitution_extract(root_poisson->get_size(), root_poisson->get_offset(), yu, x_u);
+    // //  std::cout << norm2(x_u) << ',' << x_u.size() << std::endl;
+    // std::cout << norm2(x_sol - x_l) / norm2(x_sol) << std::endl;
+    // std::cout << norm2(x_solu - x_u) / norm2(x_solu) << std::endl;
+
+    // ///////////////////////////////////////
+    // //// test LU x =y
+    // ///////////////////////////////////
+    // std::cout << "__________________________________" << std::endl;
+    // std::cout << "test LU x =y" << std::endl;
+    // std::vector<double> X(root_poisson->get_size(), 1.0);
+    // std::vector<double> Ytemp(root_poisson->get_size(), 0.0);
+    // std::vector<double> Y(root_poisson->get_size(), 0.0);
+    // Uh.add_vector_product('N', 1.0, X.data(), 0.0, Ytemp.data());
+    // Lh.add_vector_product('N', 1.0, Ytemp.data(), 0.0, Y.data());
+    // std::vector<double> xtest(root_poisson->get_size(), 0.0);
+    // forward_backward(Lh, Uh, *root_poisson, Y, xtest);
+    // std::cout << norm2(xtest - X) / norm2(X) << std::endl;
+
+    //  std::cout << "________________________________________" << std::endl;
+    //  auto lfoisl = Lh.hmatrix_product(Lh);
+    //  Matrix<double> l2(518, 518);
+    //  copy_to_dense(lfoisl, l2.data());
+    //  std::cout << normFrob(l2 - L * L) / normFrob(L * L) << std::endl;
+    //  Lapack<CoefficientPrecision>::getrf(, "A", &m, &n, mat.data(), &lda, singular_values.data(), u.data(), &ldu, vt.data(), &ldvt, work.data(), &lwork, rwork.data(), &info);
+    //  Matrix<T> LUpoisson    = LU(poisson_perm);
+    //  std::cout << normFrob(poisson_perm) << std::endl;
+    //  std::cout << normFrob(get_lu(LUpoisson).first * get_lu(LUpoisson).second - poisson_perm) / normFrob(poisson_perm) << std::endl;
+    //  std::cout << poisson_perm.nb_rows() << ',' << poisson_perm.nb_cols() << std::endl;
+    //  for (int l = 0; l < 10; ++l) {
+    //      std::cout << poisson_perm(1, l) << ',';
+    //  }
+
+    //    std::cout << "!" << normFrob(reference_dense_matrix - reflu) / normFrob(reference_dense_matrix) << std::endl;
+    //    std::cout << "!" << normFrob(reflu - LhUh) / normFrob(reflu) << std::endl;
+    //    std::cout << "!" << normFrob(reference_dense_matrix - LhUh) / normFrob(reference_dense_matrix) << std::endl;
 
     ////////////////////////////////////////////////////////////////
     // Matrix<T> hmatrix_to_dense_21(root_hmatrix_21.get_target_cluster().get_size(), root_hmatrix_21.get_source_cluster().get_size()), hmatrix_to_dense_32(root_hmatrix_32.get_target_cluster().get_size(), root_hmatrix_32.get_source_cluster().get_size());
