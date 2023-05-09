@@ -5,21 +5,28 @@ using namespace std;
 using namespace htool;
 
 int main(int argc, char *argv[]) {
+    bool is_error = false;
 
     MPI_Init(&argc, &argv);
-    bool is_error                = false;
-    const int number_of_points_1 = 200;
-    const int number_of_points_2 = 200;
-    const int number_of_points_3 = 200;
+    for (int k = 3; k < 4; ++k) {
+        std::cout << " size = " << std::pow(2, 8 + k) << std::endl;
+        const int number_of_points_1 = std::pow(2, 8 + k);
+        // const int number_of_points_1 = 30;
 
-    std::vector<double> epsilon = {1e-5};
+        const int number_of_points_2 = std::pow(2, 8 + k);
+        const int number_of_points_3 = std::pow(2, 8 + k);
+        // const int number_of_points_1 = 10000;
+        // const int number_of_points_2 = 10000;
+        // const int number_of_points_3 = 10000;
 
-    for (auto i : epsilon) {
+        std::vector<double> epsilon = {1e-5};
 
-        // Square matrix
-        is_error = is_error || test_hmatrix_hmatrix_product<double, GeneratorTestDouble>(number_of_points_1, number_of_points_2, number_of_points_3, i);
+        for (auto i : epsilon) {
+
+            // Square matrix
+            is_error = is_error || test_hmatrix_hmatrix_product<double, GeneratorTestDouble>(number_of_points_1, number_of_points_2, number_of_points_3, i);
+        }
     }
-
     MPI_Finalize();
     if (is_error) {
         return 1;

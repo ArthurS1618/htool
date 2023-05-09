@@ -9,6 +9,9 @@
 #include <htool/testing/partition.hpp>
 #include <htool/wrappers/wrapper_lapack.hpp>
 
+#include <ctime>
+#include <iostream>
+
 using namespace std;
 using namespace htool;
 vector<double> to_mesh(const string &file_name) {
@@ -131,11 +134,12 @@ bool test_hmatrix_hmatrix_product(int size_1, int size_2, int size_3, htool::und
     srand(1);
     bool is_error = false;
 
-    // Geometry
+    // // Geometry
     vector<double> p1(3 * size_1), p2(3 * size_2), p3(3 * size_3);
     create_disk(3, 0., size_1, p1.data());
     create_disk(3, 0.5, size_2, p2.data());
     create_disk(3, 1., size_3, p3.data());
+    std::cout << "création cluster ok" << std::endl;
 
     // Clustering
     ClusterTreeBuilder<htool::underlying_type<T>, ComputeLargestExtent<htool::underlying_type<T>>, RegularSplitting<htool::underlying_type<T>>> recursive_build_strategy_1(size_1, 3, p1.data(), 2, 2);
@@ -145,7 +149,7 @@ bool test_hmatrix_hmatrix_product(int size_1, int size_2, int size_3, htool::und
     std::shared_ptr<Cluster<htool::underlying_type<T>>> root_cluster_1 = make_shared<Cluster<htool::underlying_type<T>>>(recursive_build_strategy_1.create_cluster_tree());
     std::shared_ptr<Cluster<htool::underlying_type<T>>> root_cluster_2 = make_shared<Cluster<htool::underlying_type<T>>>(recursive_build_strategy_2.create_cluster_tree());
     std::shared_ptr<Cluster<htool::underlying_type<T>>> root_cluster_3 = make_shared<Cluster<htool::underlying_type<T>>>(recursive_build_strategy_3.create_cluster_tree());
-
+    std::cout << "Cluster tree ok" << std::endl;
     // Generator
     GeneratorTestType generator_21(3, size_2, size_1, p2, p1, root_cluster_2, root_cluster_1);
     GeneratorTestType generator_32(3, size_3, size_2, p3, p2, root_cluster_3, root_cluster_2);
@@ -154,66 +158,217 @@ bool test_hmatrix_hmatrix_product(int size_1, int size_2, int size_3, htool::und
     Matrix<T> dense_matrix_21(root_cluster_2->get_size(), root_cluster_1->get_size()), dense_matrix_32(root_cluster_3->get_size(), root_cluster_2->get_size());
     generator_21.copy_submatrix(dense_matrix_21.nb_rows(), dense_matrix_21.nb_cols(), 0, 0, dense_matrix_21.data());
     generator_32.copy_submatrix(dense_matrix_32.nb_rows(), dense_matrix_32.nb_cols(), 0, 0, dense_matrix_32.data());
-
-    Matrix<T> reference_dense_matrix = dense_matrix_32 * dense_matrix_21;
+    std::cout << "generator ok" << std::endl;
 
     // HMatrix
     double eta = 10;
 
-    HMatrixTreeBuilder<T, htool::underlying_type<T>> hmatrix_tree_builder_21(root_cluster_2, root_cluster_1, epsilon, eta, 'N', 'N');
-    HMatrixTreeBuilder<T, htool::underlying_type<T>> hmatrix_tree_builder_32(root_cluster_3, root_cluster_2, epsilon, eta, 'N', 'N');
+    // HMatrixTreeBuilder<T, htool::underlying_type<T>> hmatrix_tree_builder_21(root_cluster_2, root_cluster_1, epsilon, eta, 'N', 'N');
+    // HMatrixTreeBuilder<T, htool::underlying_type<T>> hmatrix_tree_builder_32(root_cluster_3, root_cluster_2, epsilon, eta, 'N', 'N');
+    HMatrixTreeBuilder<T, htool::underlying_type<T>> hmatrix_tree_builder_21(root_cluster_1, root_cluster_1, epsilon, eta, 'N', 'N');
+    HMatrixTreeBuilder<T, htool::underlying_type<T>> hmatrix_tree_builder_32(root_cluster_1, root_cluster_1, epsilon, eta, 'N', 'N');
 
     // build
     auto root_hmatrix_21 = hmatrix_tree_builder_21.build(generator_21);
     auto root_hmatrix_32 = hmatrix_tree_builder_32.build(generator_32);
-    // auto leaf            = root_hmatrix_21.get_leaves();
-    // std::vector<const HMatrix<T, htool::underlying_type<T>> *> lowrank;
-    // std::vector<const HMatrix<T, htool::underlying_type<T>> *> hmat;
-    // std::vector<const LowRankMatrix<T, htool::underlying_type<T>> *> vect_lr;
-    // std::cout << leaf.size() << std::endl;
-    // for (int k = 0; k < leaf.size(); ++k) {
-    //     auto &l = leaf[k];
-    //     if (l->is_low_rank()) {
-    //         lowrank.push_back(l);
-    //         auto lr = l->get_low_rank_data();
-    //         vect_lr.push_back(lr);
-    //     } else {
-    //         hmat.push_back(l);
-    //     }
-    // }
+    std::cout << "hmat build ok " << std::endl;
+    // // auto leaf            = root_hmatrix_21.get_leaves();
+    // // std::vector<const HMatrix<T, htool::underlying_type<T>> *> lowrank;
+    // // std::vector<const HMatrix<T, htool::underlying_type<T>> *> hmat;
+    // // std::vector<const LowRankMatrix<T, htool::underlying_type<T>> *> vect_lr;
+    // // std::cout << leaf.size() << std::endl;
+    // // for (int k = 0; k < leaf.size(); ++k) {
+    // //     auto &l = leaf[k];
+    // //     if (l->is_low_rank()) {
+    // //         lowrank.push_back(l);
+    // //         auto lr = l->get_low_rank_data();
+    // //         vect_lr.push_back(lr);
+    // //     } else {
+    // //         hmat.push_back(l);
+    // //     }
+    // // }
 
-    // auto &H_children = root_hmatrix_21.get_children();
-    // for (int k = 0; k < H_children.size(); ++k) {
-    //     auto &Hk = H_children[k];
-    //     std::cout << Hk->get_target_cluster().get_size() << ',' << Hk->get_source_cluster().get_size() << std::endl;
-    // }
-    // SumExpression<T, htool::underlying_type<T>> sumexpr(&root_hmatrix_21, &root_hmatrix_21);
-    // auto srestr = sumexpr.Restrict(100, 0, 100, 0);
-    // std::cout << srestr.get_sh().size() << ',' << srestr.get_sr().size() << std::endl;
-    // auto srestr1 = srestr.Restrict(50, 0, 50, 0);
-    // std::cout << srestr1.get_sh().size() << ',' << srestr1.get_sr().size() << std::endl;
-    // auto ssr = srestr1.get_sr();
-    // auto lr  = ssr[0];
-    // std::cout << lr->nb_rows() << ',' << lr->nb_cols() << ',' << lr->rank_of() << std::endl;
-    // auto srestr2 = srestr1.Restrict(25, 0, 25, 0);
-    // std::cout << srestr2.get_sh().size() << ',' << srestr2.get_sr().size() << std::endl;
-    // auto sssr = srestr2.get_sr();
-    // for (int k = 0; k < sssr.size(); ++k) {
-    //     auto lllr = sssr[k];
-    //     std::cout << lllr->nb_rows() << ',' << lllr->nb_cols() << ',' << lllr->rank_of() << std::endl;
-    // }
+    // // auto &H_children = root_hmatrix_21.get_children();
+    // // for (int k = 0; k < H_children.size(); ++k) {
+    // //     auto &Hk = H_children[k];
+    // //     std::cout << Hk->get_target_cluster().get_size() << ',' << Hk->get_source_cluster().get_size() << std::endl;
+    // // }
+    // // SumExpression<T, htool::underlying_type<T>> sumexpr(&root_hmatrix_21, &root_hmatrix_21);
+    // // auto srestr = sumexpr.Restrict(100, 0, 100, 0);
+    // // std::cout << srestr.get_sh().size() << ',' << srestr.get_sr().size() << std::endl;
+    // // auto srestr1 = srestr.Restrict(50, 0, 50, 0);
+    // // std::cout << srestr1.get_sh().size() << ',' << srestr1.get_sr().size() << std::endl;
+    // // auto ssr = srestr1.get_sr();
+    // // auto lr  = ssr[0];
+    // // std::cout << lr->nb_rows() << ',' << lr->nb_cols() << ',' << lr->rank_of() << std::endl;
+    // // auto srestr2 = srestr1.Restrict(25, 0, 25, 0);
+    // // std::cout << srestr2.get_sh().size() << ',' << srestr2.get_sr().size() << std::endl;
+    // // auto sssr = srestr2.get_sr();
+    // // for (int k = 0; k < sssr.size(); ++k) {
+    // //     auto lllr = sssr[k];
+    // //     std::cout << lllr->nb_rows() << ',' << lllr->nb_cols() << ',' << lllr->rank_of() << std::endl;
+    // // }
 
-    // SumExpression<T, htool::underlying_type<T>> stest(&root_hmatrix_32, &root_hmatrix_21);
-    // std::cout << stest.get_coeff(3, 8) << ',' << reference_dense_matrix(3, 8) << std::endl;
-    // std::cout << stest.get_coeff(3, 8) << std::endl;
-    // // //////////////////////////////////////
-    auto root_hmatrix_31 = root_hmatrix_32.hmatrix_product(root_hmatrix_21);
+    // // SumExpression<T, htool::underlying_type<T>> stest(&root_hmatrix_32, &root_hmatrix_21);
+    // // std::cout << stest.get_coeff(3, 8) << ',' << reference_dense_matrix(3, 8) << std::endl;
+    // // std::cout << stest.get_coeff(3, 8) << std::endl;
+    // // // //////////////////////////////////////
 
-    // // Compute error
-    Matrix<T> hmatrix_to_dense_31(root_hmatrix_31.get_target_cluster().get_size(), root_hmatrix_31.get_source_cluster().get_size());
-    copy_to_dense(root_hmatrix_31, hmatrix_to_dense_31.data());
-    // std::cout << "?????" << std::endl;
-    std::cout << "erreur multiplication" << normFrob(reference_dense_matrix - hmatrix_to_dense_31) / normFrob(reference_dense_matrix) << "\n";
+    // // clock_t start_time   = std::clock(); // temps de départ
+    // // auto root_hmatrix_31 = root_hmatrix_32.hmatrix_product(root_hmatrix_21);
+    // // clock_t end_time     = clock(); // temps de fin
+    // // double time_taken0   = double(end_time - start_time) / CLOCKS_PER_SEC;
+    // // std::cout << "duration multiplication:" << time_taken0 << std::endl;
+
+    // // start_time = std::clock(); // temps de départ
+    // // for (int i = 0; i < root_hmatrix_31.get_target_cluster().get_size(); ++i) {
+    // //     for (int j = 0; j < root_hmatrix_31.get_source_cluster().get_size(); ++j) {
+    // //         for (int k = 0; k < root_hmatrix_31.get_source_cluster().get_size(); ++k) {
+    // //         }
+    // //     }
+    // // }
+    // // end_time          = clock(); // temps de fin
+    // // double time_taken = double(end_time - start_time) / CLOCKS_PER_SEC;
+    // // std::cout << "temps mult :" << time_taken << std::endl;
+
+    // // Matrix<T> hmatrix_to_dense_31(root_hmatrix_31.get_target_cluster().get_size(), root_hmatrix_31.get_source_cluster().get_size());
+    // // copy_to_dense(root_hmatrix_31, hmatrix_to_dense_31.data());
+    // // // std::cout << "?????" << std::endl;
+    // // std::cout << "erreur multiplication" << normFrob(reference_dense_matrix - hmatrix_to_dense_31) / normFrob(reference_dense_matrix) << "\n";
+    // //////////////////////////////////////////
+    // //// TEST MULT HACKBUSH
+    // ////////////////////////////////////////
+
+    // HMatrix<T, htool::underlying_type<T>> test(root_cluster_3, root_cluster_1);
+    // HMatrixTreeBuilder<T, htool::underlying_type<T>> hmatrix_tree_builder_31(root_cluster_1, root_cluster_1, epsilon, eta, 'N', 'N');
+    // Matrix<T> test(root_cluster_1->get_size(), root_cluster_1->get_size());
+    // MatGenerator<T, htool::underlying_type<T>> Z(test, *root_cluster_1, *root_cluster_1);
+
+    // build
+
+    // auto root_hmatrix_31 = hmatrix_tree_builder_31.build(Z);
+
+    clock_t start_time = std::clock(); // temps de départ
+    auto test31        = dense_matrix_32 * dense_matrix_21;
+    clock_t end_time   = clock(); // temps de fin
+    double time_takena = double(end_time - start_time) / CLOCKS_PER_SEC;
+    std::cout << "temps vrai mult :" << time_takena << std::endl;
+
+    // auto test22 = dense_matrix_21 * dense_matrix_32;
+    std::cout << "test22 ok" << std::endl;
+    start_time        = std::clock(); // temps de départ
+    auto testm        = root_hmatrix_32.hmat_lr(dense_matrix_21);
+    end_time          = clock(); // temps de fin
+    double time_taken = double(end_time - start_time) / CLOCKS_PER_SEC;
+    std::cout << "temps hmat lr :" << time_taken << std::endl;
+    std::cout << "ca va peter " << std::endl;
+    std::cout << "testm " << testm.nb_rows() << ',' << testm.nb_cols() << std::endl;
+    std::cout << "test31 " << test31.nb_rows() << ',' << test31.nb_cols() << std::endl;
+    std::cout << "erreur hmat lr " << normFrob(testm - test31) / normFrob(test31) << std::endl;
+
+    std::vector<double> xx(root_hmatrix_21.get_target_cluster().get_size(), 1.0);
+    std::vector<double> yy(root_hmatrix_21.get_target_cluster().get_size(), 0.0);
+    start_time = std::clock(); // temps de départ
+
+    root_hmatrix_21.add_vector_product('N', 1.0, xx.data(), 0.0, yy.data());
+    end_time   = clock(); // temps de fin
+    time_taken = double(end_time - start_time) / CLOCKS_PER_SEC;
+    std::cout << "hmat vec " << time_taken << std::endl;
+    std::cout << time_taken * root_hmatrix_21.get_target_cluster().get_size() << std::endl;
+
+    start_time  = std::clock(); // temps de départ
+    auto testtt = dense_matrix_21 * xx;
+    end_time    = clock(); // temps de fin
+    time_taken  = double(end_time - start_time) / CLOCKS_PER_SEC;
+    std::cout << " vrai mat vec " << time_taken << std::endl;
+
+    // //////////////////////////////////
+    // //// TEST HMAT ANI
+    // /////////////////////////////////
+    // std::vector<std::vector<T>> RES;
+    // std::vector<std::vector<T>> col_U;
+    // for (int k = 0; k < root_hmatrix_21.get_target_cluster().get_size(); ++k) {
+    //     col_U.push_back(dense_matrix_21.get_col(k));
+    //     std::vector<T> ref(root_hmatrix_21.get_target_cluster().get_size(), 0.0);
+    //     RES.push_back(ref);
+    // }
+    // start_time = clock();
+    // root_hmatrix_32.hmat_lr_plus(col_U, RES);
+    // end_time = clock();
+    // Matrix<T> reference(root_hmatrix_21.get_target_cluster().get_size(), root_hmatrix_21.get_target_cluster().get_size());
+    // for (int k = 0; k < root_hmatrix_21.get_target_cluster().get_size(); ++k) {
+    //     reference.set_col(k, RES[k]);
+    // }
+    // std::cout << "time ani " << double(end_time - start_time) / CLOCKS_PER_SEC << std::endl;
+    // std::cout << "erreur ani " << normFrob(reference - test31) / normFrob(test31) << std::endl;
+
+    /////////////////////////////////////////////////////////////////////////////////
+    // start_time         = std::clock(); // temps de départ
+    // auto testr         = root_hmatrix_32.lr_hmat(dense_matrix_21);
+    // end_time           = clock(); // temps de fin
+    // double time_taken1 = double(end_time - start_time) / CLOCKS_PER_SEC;
+    // std::cout << "temps lr hmat :" << time_taken1 << std::endl;
+    // std::cout << "erreur lr hmat " << normFrob(test22 - testr) / normFrob(test22) << std::endl;
+
+    // start_time = std::clock(); // temps de départ
+
+    // Matrix<T> reference_dense_matrix = dense_matrix_32 * dense_matrix_21;
+
+    // MM(&root_hmatrix_31, &root_hmatrix_32, &root_hmatrix_21, root_cluster_1.get(), root_cluster_1.get(), root_cluster_1.get());
+    // std::cout << normFrob(reference_dense_matrix - test) / normFrob(reference_dense_matrix) << std::endl;
+
+    // clock_t start_time   = std::clock(); // temps de départ
+    // auto root_hmatrix_31 = root_hmatrix_32.hmatrix_product(root_hmatrix_21);
+    // clock_t end_time     = clock(); // temps de fin
+    // double time_taken    = double(end_time - start_time) / CLOCKS_PER_SEC;
+    // std::cout << "temps hmult :" << time_taken << std::endl;
+    // start_time         = std::clock(); // temps de départ
+    // auto testt         = dense_matrix_32 * dense_matrix_21;
+    // end_time           = clock(); // temps de fin
+    // double time_taken0 = double(end_time - start_time) / CLOCKS_PER_SEC;
+    // std::cout << "temps mult :" << time_taken0 << std::endl;
+    // Matrix<T> res(root_hmatrix_31.get_target_cluster().get_size(), root_hmatrix_31.get_source_cluster().get_size());
+    // copy_to_dense(root_hmatrix_31, res.data());
+    // std::cout << "erreur " << normFrob(reference_dense_matrix - res) / normFrob(res) << std::endl;
+
+    // std::vector<double> xxref(root_hmatrix_21.get_source_cluster().get_size(), 1.0);
+    // auto yref = dense_matrix_21 * xxref;
+    // std::vector<double> xtest(root_cluster_1->get_size(), 1.0);
+    // std::vector<double> y(root_cluster_1->get_size(), 0.0);
+    // std::vector<double> yy(root_cluster_2->get_size(), 0.0);
+    // start_time = std::clock();
+    // root_hmatrix_21.add_vector_product('N', 1.0, xtest.data(), 0.0, y.data());
+    // end_time           = std::clock();
+    // double time_taken1 = double(end_time - start_time) / CLOCKS_PER_SEC;
+    // std::cout << "pierre" << norm2(y - yref) / norm2(yref) << ',' << time_taken1 << std::endl;
+    // start_time = std::clock();
+    // root_hmatrix_21.mat_vec(xtest, yy);
+    // end_time           = std::clock();
+    // double time_taken2 = double(end_time - start_time) / CLOCKS_PER_SEC;
+    // std::cout << "moi" << norm2(yy - yref) / norm2(yref) << ',' << time_taken2 << std::endl;
+
+    // // clock_t start_time1 = std::clock(); // temps de départ
+    // // auto test           = dense_matrix_32 * dense_matrix_21;
+    // // clock_t end_time1   = clock(); // temps de fin
+    // // double time_taken   = double(end_time - start_time) / CLOCKS_PER_SEC;
+    // // std::cout << "reg :" << time_taken << std::endl;
+
+    // //    auto root_hmatrix_31 = root_hmatrix_32.hmatrix_product(root_hmatrix_21);
+    // //     auto stop            = std::high_resolution_clock::now();
+    // //     auto duration        = std::duration_cast<microseconds>(stop - start);
+    // //     std::cout << "mult :" << duration.count() << std::endl;
+    // //     start     = std::high_resolution_clock::now();
+    // //     auto test = std::dense_matrix_32 * dense_matrix_21;
+    // //     stop      = std::high_resolution_clock::now();
+    // //     duration  = std::duration_cast<microseconds>(stop - start);
+    // //     cout << "reg: " << duration.count() << endl;
+
+    // // // Compute error
+    // Matrix<T> hmatrix_to_dense_31(root_hmatrix_31.get_target_cluster().get_size(), root_hmatrix_31.get_source_cluster().get_size());
+    // copy_to_dense(root_hmatrix_31, hmatrix_to_dense_31.data());
+    // // std::cout << "?????" << std::endl;
+    // std::cout << "erreur multiplication" << normFrob(reference_dense_matrix - hmatrix_to_dense_31) / normFrob(reference_dense_matrix) << "\n";
+    // std::cout << hmatrix_to_dense_31.nb_rows() << ',' << hmatrix_to_dense_31.nb_cols() << std::endl;
 
     // // test LU
     // std::cout << "test LU" << std::endl;
@@ -252,26 +407,104 @@ bool test_hmatrix_hmatrix_product(int size_1, int size_2, int size_3, htool::und
     // std::cout << "LhUh contre LU" << normFrob(L * U - LhUh) / normFrob(L * U) << std::endl;
 
     // ///////////////////////////////////////////////////////////
-    // ////// TEST LU AVEC MATRICE DE POISSON
+    // ////// TEST H_LU
     // //////////////////////////////////////////////////
     // std::cout << "______________________________________________________" << std::endl;
-    // std::vector<htool::underlying_type<T>> points = to_mesh("/work/sauniear/Documents/matrice_test/FreeFem Data/H_LU/mesh_poisson518.txt");
 
+    // // MESH
+    // int size = 518;
+    // vector<double> points(3 * size);
+    // create_disk(3, 0., size, points.data());
+    // std::cout << "disque ok " << std::endl;
+    // // std::vector<htool::underlying_type<T>> points = to_mesh("/work/sauniear/Documents/matrice_test/FreeFem Data/H_LU/mesh_poisson518.txt");
+
+    // // CLUSTER
     // ClusterTreeBuilder<htool::underlying_type<T>, ComputeLargestExtent<htool::underlying_type<T>>, RegularSplitting<htool::underlying_type<T>>> recursive_build_strategy(points.size() / 3, 3, points.data(), 2, 2);
-
     // std::shared_ptr<Cluster<htool::underlying_type<T>>> root_poisson = make_shared<Cluster<htool::underlying_type<T>>>(recursive_build_strategy.create_cluster_tree());
+    // // GENERATOR
+    // GeneratorTestType generator(3, size, size, points, points, root_poisson, root_poisson);
+    // std::cout << "generator ok " << std::endl;
 
+    // Matrix<T> reference(root_poisson->get_size(), root_poisson->get_size());
+    // std::cout << "init ok " << std::endl;
+    // generator.copy_submatrix(reference.nb_rows(), reference.nb_cols(), 0, 0, reference.data());
+    // std::cout << "init ok " << std::endl;
+    // MatGenerator<double, double> temp(reference, *root_poisson, *root_poisson);
+    // Matrix<double> unperm = temp.get_mat();
+
+    //// LU sur la matrice dense
+    // auto LetU = LU(reference);
+    // auto L    = LetU.first;
+    // auto U    = LetU.second;
+    // for (int k = 0; k < 40; ++k) {
+    //     for (int l = 0; l < 40; ++l) {
+    //         std::cout << L(k, l) << ',';
+    //     }
+    //     std::cout << '\n'
+    //               << std::endl;
+    // }
+    // std::cout << "_______________________________________" << std::endl;
+    // for (int k = 0; k < 20; ++k) {
+    //     for (int l = 0; l < 20; ++l) {
+    //         std::cout << U(k, l) << ',';
+    //     }
+    //     std::cout << '\n'
+    //               << std::endl;
+    // }
+    // std::cout << "_______________________________________" << std::endl;
+    // std::cout << normFrob(L) << ',' << normFrob(U) << std::endl;
+    // std::cout << "erreur sur LU : " << normFrob(L * U - reference) << std::endl;
+
+    // // HMatrix  builder Lh et Uh
+    // double eta = 10;
+    // HMatrixTreeBuilder<T, htool::underlying_type<T>> hmatrix_tree_builderL(root_poisson, root_poisson, epsilon, eta, 'N', 'N');
+    // HMatrixTreeBuilder<T, htool::underlying_type<T>> hmatrix_tree_builderU(root_poisson, root_poisson, epsilon, eta, 'N', 'N');
+    // MatGenerator<double, double> lh(L, *root_poisson, *root_poisson);
+    // MatGenerator<double, double> uh(U, *root_poisson, *root_poisson);
+
+    // auto lperm = lh.get_unperm_mat();
+    // auto uperm = uh.get_unperm_mat();
+    // MatGenerator<double, double> lll(lperm, *root_poisson, *root_poisson);
+    // MatGenerator<double, double> uuu(uperm, *root_poisson, *root_poisson);
+    // auto Lh = hmatrix_tree_builderL.build(lll);
+    // auto Uh = hmatrix_tree_builderU.build(uuu);
+
+    // Matrix<double> ll(root_poisson->get_size(), root_poisson->get_size());
+    // Matrix<double> uu(root_poisson->get_size(), root_poisson->get_size());
+    // copy_to_dense(Lh, ll.data());
+    // copy_to_dense(Uh, uu.data());
+    // std::cout << "erreur sur LU : " << normFrob(L * U - reference);
+    // std::cout << "compression Lh" << Lh.get_compression() << std::endl;
+    // std::cout << " compression Uh " << Uh.get_compression() << std::endl;
+
+    // std::cout << "erreur sur Lh " << normFrob(ll - L) / normFrob(L) << std::endl;
+    // std::cout << "erreur Uh " << normFrob(U - uu) / normFrob(U) << std::endl;
+
+    // std::vector<double> x_sol(root_poisson->get_size(), 1.0);
+    // std::vector<double> x_solu(root_poisson->get_size(), 1.0);
+    // std::vector<double> yl(root_poisson->get_size(), 0.0);
+    // std::vector<double> yu(root_poisson->get_size(), 0.0);
+    // Lh.add_vector_product('N', 1.0, x_sol.data(), 0.0, yl.data());
+    // Uh.add_vector_product('N', 1.0, x_solu.data(), 0.0, yu.data());
+    // std::vector<double> x_u(root_poisson->get_size(), 0.0);
+    // std::vector<double> x_l(root_poisson->get_size(), 0.0);
+    // Lh.forward_substitution_extract(*root_poisson, yl, x_l);
+    // Uh.backward_substitution_extract(root_poisson->get_size(), root_poisson->get_offset(), yu, x_u);
+    // std::cout << " erreur Lx=y" << norm2(x_sol - x_l) / norm2(x_sol) << std::endl;
+    // std::cout << "erreur Ux = y" << norm2(x_solu - x_u) / norm2(x_solu) << std::endl;
+
+    // // // HMatrixTreeBuilder<T, htool::underlying_type<T>> hmatrix_tree_builder_21(root_cluster_2, root_cluster_1, epsilon, eta, 'N', 'N');
     // MatGenerator<double, htool::underlying_type<double>> Mpoisson(root_poisson->get_size(), root_poisson->get_size(), *root_poisson, *root_poisson, "/work/sauniear/Documents/matrice_test/FreeFem Data/H_LU/Poisson518.txt");
     // Matrix<double> poisson_perm = Mpoisson.get_perm_mat();
     // auto mat                    = poisson_perm;
     // std::cout << "test lu " << std::endl;
-    // // std::vector<int> ipiv(518);
-    // // int t    = 518;
-    // // int *LDA = &t;
-    // // int *nr  = &t;
-    // // int *nc  = &t;
-    // // // Lapack<double>::getrf(nr, nc, mat.data(), LDA, ipiv.data(), 0);
-    // auto LetU = LU(poisson_perm);
+    // std::vector<int> ipiv(518);
+    // int t    = 518;
+    // int *LDA = &t;
+    // int *nr  = &t;
+    // int *nc  = &t;
+    // // Lapack<double>::getrf(nr, nc, mat.data(), LDA, ipiv.data(), 0);
+    // //auto LetU = LU(poisson_perm);
     // // Matrix<double> MM(518, 518);
     // // MM.assign(518, 518, mat.data(), true);
     // // auto LetU = get_lu(MM);
@@ -292,32 +525,14 @@ bool test_hmatrix_hmatrix_product(int size_1, int size_2, int size_3, htool::und
 
     // auto Lh = hmatrix_tree_builder1.build(lll);
     // auto Uh = hmatrix_tree_builder2.build(uuu);
-    // // auto LhUh = Lh.hmatrix_product(Uh);
     // Matrix<double> ll(518, 518);
     // Matrix<double> uu(518, 518);
     // copy_to_dense(Lh, ll.data());
     // copy_to_dense(Uh, uu.data());
-    // // std::cout << Lh.get_compression() << std::endl;
     // std::cout << Uh.get_compression() << std::endl;
 
     // std::cout << "erreur sur Lh " << normFrob(ll - L) / normFrob(L) << std::endl;
     // std::cout << "erreur uh " << normFrob(U - uu) / normFrob(U) << std::endl;
-
-    // Matrix<double> temp(518, 518);
-    // // copy_to_dense(LhUh, temp.data());
-    // // std::cout << "erreur a-LhUh " << normFrob(mat - temp) / normFrob(mat) << std::endl;
-
-    // for (auto &child_L : Lh.get_children()) {
-    //     std::cout << "_____________________" << std::endl;
-    //     std::cout << child_L->get_target_cluster().get_size() << ',' << child_L->get_target_cluster().get_offset() << std::endl;
-    //     std::cout << child_L->get_source_cluster().get_size() << ',' << child_L->get_source_cluster().get_offset() << std::endl;
-    //     std::cout << "______________________" << std::endl;
-    // }
-    // auto L1 = Lh.get_block(129, 129, 0, 0);
-    // std::cout << L1->get_target_cluster().get_size() << ',' << L1->get_target_cluster().get_offset() << '!' << L1->get_source_cluster().get_size() << ',' << L1->get_source_cluster().get_offset() << std::endl;
-    // for (auto &child : L1->get_children()) {
-    //     std::cout << child->get_target_cluster().get_size() << ',' << child->get_target_cluster().get_offset() << '!' << child->get_source_cluster().get_size() << ',' << L1->get_source_cluster().get_offset() << std::endl;
-    // }
 
     // std::vector<double> x_sol(root_poisson->get_size(), 1.0);
     // std::vector<double> x_solu(root_poisson->get_size(), 1.0);
@@ -331,8 +546,8 @@ bool test_hmatrix_hmatrix_product(int size_1, int size_2, int size_3, htool::und
     // Lh.forward_substitution_extract(*root_poisson, yl, x_l);
     // Uh.backward_substitution_extract(root_poisson->get_size(), root_poisson->get_offset(), yu, x_u);
     // //  std::cout << norm2(x_u) << ',' << x_u.size() << std::endl;
-    // std::cout << norm2(x_sol - x_l) / norm2(x_sol) << std::endl;
-    // std::cout << norm2(x_solu - x_u) / norm2(x_solu) << std::endl;
+    // std::cout << " erreur Lx=y" << norm2(x_sol - x_l) / norm2(x_sol) << std::endl;
+    // std::cout << "erreur Ux = y" << norm2(x_solu - x_u) / norm2(x_solu) << std::endl;
 
     // ///////////////////////////////////////
     // //// test LU x =y
