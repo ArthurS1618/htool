@@ -22,3 +22,11 @@ add_executable(Test_compression_freefem test_compression_freefem.cpp)
 target_link_libraries(Test_compression_freefem htool)
 add_test(Test_compression_freefem Test_compression_freefem)
 
+add_executable(Test_LU test_lu.cpp)
+target_link_libraries(Test_LU htool)
+add_test(Test_LU Test_LU)
+
+
+add_executable(Test_HMULT test_hmult.cpp)
+target_link_libraries(Test_HMULT htool)
+add_test(Test_HMULT Test_HMULT)

@@ -9,9 +9,10 @@
 #    define HTOOL_LAPACK_F77(func) func##_
 #endif
 
-#define HTOOL_GENERATE_EXTERN_LAPACK_COMPLEX(C, T, B, U)                                                                                                                       \
-    void HTOOL_LAPACK_F77(B##gesvd)(const char *, const char *, const int *, const int *, U *, const int *, U *, U *, const int *, U *, const int *, U *, const int *, int *); \
-    void HTOOL_LAPACK_F77(C##gesvd)(const char *, const char *, const int *, const int *, T *, const int *, U *, T *, const int *, T *, const int *, T *, const int *, U *, int *);
+#define HTOOL_GENERATE_EXTERN_LAPACK_COMPLEX(C, T, B, U)                                                                                                                            \
+    void HTOOL_LAPACK_F77(B##gesvd)(const char *, const char *, const int *, const int *, U *, const int *, U *, U *, const int *, U *, const int *, U *, const int *, int *);      \
+    void HTOOL_LAPACK_F77(C##gesvd)(const char *, const char *, const int *, const int *, T *, const int *, U *, T *, const int *, T *, const int *, T *, const int *, U *, int *); \
+    void HTOOL_LAPACK_F77(B##getrf)(const int *, const int *, U *, const int *, int *, int *);
 
 #if !defined(PETSC_HAVE_BLASLAPACK)
 #    ifndef _MKL_H_
@@ -40,6 +41,7 @@ struct Lapack {
     /* Function: gesvd
      *  computes the singular value decomposition (SVD). */
     static void gesvd(const char *, const char *, const int *, const int *, K *, const int *, underlying_type<K> *, K *, const int *, K *, const int *, K *, const int *, underlying_type<K> *, int *);
+    static void getrf(const int *, const int *, K *, const int *, int *, int *);
 };
 
 #    define HTOOL_GENERATE_LAPACK_COMPLEX(C, T, B, U)                                                                                                                                                                             \
@@ -52,6 +54,11 @@ struct Lapack {
         inline void Lapack<T>::gesvd(const char *jobu, const char *jobvt, const int *m, const int *n, T *a, const int *lda, U *s, T *u, const int *ldu, T *vt, const int *ldvt, T *work, const int *lwork, U *rwork, int *info) { \
             HTOOL_LAPACK_F77(C##gesvd)                                                                                                                                                                                            \
             (jobu, jobvt, m, n, a, lda, s, u, ldu, vt, ldvt, work, lwork, rwork, info);                                                                                                                                           \
+        }                                                                                                                                                                                                                         \
+        template <>                                                                                                                                                                                                               \
+        inline void Lapack<U>::getrf(const int *m, const int *n, U *a, const int *lda, int *ipiv, int *info) {                                                                                                                    \
+            HTOOL_LAPACK_F77(B##getrf)                                                                                                                                                                                            \
+            (m, n, a, lda, ipiv, info);                                                                                                                                                                                           \
         }
 
 HTOOL_GENERATE_LAPACK_COMPLEX(c, std::complex<float>, s, float)

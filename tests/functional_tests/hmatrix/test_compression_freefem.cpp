@@ -30,28 +30,46 @@ class MatGenerator : public VirtualGenerator<CoefficientPrecision> {
         ifstream file;
         file.open(matfile);
         CoefficientPrecision *data = new CoefficientPrecision[nr * nc];
+        std::vector<CoefficientPrecision> file_content;
         if (!file) {
             std::cerr << "Error : Can't open the file" << std::endl;
         } else {
             std::string word;
             std::vector<std::string> file_content;
             int count = 0;
-            while (file >> word) {
-                file_content.push_back(word);
-                count++;
+            // while (file >> word) {
+            //     file_content.push_back(word);
+            //     count++;
+            // }
+            // for (int i = 0; i < count; i++) {
+            //     string str = file_content[i];
+            //     CoefficientPrecision d1;
+            //     stringstream stream1;
+            //     stream1 << str;
+            //     stream1 >> d1;
+            //     // data[i] = d1;
+            //     int i0             = i / nr;
+            //     int j0             = i - i0 * nr;
+            //     data[j0 * nr + i0] = d1;
+            // }
+            char delimiter = ',';
+            string line;
+            int i = 0;
+            while (getline(file, line)) {
+                stringstream ss(line);
+                string word;
+                int j = 0;
+                while (getline(ss, word, delimiter)) {
+                    CoefficientPrecision d1;
+                    stringstream stream1;
+                    stream1 << word;
+                    stream1 >> d1;
+                    data[i * nc + j] = d1;
+                    j += 1;
+                }
+                i += 1;
             }
-            for (int i = 0; i < count; i++) {
-                string str = file_content[i];
-                CoefficientPrecision d1;
-                stringstream stream1;
-                stream1 << str;
-                stream1 >> d1;
-                // data[i] = d1;
-                int i0             = i / nr;
-                int j0             = i - i0 * nr;
-                data[j0 * nr + i0] = d1;
-            }
-        }
+                }
         file.close();
         Matrix<CoefficientPrecision> temp(nr, nc);
         temp.assign(nr, nc, data, true);
@@ -120,6 +138,31 @@ vector<double> to_mesh(const string &file_name) {
     return p;
 }
 int main() {
+    ///////////////////////////////////////////////
+    // test LU
+    ///////////////////////////
+    vector<double> points = to_mesh("/work/sauniear/Documents/matrice_test/FreeFem Data/H_LU/mesh_poisson518.txt");
+    for (int k = 0; k < 10; ++k) {
+        std::cout << points[k] << ',';
+    }
+    std::cout << std::endl;
+    ClusterTreeBuilder<double, ComputeLargestExtent<double>, RegularSplitting<double>> normal_build(points.size() / 3, 3, points.data(), 2, 2);
+    std::shared_ptr<Cluster<double>> root_normal = make_shared<Cluster<double>>(normal_build.create_cluster_tree());
+    MatGenerator<double, double> m(4396, 4396, *root_normal, *root_normal, "/work/sauniear/Documents/matrice_test/FreeFem Data/H_LU/Poisson518.txt");
+    Matrix<double> M = m.get_mat();
+    for (int k = 0; k < 10; ++k) {
+        std::cout << M(1, k) << std::endl;
+    }
+
+    // vector<double> points = to_mesh("/work/sauniear/Documents/matrice_test/FreeFem Data/Regulier/Vertices4396/mesh_reg_vertices4396.txt");
+    // ClusterTreeBuilder<double, ComputeLargestExtent<double>, RegularSplitting<double>> normal_build(points.size() / 3, 3, points.data(), 2, 2);
+    // std::shared_ptr<Cluster<double>> root_normal = make_shared<Cluster<double>>(normal_build.create_cluster_tree());
+    // MatGenerator<double, double> m(4396, 4396, *root_normal, *root_normal, "/work/sauniear/Documents/matrice_test/FreeFem Data/Regulier/Vertices4396/inv_Vertices4396_reg_b10_esp0.txt");
+    // Matrix<double> M = m.get_mat();
+    // for (int k = 0; k < 10; ++k) {
+    //     std::cout << M(1, k) << std::endl;
+    // }
+
     ///////////////////////:
     // Tests pour grandes matrices
     ////////////////////////
@@ -165,123 +208,146 @@ int main() {
     //     b10[0] = 1;
     //     MatGenerator<double, double> M10(1970, 1970, *root_normal, *root_normal, file_name10);
 
-    /// TESTS POUR ANI
-    std::vector<double> error10;
-    std::vector<double> error11;
-    std::vector<double> compression10;
-    std::vector<double> compression11;
-    std::vector<std::vector<double>> rank10;
-    std::vector<std::vector<double>> rank11;
+    // /// TESTS POUR ANI
+    // std::vector<double> error10;
+    // std::vector<double> error11;
+    // std::vector<double> compression10;
+    // std::vector<double> compression11;
+    // std::vector<std::vector<double>> rank10;
+    // std::vector<std::vector<double>> rank11;
 
-    std::vector<double> errorheavy;
-    std::vector<double> compressionheavy;
-    std::vector<std::vector<double>> rankheavy;
+    // std::vector<double> errorheavy;
+    // std::vector<double> compressionheavy;
+    // std::vector<std::vector<double>> rankheavy;
 
-    double eta     = 10;
-    double epsilon = 0.0001;
+    // double eta     = 10;
+    // double epsilon = 0.0001;
 
-    string path10 = "/work/sauniear/Documents/matrice_test/FreeFem Data/Regulier/Vertices1970/inv_Vertices1970_reg_b10_esp";
-    string path11 = "/work/sauniear/Documents/matrice_test/FreeFem Data/Regulier/Vertices1970/inv_Vertices1970_reg_b11_esp";
-    // int pow_eps           = 0;
-    // string eps            = to_string(pow_eps);
-    // string file_name10    = path10 + eps + ".txt";
-    vector<double> points = to_mesh("/work/sauniear/Documents/matrice_test/FreeFem Data/Regulier/Vertices1970/mesh_reg_vertices1970.txt");
-    // ClusterTreeBuilder<double, ComputeLargestExtent<double>, RegularSplitting<double>> normal_build(points.size() / 3, 3, points.data(), 2, 2);
-    // std::shared_ptr<Cluster<double>> root_normal = make_shared<Cluster<double>>(normal_build.create_cluster_tree());
-    // MatGenerator<double, double> M(root_normal->get_size(), root_normal->get_size(), *root_normal, *root_normal, file_name10);
-    // HMatrixTreeBuilder<double, double> hmatrix_builder(root_normal, root_normal, epsilon, eta, 'N', 'N');
-    // auto hmatrix(hmatrix_builder.build(M));
-    // Matrix<double> reference = M.get_perm_mat();
-    // Matrix<double> test(root_normal->get_size(), root_normal->get_size());
-    // copy_to_dense(hmatrix, test.data());
-    // std::cout << "error" << std::endl;
-    // std::cout << normFrob(test - reference) / normFrob(reference) << std::endl;
+    // string path10 = "/work/sauniear/Documents/matrice_test/FreeFem Data/Regulier/Vertices1970/inv_Vertices1970_reg_b10_esp";
+    // string path11 = "/work/sauniear/Documents/matrice_test/FreeFem Data/Regulier/Vertices1970/inv_Vertices1970_reg_b11_esp";
+    // // int pow_eps           = 0;
+    // // string eps            = to_string(pow_eps);
+    // // string file_name10    = path10 + eps + ".txt";
+    // vector<double> points = to_mesh("/work/sauniear/Documents/matrice_test/FreeFem Data/Regulier/Vertices1970/mesh_reg_vertices1970.txt");
+    // // ClusterTreeBuilder<double, ComputeLargestExtent<double>, RegularSplitting<double>> normal_build(points.size() / 3, 3, points.data(), 2, 2);
+    // // std::shared_ptr<Cluster<double>> root_normal = make_shared<Cluster<double>>(normal_build.create_cluster_tree());
+    // // MatGenerator<double, double> M(root_normal->get_size(), root_normal->get_size(), *root_normal, *root_normal, file_name10);
+    // // HMatrixTreeBuilder<double, double> hmatrix_builder(root_normal, root_normal, epsilon, eta, 'N', 'N');
+    // // auto hmatrix(hmatrix_builder.build(M));
+    // // Matrix<double> reference = M.get_perm_mat();
+    // // Matrix<double> test(root_normal->get_size(), root_normal->get_size());
+    // // copy_to_dense(hmatrix, test.data());
+    // // std::cout << "error" << std::endl;
+    // // std::cout << normFrob(test - reference) / normFrob(reference) << std::endl;
 
-    // TEST DIRECTIONAL PLUS
-    for (int k = 0; k < 6; ++k) {
-        int pow_eps        = k;
-        string eps         = to_string(pow_eps);
-        string file_name10 = path10 + eps + ".txt";
-        string file_name11 = path11 + eps + ".txt";
-        std::vector<double> b10(3, 0.0);
-        b10[0] = 1;
-        std::vector<double> b11(3, 0.0);
-        b11[0] = 1;
-        b11[1] = 1;
-        ClusterTreeBuilder<double, ComputeLargestExtent<double>, RegularSplitting<double>> normal_build(points.size() / 3, 3, points.data(), 2, 2);
-        std::shared_ptr<Cluster<double>> root_normal = make_shared<Cluster<double>>(normal_build.create_cluster_tree());
-        MatGenerator<double, double> M10(root_normal->get_size(), root_normal->get_size(), *root_normal, *root_normal, file_name10);
-        MatGenerator<double, double> M11(root_normal->get_size(), root_normal->get_size(), *root_normal, *root_normal, file_name11);
-        HMatrixTreeBuilder<double, double> hmatrix_builder(root_normal, root_normal, epsilon, eta, 'N', 'N');
+    // // TEST DIRECTIONAL PLUS
+    // for (int k = 0; k < 1; ++k) {
+    //     int pow_eps        = k;
+    //     string eps         = to_string(pow_eps);
+    //     string file_name10 = path10 + eps + ".txt";
+    //     string file_name11 = path11 + eps + ".txt";
+    //     std::vector<double> b10(3, 0.0);
+    //     b10[0] = 1;
+    //     std::vector<double> b11(3, 0.0);
+    //     b11[0] = 1;
+    //     b11[1] = 1;
+    //     // ClusterTreeBuilder<double, ComputeLargestExtent<double>, RegularSplitting<double>> normal_build(points.size() / 3, 3, points.data(), 2, 2);
 
-        // ICI ON CHOISIT LA CONDITION D'ADMISSIBILITE
-        std::shared_ptr<directional_plus<double>> directional_10 = std::make_shared<directional_plus<double>>(b10);
-        std::shared_ptr<directional_plus<double>> directional_11 = std::make_shared<directional_plus<double>>(b11);
+    //     ClusterTreeBuilder<double, dumb_direction_10<double>, RegularSplitting<double>> normal_build_10(points.size() / 3, 3, points.data(), 2, 2);
+    //     ClusterTreeBuilder<double, dumb_direction_11<double>, RegularSplitting<double>> normal_build_11(points.size() / 3, 3, points.data(), 2, 2);
 
-        // build H10
-        hmatrix_builder.set_admissibility_condition(directional_10);
-        auto H10(hmatrix_builder.build(M10));
+    //     // ClusterTreeBuilder<double, dir, RegularSplitting<double>> normal_build(points.size() / 3, 3, points.data(), factory.create(), 2, 2);
+    //     //  ClusterTreeBuilder<double, dumb_direction<double>(b10), RegularSplitting<double>> normal_build(points.size() / 3, 3, points.data(), 2, 2);
+    //     std::shared_ptr<Cluster<double>> root_normal_10 = make_shared<Cluster<double>>(normal_build_10.create_cluster_tree());
+    //     std::shared_ptr<Cluster<double>> root_normal_11 = make_shared<Cluster<double>>(normal_build_11.create_cluster_tree());
+    //     MatGenerator<double, double> M10(root_normal_10->get_size(), root_normal_10->get_size(), *root_normal_10, *root_normal_10, file_name10);
+    //     MatGenerator<double, double> M11(root_normal_11->get_size(), root_normal_11->get_size(), *root_normal_11, *root_normal_11, file_name11);
 
-        // reference
-        Matrix<double> reference10 = M10.get_perm_mat();
-        Matrix<double> test10(root_normal->get_size(), root_normal->get_size());
-        copy_to_dense(H10, test10.data());
+    //     // auto mm = M10.get_mat();
+    //     // for (int k = 0; k < 25; ++k) {
+    //     //     std::cout << mm(1, k) << ',';
+    //     // }
+    //     // std::cout << std::endl;
 
-        double er10              = normFrob(test10 - reference10) / normFrob(reference10);
-        double compr10           = H10.get_compression();
-        std::vector<double> rk10 = H10.get_rank_info();
-        // build H11
-        hmatrix_builder.set_admissibility_condition(directional_11);
+    //     HMatrixTreeBuilder<double, double> hmatrix_builder_10(root_normal_10, root_normal_10, epsilon, eta, 'N', 'N');
+    //     HMatrixTreeBuilder<double, double> hmatrix_builder_11(root_normal_11, root_normal_11, epsilon, eta, 'N', 'N');
 
-        auto H11(hmatrix_builder.build(M11));
+    //     // ICI ON CHOISIT LA CONDITION D'ADMISSIBILITE
+    //     // std::shared_ptr<directional_plus<double>> directional_10 = std::make_shared<directional_plus<double>>(b10);
+    //     // std::shared_ptr<directional_plus<double>> directional_11 = std::make_shared<directional_plus<double>>(b11);
+    //     std::cout << "Admissibility" << std::endl;
+    //     std::shared_ptr<Convection_Admissibility<double>> directional_10 = std::make_shared<Convection_Admissibility<double>>(b10, points);
+    //     std::shared_ptr<Convection_Admissibility<double>> directional_11 = std::make_shared<Convection_Admissibility<double>>(b11, points);
 
-        Matrix<double> reference11 = M11.get_perm_mat();
-        Matrix<double> test11(root_normal->get_size(), root_normal->get_size());
-        copy_to_dense(H11, test11.data());
-        double er11              = normFrob(test11 - reference11) / normFrob(reference11);
-        double compr11           = H11.get_compression();
-        std::vector<double> rk11 = H11.get_rank_info();
+    //     // build H10
+    //     std::cout << "build H10" << std::endl;
+    //     hmatrix_builder_10.set_admissibility_condition(directional_10);
+    //     auto H10(hmatrix_builder_10.build(M10));
+    //     std::cout << "H10 assembled" << std::endl;
 
-        error10.push_back(er10);
-        compression10.push_back(compr10);
-        rank10.push_back(rk10);
-        error11.push_back(er11);
-        compression11.push_back(compr11);
-        rank11.push_back(rk11);
-    }
-    std::cout << "info 10" << std::endl;
-    std::cout << "error : " << std::endl;
-    for (int k = 0; k < error10.size(); ++k) {
-        std::cout << error10[k] << ',';
-    }
-    std::cout << std::endl;
-    std::cout << "compression : " << std::endl;
-    for (int k = 0; k < compression10.size(); ++k) {
-        std::cout << compression10[k] << ',';
-    }
-    std::cout << std::endl;
-    std::cout << "rank : " << std::endl;
-    for (int k = 0; k < rank10.size(); ++k) {
-        auto rk = rank10[k];
-        std::cout << '[' << rk[0] << ',' << rk[1] << ',' << rk[2] << ']' << ',';
-    }
+    //     // reference
+    //     Matrix<double> reference10 = M10.get_perm_mat();
+    //     Matrix<double> test10(root_normal_10->get_size(), root_normal_10->get_size());
+    //     copy_to_dense(H10, test10.data());
 
-    std::cout << "info 11" << std::endl;
-    std::cout << "error : " << std::endl;
-    for (int k = 0; k < error11.size(); ++k) {
-        std::cout << error11[k] << ',';
-    }
-    std::cout << std::endl;
-    std::cout << "compression : " << std::endl;
-    for (int k = 0; k < compression11.size(); ++k) {
-        std::cout << compression11[k] << ',';
-    }
-    std::cout << std::endl;
-    std::cout << "rank : " << std::endl;
-    for (int k = 0; k < rank11.size(); ++k) {
-        auto rk = rank11[k];
-        std::cout << '[' << rk[0] << ',' << rk[1] << ',' << rk[2] << ']' << ',';
-    }
+    //     double er10              = normFrob(test10 - reference10) / normFrob(reference10);
+    //     double compr10           = H10.get_compression();
+    //     std::vector<double> rk10 = H10.get_rank_info();
+    //     // build H11
+    //     hmatrix_builder_11.set_admissibility_condition(directional_11);
+    //     std::cout << "build H11" << std::endl;
+    //     auto H11(hmatrix_builder_11.build(M11));
+    //     std::cout << "H11 assembled " << std::endl;
+
+    //     Matrix<double> reference11 = M11.get_perm_mat();
+    //     Matrix<double> test11(root_normal_11->get_size(), root_normal_11->get_size());
+    //     copy_to_dense(H11, test11.data());
+    //     double er11              = normFrob(test11 - reference11) / normFrob(reference11);
+    //     double compr11           = H11.get_compression();
+    //     std::vector<double> rk11 = H11.get_rank_info();
+
+    //     error10.push_back(er10);
+    //     compression10.push_back(compr10);
+    //     rank10.push_back(rk10);
+    //     error11.push_back(er11);
+    //     compression11.push_back(compr11);
+    //     rank11.push_back(rk11);
+    // }
+    // std::cout << "info 10" << std::endl;
+    // std::cout << "error : " << std::endl;
+    // for (int k = 0; k < error10.size(); ++k) {
+    //     std::cout << error10[k] << ',';
+    // }
+    // std::cout << std::endl;
+    // std::cout << "compression : " << std::endl;
+    // for (int k = 0; k < compression10.size(); ++k) {
+    //     std::cout << compression10[k] << ',';
+    // }
+    // std::cout << std::endl;
+    // std::cout << "rank : " << std::endl;
+    // for (int k = 0; k < rank10.size(); ++k) {
+    //     auto rk = rank10[k];
+    //     std::cout << '[' << rk[0] << ',' << rk[1] << ',' << rk[2] << ']' << ',';
+    // }
+
+    // std::cout << "info 11" << std::endl;
+    // std::cout << "error : " << std::endl;
+    // for (int k = 0; k < error11.size(); ++k) {
+    //     std::cout << error11[k] << ',';
+    // }
+    // std::cout << std::endl;
+    // std::cout << "compression : " << std::endl;
+    // for (int k = 0; k < compression11.size(); ++k) {
+    //     std::cout << compression11[k] << ',';
+    // }
+    // std::cout << std::endl;
+    // std::cout << "rank : " << std::endl;
+    // for (int k = 0; k < rank11.size(); ++k) {
+    //     auto rk = rank11[k];
+    //     std::cout << '[' << rk[0] << ',' << rk[1] << ',' << rk[2] << ']' << ',';
+    // }
+
+    //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
     // Hmult
     // HMatrix<double, double> L = hmatrix.hmatrix_product(hmatrix);
