@@ -94,6 +94,12 @@ class HMatrix : public TreeNode<HMatrix<CoefficientPrecision, CoordinatePrecisio
         this->m_tree_data->m_source_cluster_tree = source_cluster;
     };
 
+    // Root constructor from a sub hmatrix
+    HMatrix(std::shared_ptr<const Cluster<CoordinatePrecision>> root_target_cluster, std::shared_ptr<const Cluster<CoordinatePrecision>> root_source_cluster, const Cluster<CoordinatePrecision> *target_cluster, const Cluster<CoordinatePrecision> *source_cluster) : TreeNode<HMatrix, HMatrixTreeData<CoefficientPrecision, CoordinatePrecision>>(), m_target_cluster(target_cluster), m_source_cluster(source_cluster) {
+        this->m_tree_data->m_target_cluster_tree = root_target_cluster;
+        this->m_tree_data->m_source_cluster_tree = root_source_cluster;
+    };
+
     // Child constructor
     HMatrix(const HMatrix &parent, const Cluster<CoordinatePrecision> *target_cluster, const Cluster<CoordinatePrecision> *source_cluster) : TreeNode<HMatrix, HMatrixTreeData<CoefficientPrecision, CoordinatePrecision>>(parent), m_target_cluster(target_cluster), m_source_cluster(source_cluster){};
 
@@ -261,7 +267,7 @@ class HMatrix : public TreeNode<HMatrix<CoefficientPrecision, CoordinatePrecisio
     }
 
     ///// A= A+B
-    void Plus(const HMatrix<CoefficientPrecision, CoordinatePrecision> &B) {
+    void Plus(const HMatrix<CoefficientPrecision, CoordinatePrecision> &B) const {
         // HMatrixTreeBuilder<CoefficientPrecision, CoordinatePrecision> hmatrix_tree_builder(std::make_shared<Cluster<CoordinatePrecision>>(A.get_target_cluster()), std::make_shared<Cluster<CoordinatePrecision>>(A.get_target_cluster()), A.get_epsilon(), A.get_eta(), 'N', 'N');
         // Matrix<T> zeros(root_cluster_1->get_size(), root_cluster_1->get_size());
         // DenseGenerator<CoefficientPrecision> zz(test, *root_cluster_1, *root_cluster_1);
@@ -277,6 +283,150 @@ class HMatrix : public TreeNode<HMatrix<CoefficientPrecision, CoordinatePrecisio
             this->get_block(l->get_target_cluster().get_size(), l->get_source_cluster().get_size(), l->get_target_cluster().get_offset(), l->get_source_cluster().get_offset())->set_dense_data(c);
         }
     }
+    // void Moins(const HMatrix<CoefficientPrecision, CoordinatePrecision> &B) const {
+    //     // HMatrixTreeBuilder<CoefficientPrecision, CoordinatePrecision> hmatrix_tree_builder(std::make_shared<Cluster<CoordinatePrecision>>(A.get_target_cluster()), std::make_shared<Cluster<CoordinatePrecision>>(A.get_target_cluster()), A.get_epsilon(), A.get_eta(), 'N', 'N');
+    //     // Matrix<T> zeros(root_cluster_1->get_size(), root_cluster_1->get_size());
+    //     // DenseGenerator<CoefficientPrecision> zz(test, *root_cluster_1, *root_cluster_1);
+    //     std::cout << "!" << std::endl;
+
+    //     this->set_leaves_in_cache();
+    //     std::cout << "!" << std::endl;
+
+    //     auto leav = this->get_leaves();
+    //     std::cout << "!" << std::endl;
+
+    //     for (auto &l : leav) {
+    //         std::cout << "on est sur une feuile" << std::endl;
+    //         auto a = this->get_block(l->get_target_cluster().get_size(), l->get_source_cluster().get_size(), l->get_target_cluster().get_offset(), l->get_source_cluster().get_offset());
+    //         auto b = B.get_block(l->get_target_cluster().get_size(), l->get_source_cluster().get_size(), l->get_target_cluster().get_offset(), l->get_source_cluster().get_offset());
+    //         Matrix<CoefficientPrecision> aa(l->get_target_cluster().get_size(), l->get_source_cluster().get_size());
+    //         Matrix<CoefficientPrecision> bb(l->get_target_cluster().get_size(), l->get_source_cluster().get_size());
+    //         copy_to_dense(*a, aa.data());
+    //         std::cout << " a ok " << std::endl;
+    //         std::cout << b->get_target_cluster().get_size() << ',' << b->get_source_cluster().get_size() << b->get_target_cluster().get_offset() << ',' << b->get_source_cluster().get_offset() << std::endl;
+    //         copy_to_dense(*b, bb.data());
+    //         auto c = aa - bb;
+    //         this->get_block(l->get_target_cluster().get_size(), l->get_source_cluster().get_size(), l->get_target_cluster().get_offset(), l->get_source_cluster().get_offset())->set_dense_data(c);
+    //         std::cout << "feuille calculée " << std::endl;
+    //     }
+    // }
+
+    void Moins(const HMatrix &M) {
+        if (M.is_dense() or M.is_low_rank()) {
+            auto block = M.get_block(this->get_target_cluster().get_size(), this->get_source_cluster().get_size(), this->get_target_cluster().get_offset(), this->get_source_cluster().get_offset());
+            Matrix<CoefficientPrecision> temp(this->get_target_cluster().get_size(), this->get_source_cluster().get_size());
+            if (this->is_dense()) {
+                temp = *this->get_dense_data();
+            } else if (this->is_low_rank()) {
+                temp = this->get_low_rank_data()->Get_U() * this->get_low_rank_data()->Get_V();
+            }
+            Matrix<CoefficientPrecision> b(this->get_target_cluster().get_size(), this->get_source_cluster().get_size());
+            copy_to_dense(*block, b.data());
+            auto res = temp - b;
+            this->set_dense_data(res);
+        } else {
+            for (auto &child : this->get_children()) {
+                child->Moins(M);
+            }
+        }
+    }
+
+    ///////////////////////////////////////////////////
+    //////// Fonctions pour avoir des H matrices triangulaire
+    // template < typename CoordinatePrecision> ,
+    // void Get_U(const Cluster<CoordinatePrecision> &t, const Cluster<CoordinatePrecision> &s, HMatrix &M) {
+    //     auto ts = auto block = this->get_block(t, s);
+    //     if (ts->get_children().size() == 0) {
+    //         if (t == s) {
+    //             auto block = this->get_block(t, s);
+    //             auto m     = block->get_dense_data();
+    //             Matrix<CoefficientPrecision> mm(t.get_size(), s.get_size());
+    //             for (int k = 0; k < t.get_size(); ++k) {
+    //                 for (int l = 0; l < k; ++l) {
+    //                     mm(k, l) = m(k, l);
+    //                 }
+    //                 m(k, k) = 1;
+    //             }
+
+    //         } else if (t.get_offset() < s.get_offset()) {
+    //             if ()
+    //         }
+    //     }
+
+    void Get_U(HMatrix &M) {
+        if (this->get_children().size() > 0) {
+            for (auto &child : this->get_children()) {
+                if (child->get_target_cluster().get_offset() <= child->get_source_cluster().get_offset()) {
+                    child->Get_U(M);
+                }
+            }
+        } else {
+            if (this->get_target_cluster() == this->get_source_cluster()) {
+                auto m = *(this->get_dense_data());
+                Matrix<CoefficientPrecision> mm(this->get_target_cluster().get_size(), this->get_source_cluster().get_size());
+                for (int k = 0; k < this->get_target_cluster().get_size(); ++k) {
+                    for (int l = k; l < this->get_source_cluster().get_size(); ++l) {
+                        mm(k, l) = m(k, l);
+                    }
+                }
+                M.get_block(this->get_target_cluster().get_size(), this->get_source_cluster().get_size(), this->get_target_cluster().get_offset(), this->get_source_cluster().get_offset())->set_dense_data(mm);
+            } else {
+
+                auto &sub = *this->get_block(this->get_target_cluster().get_size(), this->get_source_cluster().get_size(), this->get_target_cluster().get_offset(), this->get_source_cluster().get_offset());
+                auto temp = M.get_block(this->get_target_cluster().get_size(), this->get_source_cluster().get_size(), this->get_target_cluster().get_offset(), this->get_source_cluster().get_offset());
+                temp      = &sub;
+                // if (this->is_low_rank()) {
+                //     M.get_block(this->get_target_cluster().get_size(), this->get_source_cluster().get_size(), this->get_target_cluster().get_offset(), this->get_source_cluster().get_offset())->set_low_rank_data(this->get_low_rank_data());
+                // } else {
+                //     M.get_block(this->get_target_cluster().get_size(), this->get_source_cluster().get_size(), this->get_target_cluster().get_offset(), this->get_source_cluster().get_offset())->set_dense_data(this->get_dense_data());
+                // }
+            }
+        }
+    }
+
+    void Get_L(HMatrix &M) {
+        if (this->get_children().size() > 0) {
+            for (auto &child : this->get_children()) {
+                if (child->get_target_cluster().get_offset() <= child->get_source_cluster().get_offset()) {
+                    child->Get_L(M);
+                }
+            }
+        } else {
+            if (this->get_target_cluster() == this->get_source_cluster()) {
+                auto m = *(this->get_dense_data());
+                Matrix<CoefficientPrecision> mm(this->get_target_cluster().get_size(), this->get_source_cluster().get_size());
+                for (int k = 0; k < this->get_target_cluster().get_size(); ++k) {
+                    mm(k, k) = 1;
+                    for (int l = 0; l < k; ++l) {
+                        mm(k, l) = m(k, l);
+                    }
+                }
+                M.get_block(this->get_target_cluster().get_size(), this->get_source_cluster().get_size(), this->get_target_cluster().get_offset(), this->get_source_cluster().get_offset())->set_dense_data(mm);
+            } else {
+
+                auto &sub = *this->get_block(this->get_target_cluster().get_size(), this->get_source_cluster().get_size(), this->get_target_cluster().get_offset(), this->get_source_cluster().get_offset());
+                auto temp = M.get_block(this->get_target_cluster().get_size(), this->get_source_cluster().get_size(), this->get_target_cluster().get_offset(), this->get_source_cluster().get_offset());
+                temp      = &sub;
+            }
+        }
+    }
+
+    // void build_up(const HMatrix &M) {
+    //     int szt = this->gezt_target_cluster().get_size();
+    //     int szs = this->get_source_cluster().get_size();
+    //     int oft = this->get_target_cluster().get_offset();
+    //     int ofs = this->get_source_cluster().get_offset();
+    //     if (M.get_children().size() > 0) {
+    //         for (auto & t : this->get_target_cluster().get_children()){
+    //             for (auto & s  : this->get_source_cluster().get_children()){
+
+    //                 auto child = this->add_child(t,s) ;
+    //                 auto m_child = M.get_block( t->get_size() , s.get_size() , t.get_offset() , s.get_offset()) ;
+    //                 child->build_up
+
+    //             }
+    //         }
+    // }
 
     ///////////////////////////////////////////////////////////
     /// HMULT comme dans hackbush
@@ -430,35 +580,71 @@ class HMatrix : public TreeNode<HMatrix<CoefficientPrecision, CoordinatePrecisio
     //     }
     // }
 
-    void forward_substitution_extract(const Cluster<CoordinatePrecision> &t, std::vector<CoefficientPrecision> &y, std::vector<CoefficientPrecision> &x) const {
-        auto Lt = this->get_block(t.get_size(), t.get_size(), t.get_offset(), t.get_offset());
+    // void forward_substitution_extract(const Cluster<CoordinatePrecision> &t, std::vector<CoefficientPrecision> &y, std::vector<CoefficientPrecision> &x) const {
+    //     auto Lt = this->get_block(t.get_size(), t.get_size(), t.get_offset(), t.get_offset());
 
+    //     if (Lt->get_children().size() == 0) {
+    //         auto M = *(Lt->get_dense_data());
+    //         for (int j = t.get_offset(); j < t.get_offset() + t.get_size(); ++j) {
+    //             x[j] = y[j];
+    //             for (int i = j + 1; i < t.get_offset() + t.get_size(); ++i) {
+    //                 y[i] = y[i] - M(i - t.get_offset(), j - t.get_offset()) * x[j];
+    //             }
+    //         }
+    //     } else {
+    //         for (auto &ti : t.get_children()) {
+    //             this->forward_substitution_extract(*ti, y, x);
+    //             for (auto &tj : t.get_children()) {
+    //                 if (tj->get_offset() > ti->get_offset()) {
+    //                     auto Lij = this->get_block(tj->get_size(), ti->get_size(), tj->get_offset(), ti->get_offset());
+    //                     std::vector<CoefficientPrecision> y_temp(tj->get_size(), 0.0);
+    //                     for (int k = 0; k < tj->get_size(); ++k) {
+    //                         y_temp[k] = y[k + tj->get_offset()];
+    //                     }
+    //                     std::vector<CoefficientPrecision> yy(tj->get_size(), 0.0);
+    //                     std::vector<CoefficientPrecision> x_temp(ti->get_size(), 0.0);
+    //                     for (int l = 0; l < ti->get_size(); ++l) {
+    //                         x_temp[l] = x[l + ti->get_offset()];
+    //                     }
+    //                     Lij->add_vector_product('N', 1.0, x_temp.data(), 0.0, yy.data());
+    //                     for (int k = 0; k < tj->get_size(); ++k) {
+    //                         y[k + tj->get_offset()] = y[k + tj->get_offset()] - yy[k];
+    //                     }
+    //                 }
+    //             }
+    //         }
+    //     }
+    // }
+    //// Ly= b
+
+    void forward_substitution_extract(const Cluster<CoordinatePrecision> &t, std::vector<CoefficientPrecision> &y, std::vector<CoefficientPrecision> &b) const {
+        auto Lt = this->get_block(t.get_size(), t.get_size(), t.get_offset(), t.get_offset());
         if (Lt->get_children().size() == 0) {
-            auto M = *(Lt->get_dense_data());
+            auto M = (*Lt->get_dense_data());
             for (int j = t.get_offset(); j < t.get_offset() + t.get_size(); ++j) {
-                x[j] = y[j];
+                y[j] = b[j];
                 for (int i = j + 1; i < t.get_offset() + t.get_size(); ++i) {
-                    y[i] = y[i] - M(i - t.get_offset(), j - t.get_offset()) * x[j];
+                    b[i] = b[i] - M(i - t.get_offset(), j - t.get_offset()) * y[j];
                 }
             }
         } else {
-            for (auto &ti : Lt->get_target_cluster().get_children()) {
-                this->forward_substitution_extract(*ti, y, x);
-                for (auto &tj : Lt->get_target_cluster().get_children()) {
-                    if (tj->get_offset() > ti->get_offset()) {
-                        auto Lij = this->get_block(tj->get_size(), ti->get_size(), tj->get_offset(), ti->get_offset());
-                        std::vector<CoefficientPrecision> y_temp(tj->get_size(), 0.0);
-                        for (int k = 0; k < tj->get_size(); ++k) {
-                            y_temp[k] = y[k + tj->get_offset()];
+            for (auto &tj : t.get_children()) {
+                this->forward_substitution_extract(*tj, y, b);
+                for (auto &ti : t.get_children()) {
+                    if (ti->get_offset() > tj->get_offset()) {
+                        auto Lij = this->get_block(ti->get_size(), tj->get_size(), ti->get_offset(), tj->get_offset());
+                        std::vector<CoefficientPrecision> bti(ti->get_size(), 0.0);
+                        for (int k = 0; k < ti->get_size(); ++k) {
+                            bti[k] = b[k + ti->get_offset()];
                         }
-                        std::vector<CoefficientPrecision> yy(tj->get_size(), 0.0);
-                        std::vector<CoefficientPrecision> x_temp(ti->get_size());
-                        for (int l = 0; l < ti->get_size(); ++l) {
-                            x_temp[l] = x[l + ti->get_offset()];
+                        std::vector<CoefficientPrecision> ytj(tj->get_size(), 0.0);
+                        for (int l = 0; l < tj->get_size(); ++l) {
+                            ytj[l] = y[l + tj->get_offset()];
                         }
-                        Lij->add_vector_product('N', 1.0, x_temp.data(), 0.0, yy.data());
-                        for (int k = 0; k < tj->get_size(); ++k) {
-                            y[k + tj->get_offset()] = y[k + tj->get_offset()] - yy[k];
+                        Lij->add_vector_product('N', -1.0, ytj.data(), 1.0, bti.data());
+
+                        for (int k = 0; k < ti->get_size(); ++k) {
+                            b[k + ti->get_offset()] = bti[k];
                         }
                     }
                 }
@@ -513,48 +699,90 @@ class HMatrix : public TreeNode<HMatrix<CoefficientPrecision, CoordinatePrecisio
     //                 }
     //             }
 
-    void backward_substitution_extract(const int &szt, const int &oft, std::vector<CoefficientPrecision> &y, std::vector<CoefficientPrecision> &x) const {
-        auto Ut = this->get_block(szt, szt, oft, oft);
-        if (Ut->get_children().size() == 0) {
-            auto M = *(Ut->get_dense_data());
-            for (int jj = szt - 1; jj >= 0; --jj) {
-                x[oft + jj] = y[oft + jj] / M(jj, jj);
-                for (int i = oft; i < oft + jj; ++i) {
-                    y[i] = y[i] - M(i - oft, jj) * x[oft + jj];
+    // void
+    // backward_substitution_extract(const int &szt, const int &oft, std::vector<CoefficientPrecision> &y, std::vector<CoefficientPrecision> &x) const {
+    //     auto Ut = this->get_block(szt, szt, oft, oft);
+    //     if (Ut->get_children().size() == 0) {
+    //         auto M = *(Ut->get_dense_data());
+    //         for (int jj = szt - 1; jj >= 0; --jj) {
+    //             x[oft + jj] = y[oft + jj] / M(jj, jj);
+    //             for (int i = oft; i < oft + jj; ++i) {
+    //                 y[i] = y[i] - M(i - oft, jj) * x[oft + jj];
+    //             }
+    //         }
+    //     } else {
+    //         std::vector<int> sizes;
+    //         std::vector<int> offsets;
+    //         for (auto &c : Ut->get_target_cluster().get_children()) {
+    //             int s = c->get_size();
+    //             int o = c->get_offset();
+    //             sizes.push_back(s);
+    //             offsets.push_back(o);
+    //         }
+    //         for (int i = sizes.size() - 1; i >= 0; --i) {
+    //             int size_i = sizes[i];
+    //             int of_i   = offsets[i];
+    //             // std::cout << "i =" << i << ',' << "szt = " << size_i << ',' << "ofi" << std::endl;
+    //             //  for (auto &ti = Ut->get_target_cluster().get_children().rbegin(); ti != Ut->get_target_cluster().get_children().rend(); ++ti) {
+    //             this->backward_substitution_extract(size_i, of_i, y, x);
+    //             for (int j = 0; j < i; ++j) {
+    //                 int size_j = sizes[j];
+    //                 int of_j   = offsets[j];
+    //                 std::vector<CoefficientPrecision> ytemp(size_j, 0.0);
+    //                 for (int k = 0; k < size_j; ++k) {
+    //                     ytemp[k] = y[k + of_j];
+    //                 }
+    //                 std::vector<CoefficientPrecision> xtemp(size_i, 0.0);
+    //                 for (int l = 0; l < size_i; ++l) {
+    //                     // std::cout << "ici" << x[l + ti->get_offset()] << std::endl;
+    //                     xtemp[l] = x[l + of_i];
+    //                 }
+    //                 std::vector<CoefficientPrecision> yy(size_j, 0.0);
+    //                 auto Uts = this->get_block(size_j, size_i, of_j, of_i);
+    //                 Uts->add_vector_product('N', 1.0, xtemp.data(), 0.0, yy.data());
+    //                 for (int k = 0; k < size_j; ++k) {
+    //                     y[k + of_j] = y[k + of_j] - yy[k];
+    //                 }
+    //             }
+    //         }
+    //     }
+    // }
+
+    /// U x = y
+
+    void backward_substitution_extract(const Cluster<CoordinatePrecision> &t, std::vector<CoefficientPrecision> &x, std::vector<CoefficientPrecision> &y) const {
+        auto Uk = this->get_block(t.get_size(), t.get_size(), t.get_offset(), t.get_offset());
+
+        if (Uk->get_children().size() == 0) {
+
+            auto dense = *Uk->get_dense_data();
+            for (int j = t.get_offset() + t.get_size() - 1; j > t.get_offset() - 1; --j) {
+                x[j] = y[j] / dense(j - t.get_offset(), j - t.get_offset());
+                for (int i = t.get_offset(); i < j; ++i) {
+                    y[i] = y[i] - dense(i - t.get_offset(), j - t.get_offset()) * x[j];
                 }
             }
         } else {
-            std::vector<int> sizes;
-            std::vector<int> offsets;
-            for (auto &c : Ut->get_target_cluster().get_children()) {
-                int s = c->get_size();
-                int o = c->get_offset();
-                sizes.push_back(s);
-                offsets.push_back(o);
-            }
-            for (int i = sizes.size() - 1; i >= 0; --i) {
-                int size_i = sizes[i];
-                int of_i   = offsets[i];
-                // std::cout << "i =" << i << ',' << "szt = " << size_i << ',' << "ofi" << std::endl;
-                //  for (auto &ti = Ut->get_target_cluster().get_children().rbegin(); ti != Ut->get_target_cluster().get_children().rend(); ++ti) {
-                this->backward_substitution_extract(size_i, of_i, y, x);
-                for (int j = 0; j < i; ++j) {
-                    int size_j = sizes[j];
-                    int of_j   = offsets[j];
-                    std::vector<CoefficientPrecision> ytemp(size_j, 0.0);
-                    for (int k = 0; k < size_j; ++k) {
-                        ytemp[k] = y[k + of_j];
-                    }
-                    std::vector<CoefficientPrecision> xtemp(size_i, 0.0);
-                    for (int l = 0; l < size_i; ++l) {
-                        // std::cout << "ici" << x[l + ti->get_offset()] << std::endl;
-                        xtemp[l] = x[l + of_i];
-                    }
-                    std::vector<CoefficientPrecision> yy(size_j, 0.0);
-                    auto Uts = this->get_block(size_j, size_i, of_j, of_i);
-                    Uts->add_vector_product('N', 1.0, xtemp.data(), 0.0, yy.data());
-                    for (int k = 0; k < size_j; ++k) {
-                        y[k + of_j] = y[k + of_j] - yy[k];
+            for (auto tj = t.get_children().rbegin(); tj != t.get_children().rend(); ++tj) {
+                auto &ttj = *tj;
+                this->backward_substitution_extract(*ttj, x, y);
+                for (auto &ti : t.get_children()) {
+                    auto &tti = *ti;
+                    if (tti.get_offset() < ttj->get_offset()) {
+
+                        auto Uij = this->get_block(ti->get_size(), ttj->get_size(), ti->get_offset(), ttj->get_offset());
+                        std::vector<CoefficientPrecision> yti(ti->get_size(), 0.0);
+                        for (int k = 0; k < ti->get_size(); ++k) {
+                            yti[k] = y[k + ti->get_offset()];
+                        }
+                        std::vector<CoefficientPrecision> xtj(ttj->get_size(), 0.0);
+                        for (int k = 0; k < ttj->get_size(); ++k) {
+                            xtj[k] = x[k + ttj->get_offset()];
+                        }
+                        Uij->add_vector_product('N', -1.0, xtj.data(), 1.0, yti.data());
+                        for (int k = 0; k < ti->get_size(); ++k) {
+                            y[k + ti->get_offset()] = yti[k];
+                        }
                     }
                 }
             }
@@ -701,7 +929,8 @@ class HMatrix : public TreeNode<HMatrix<CoefficientPrecision, CoordinatePrecisio
     //     }
     // }
 
-    void forward_substitution_extract_T(const Cluster<CoordinatePrecision> &t, std::vector<CoefficientPrecision> y, std::vector<CoefficientPrecision> x) {
+    void
+    forward_substitution_extract_T(const Cluster<CoordinatePrecision> &t, std::vector<CoefficientPrecision> y, std::vector<CoefficientPrecision> x) {
         auto Ut = this->get_block(t, t);
         if (Ut->is_leaf()) {
             auto M = Ut->get_dense_data();
@@ -736,68 +965,114 @@ class HMatrix : public TreeNode<HMatrix<CoefficientPrecision, CoordinatePrecisio
         }
     }
 
-    friend void forward_backward(const HMatrix &L, const HMatrix &U, const Cluster<CoordinatePrecision> &root, std::vector<CoefficientPrecision> &y, std::vector<CoordinatePrecision> &x) {
+    friend void forward_backward(const HMatrix &L, const HMatrix &U, const Cluster<CoordinatePrecision> &root, std::vector<CoefficientPrecision> &x, std::vector<CoordinatePrecision> &y) {
         std::vector<CoefficientPrecision> ux(L.get_source_cluster().get_size(), 0.0);
-        L.forward_substitution_extract(root, y, ux);
-        U.backward_substitution_extract(root.get_size(), root.get_offset(), ux, x);
+        L.forward_substitution_extract(root, ux, y);
+        U.backward_substitution_extract(root, x, ux);
     }
 
     // LX =Z
 
+    // friend void Forward_M_extact(const HMatrix &L, HMatrix &X, const HMatrix &Z, const Cluster<CoordinatePrecision> &t, const Cluster<CoordinatePrecision> &s) {
+    //     auto Zts = Z.get_block(t.get_size(), s.get_size(), t.get_offset(), s.get_offset());
+    //     if (Zts->get_children().size() == 0) {
+    //         if (Zts->is_dense()) {
+    //             // column wise  foward
+    //             auto Xts    = X.get_block(t.get_size(), s.get_size(), t.get_offset(), s.get_offset());
+    //             auto Zdense = Zts->get_dense_data();
+    //             auto Xdense = Xts->get_dense_data();
+    //             for (int j = 0; j < s.get_size(), ++j) {
+    //                 auto Xtj = Zdense->get_col(j);
+    //                 L.forward_substitution_extract(t, Xtj, Zdense->get_col(j));
+    //                 Xdense->set_col(j, Xtj);
+    //             }
+    //             Xts->set_dense_data()
+    //         }
+    //     }
+    // }
     friend void Forward_M_extract(const HMatrix &L, const HMatrix &Z, const Cluster<CoordinatePrecision> &t, const Cluster<CoordinatePrecision> &s, HMatrix &X) {
-        auto Zts = Z.get_block(t, s);
-        auto Xts = X.get_block(t, s);
+        auto Zts = Z.get_block(t.get_size(), s.get_size(), t.get_offset(), s.get_offset());
+        auto Xts = X.get_block(t.get_size(), s.get_size(), t.get_offset(), s.get_offset());
         if (Zts->is_dense()) {
-            auto Zdense = Zts->get_dense_data();
-            auto Xdense = Xts->get_dense_data();
+            std::cout << "1" << std::endl;
+            std::cout << Zts->is_dense() << ',' << Zts->is_low_rank() << '!' << Xts->is_low_rank() << ',' << Xts->is_dense() << std::endl;
+            // on regarde si Xts a jamais été initialisé
+            Matrix<CoefficientPrecision> Xdense(t.get_size(), s.get_size());
+            if ((Xts->is_dense())) {
+                Xdense = *Xts->get_dense_data();
+            }
+            auto Zdense = *Zts->get_dense_data();
+            std::cout << "c'est normal" << std::endl;
             Matrix<CoefficientPrecision> Xupdate(t.get_size(), s.get_size());
             for (int j = 0; j < s.get_size(); ++j) {
-                std::vector<CoefficientPrecision> Xtj(t.get_size());
-                std::vector<CoefficientPrecision> Ztj(t.get_size());
+                std::vector<CoefficientPrecision> Xtj(L.get_source_cluster().get_size(), 0.0);
+                std::vector<CoefficientPrecision> Ztj(Z.get_target_cluster().get_size(), 0.0);
                 for (int k = 0; k < t.get_size(); ++k) {
-                    Xtj[k] = Xdense(k, j);
-                    Ztj[k] = Zdense(k, j);
+                    Xtj[k + t.get_offset()] = Xdense(k, j);
+                    Ztj[k + t.get_offset()] = Zdense(k, j);
                 }
                 L.forward_substitution_extract(t, Ztj, Xtj);
                 for (int k = 0; k < t.get_size(); ++k) {
-                    Xupdate(k, j) = Xtj[k];
+                    Xupdate(k, j) = Xtj[k + t.get_offset()];
                 }
             }
             MatrixGenerator<CoefficientPrecision> mat(Xupdate);
+            std::cout << Xupdate.nb_rows() << ',' << Xupdate.nb_cols() << std::endl;
+            std::cout << Xts->get_target_cluster().get_size() << ',' << Xts->get_source_cluster().get_size() << std::endl;
             Xts->compute_dense_data(mat);
+            std::cout << "1 ok" << std::endl;
         } else if (Zts->is_low_rank()) {
-            auto Zlr = Zts.get_low_rank_data();
+            std::cout << "2" << std::endl;
+            auto Zlr = Zts->get_low_rank_data();
             auto U   = Zlr->Get_U();
             auto V   = Zlr->Get_V();
-            Matrix<CoefficientPrecision> Xu(t.get_size(), Zlr->get_rank_of());
-            for (int j = 0; j < Zlr->get_rank_of(); ++j) {
-                std::vector<CoefficientPrecision> Uj(t.get_size());
-                std::vector<CoefficientPrecision> Aj(t.get_size());
+            Matrix<CoefficientPrecision> Xu(t.get_size(), Zlr->rank_of());
+            for (int j = 0; j < Zlr->rank_of(); ++j) {
+                std::vector<CoefficientPrecision> Uj(Z.get_target_cluster().get_size());
+                std::vector<CoefficientPrecision> Aj(L.get_target_cluster().get_size());
                 for (int k = 0; k < t.get_size(); ++k) {
-                    Uj[k] = U(k, j);
+                    Uj[k + t.get_offset()] = U(k, j);
                 }
                 L.forward_substitution_extract(t, Uj, Aj);
                 for (int k = 0; k < t.get_size(); ++k) {
-                    Xu(k, j) = Aj[k];
+                    Xu(k, j) = Aj[k + t.get_offset()];
                 }
             }
             LowRankMatrix<CoefficientPrecision, CoordinatePrecision> Xlr(Xu, V);
             Xts->set_low_rank_data(Xlr);
+            std::cout << "2 ok" << std::endl;
         } else {
+            std::cout << "3" << std::endl;
             for (auto &child_t : t.get_children()) {
                 for (auto &child_s : s.get_children()) {
-                    Forward_M_extract(L, Z, child_t, child_s, X);
+                    Forward_M_extract(L, Z, *child_t, *child_s, X);
 
                     for (auto &child_tt : t.get_children()) {
                         if (child_tt->get_offset() > child_t->get_offset()) {
-                            auto Ztemp = Z.get_block(child_tt, child_s);
-                            auto Ltemp = L.get_block(child_tt, child_t);
-                            auto Xtemp = X.get_block(child_t, child_s);
-                            *Ztemp     = *Ztemp - Ltemp->hmatrix_product(Xtemp);
+                            std::cout << " get block " << std::endl;
+                            auto Ztemp = Z.get_block(child_tt->get_size(), child_s->get_size(), child_tt->get_offset(), child_s->get_offset());
+                            auto Ltemp = L.get_block(child_tt->get_size(), child_t->get_size(), child_tt->get_offset(), child_t->get_offset());
+
+                            auto Xtemp = X.get_block(child_t->get_size(), child_s->get_size(), child_t->get_offset(), child_s->get_offset());
+                            std::cout << Xtemp->get_target_cluster().get_size() << ',' << Xtemp->get_source_cluster().get_size() << std::endl;
+                            std::cout << Ltemp->get_target_cluster().get_size() << ',' << Ltemp->get_source_cluster().get_size() << std::endl;
+                            std::cout << "block ok " << std::endl;
+                            Matrix<CoefficientPrecision> ref(child_tt->get_size(), child_s->get_size());
+                            auto temp = Ltemp->hmatrix_product(*Xtemp);
+
+                            std::cout << Ltemp->get_target_cluster().get_size() << ',' << Ltemp->get_source_cluster().get_size() << '!' << Xtemp->get_target_cluster().get_size() << ',' << Xtemp->get_source_cluster().get_size() << std::endl;
+                            std::cout << temp.get_target_cluster().get_size() << ',' << temp.get_source_cluster().get_size() << '!' << child_tt->get_size() << ',' << child_s->get_size() << std::endl;
+                            copy_to_dense(temp, ref.data());
+                            std::cout << "norme: " << normFrob(ref) << std::endl;
+
+                            Ztemp->Moins(temp);
+                            std::cout << "moins ok" << std::endl;
+                            // *Ztemp = *Ztemp - Ltemp->hmatrix_product(*Xtemp);
                         }
                     }
                 }
             }
+            std::cout << "3 ok " << std::endl;
         }
     }
 
@@ -2168,9 +2443,34 @@ void HMatrix<CoefficientPrecision, CoordinatePrecision>::threaded_hierarchical_a
 }
 
 // root_hmatrix = A*B (A.hmatrix_product(B))
+// template <typename CoefficientPrecision, typename CoordinatePrecision>
+// HMatrix<CoefficientPrecision, CoordinatePrecision> HMatrix<CoefficientPrecision, CoordinatePrecision>::hmatrix_product(const HMatrix &B) const {
+//     HMatrix root_hmatrix(this->m_tree_data->m_target_cluster_tree, B.m_tree_data->m_source_cluster_tree);
+//     root_hmatrix.set_admissibility_condition(this->m_tree_data->m_admissibility_condition);
+//     root_hmatrix.set_low_rank_generator(this->m_tree_data->m_low_rank_generator);
+
+//     SumExpression<CoefficientPrecision, CoordinatePrecision> root_sum_expression(this, &B);
+
+//     root_hmatrix.recursive_build_hmatrix_product(root_sum_expression);
+
+//     return root_hmatrix;
+// }
+
+////////////////////////
+// Ca marche pas le coup du m_tree data a cause des sous _block
 template <typename CoefficientPrecision, typename CoordinatePrecision>
 HMatrix<CoefficientPrecision, CoordinatePrecision> HMatrix<CoefficientPrecision, CoordinatePrecision>::hmatrix_product(const HMatrix &B) const {
-    HMatrix root_hmatrix(this->m_tree_data->m_target_cluster_tree, B.m_tree_data->m_source_cluster_tree);
+    // auto root_cluster_1 = std::make_shared<Cluster<CoordinatePrecision>>(this->get_target_cluster());
+    // auto root_cluster_2 = std::make_shared<Cluster<CoordinatePrecision>>(B.get_source_cluster());
+    // const Cluster<CoordinatePrecision> *const_cluster_ptr_t                        = &this->get_target_cluster();
+    // std::shared_ptr<const Cluster<CoordinatePrecision>> shared_const_cluster_ptr_t = std::const_pointer_cast<const Cluster<CoordinatePrecision>>(std::shared_ptr<Cluster<CoordinatePrecision>>(const_cast<Cluster<CoordinatePrecision> *>(const_cluster_ptr_t)));
+    // const Cluster<CoordinatePrecision> *const_cluster_ptr_s                        = &B.get_source_cluster();
+    // std::shared_ptr<const Cluster<CoordinatePrecision>> shared_const_cluster_ptr_s = std::const_pointer_cast<const Cluster<CoordinatePrecision>>(std::shared_ptr<Cluster<CoordinatePrecision>>(const_cast<Cluster<CoordinatePrecision> *>(const_cluster_ptr_s)));
+    // auto root_1         = const_cast<Cluster<CoordinatePrecision> *>(&this->get_target_cluster());
+    // auto root_cluster_1 = std::make_shared<Cluster<CoordinatePrecision>>(*root_1);
+    //  auto root_cluster_1 = std::make_shared<Cluster<CoordinatePrecision>>(std::move(this->get_target_cluster()));
+    //  auto root_cluster_2 = std::make_shared<Cluster<CoordinatePrecision>>(std::move(B.get_source_cluster()));
+    HMatrix root_hmatrix(this->m_tree_data->m_target_cluster_tree, B.m_tree_data->m_source_cluster_tree, this->m_target_cluster, &B.get_source_cluster());
     root_hmatrix.set_admissibility_condition(this->m_tree_data->m_admissibility_condition);
     root_hmatrix.set_low_rank_generator(this->m_tree_data->m_low_rank_generator);
 
@@ -2194,12 +2494,18 @@ void HMatrix<CoefficientPrecision, CoordinatePrecision>::recursive_build_hmatrix
     //     std::cout << "ici   !!!!   " << sum_expr.get_sr()[0].nb_rows() << ',' << sum_expr.get_sr()[0].nb_cols() << ',' << sum_expr.get_sr()[1].nb_rows() << ',' << sum_expr.get_sr()[1].nb_cols() << std::endl;
     // }
     // critère pour descendre : on est sur une feuille ou pas:
-    bool admissible    = this->m_tree_data->m_admissibility_condition->ComputeAdmissibility(target_cluster, source_cluster, 1);
+    bool admissible    = this->m_tree_data->m_admissibility_condition->ComputeAdmissibility(target_cluster, source_cluster, this->get_eta());
     auto test_restrict = sum_expr.is_restrictible();
     if (admissible) {
-        this->compute_dense_data(sum_expr);
+        // this->compute_dense_data(sum_expr);
         //  this->compute_low_rank_data(sum_expr, *this->get_lr(), this->get_rk(), this->get_epsilon());
-        //    auto lr = LowRankMatrix<CoefficientPrecision, CoordinatePrecision>(generator, low_rank_generator, *m_target_cluster, *m_source_cluster, reqrank, epsilon);
+        LowRankMatrix<CoefficientPrecision, CoordinatePrecision> lr(sum_expr, *this->get_lr(), this->get_target_cluster(), this->get_source_cluster(), this->get_rk(), this->get_epsilon());
+        if ((lr.Get_U().nb_rows() == 0) or (lr.Get_U().nb_cols() == 0) or (lr.Get_V().nb_rows() == 0) or (lr.Get_V().nb_cols() == 0)) {
+            this->compute_dense_data(sum_expr);
+
+        } else {
+            this->set_low_rank_data(lr);
+        }
     } else if ((target_children.size() == 0) and (source_children.size() == 0)) {
         this->compute_dense_data(sum_expr);
     } else {
@@ -3453,57 +3759,80 @@ void copy_to_dense(const HMatrix<CoefficientPrecision, CoordinatePrecision> &hma
     // const std::vector<int> &target_permutation = m_target_cluster->get_permutation();
     // const std::vector<int> &source_permutation = m_source_cluster->get_permutation();
     // std::cout << "copy_to_dense " << target_offset << " " << source_offset << " " << target_size << " " << source_size << "\n";
-
-    for (auto leaf : hmatrix.get_leaves()) {
-
-        int local_nr = leaf->get_target_cluster().get_size();
-        int local_nc = leaf->get_source_cluster().get_size();
-        int offset_i = leaf->get_target_cluster().get_offset() - target_offset;
-        int offset_j = leaf->get_source_cluster().get_offset() - source_offset;
-        if (leaf->is_dense()) {
-            for (int k = 0; k < local_nc; k++) {
-                for (int j = 0; j < local_nr; j++) {
-                    ptr[j + offset_i + (k + offset_j) * target_size] = (*leaf->get_dense_data())(j, k);
-                }
+    if (hmatrix.is_dense()) {
+        int local_nc = hmatrix.get_source_cluster().get_size();
+        int local_nr = hmatrix.get_target_cluster().get_size();
+        int offset_i = hmatrix.get_target_cluster().get_offset() - target_offset;
+        int offset_j = hmatrix.get_source_cluster().get_offset() - source_offset;
+        auto mat     = *hmatrix.get_dense_data();
+        for (int k = 0; k < local_nc; ++k) {
+            for (int j = 0; j < local_nr; ++j) {
+                ptr[j + offset_i + (k + offset_j) * target_size] = mat(j, k);
             }
-        } else {
+        }
+    } else if (hmatrix.is_low_rank()) {
+        int local_nc = hmatrix.get_source_cluster().get_size();
+        int local_nr = hmatrix.get_target_cluster().get_size();
+        int offset_i = hmatrix.get_target_cluster().get_offset() - target_offset;
+        int offset_j = hmatrix.get_source_cluster().get_offset() - source_offset;
+        auto mat     = hmatrix.get_low_rank_data()->Get_U() * hmatrix.get_low_rank_data()->Get_V();
+        for (int k = 0; k < local_nc; ++k) {
+            for (int j = 0; j < local_nr; ++j) {
+                ptr[j + offset_i + (k + offset_j) * target_size] = mat(j, k);
+            }
+        }
+    } else {
+        for (auto leaf : hmatrix.get_leaves()) {
+            int local_nr = leaf->get_target_cluster().get_size();
 
-            Matrix<CoefficientPrecision> low_rank_to_dense(local_nr, local_nc);
-            leaf->get_low_rank_data()->copy_to_dense(low_rank_to_dense.data());
-            for (int k = 0; k < local_nc; k++) {
-                for (int j = 0; j < local_nr; j++) {
-                    ptr[j + offset_i + (k + offset_j) * target_size] = low_rank_to_dense(j, k);
+            int local_nc = leaf->get_source_cluster().get_size();
+            int offset_i = leaf->get_target_cluster().get_offset() - target_offset;
+            int offset_j = leaf->get_source_cluster().get_offset() - source_offset;
+            if (leaf->is_dense()) {
+                for (int k = 0; k < local_nc; k++) {
+                    for (int j = 0; j < local_nr; j++) {
+                        ptr[j + offset_i + (k + offset_j) * target_size] = (*leaf->get_dense_data())(j, k);
+                    }
+                }
+            } else {
+
+                Matrix<CoefficientPrecision> low_rank_to_dense(local_nr, local_nc);
+                leaf->get_low_rank_data()->copy_to_dense(low_rank_to_dense.data());
+                for (int k = 0; k < local_nc; k++) {
+                    for (int j = 0; j < local_nr; j++) {
+                        ptr[j + offset_i + (k + offset_j) * target_size] = low_rank_to_dense(j, k);
+                    }
                 }
             }
         }
-    }
 
-    char symmetry_type = hmatrix.get_symmetry_for_leaves();
-    for (auto leaf : hmatrix.get_leaves_for_symmetry()) {
-        int local_nr = leaf->get_target_cluster().get_size();
-        int local_nc = leaf->get_source_cluster().get_size();
-        int offset_i = leaf->get_target_cluster().get_offset();
-        int offset_j = leaf->get_source_cluster().get_offset();
-        if (leaf->is_dense()) {
-            for (int k = 0; k < local_nc; k++) {
-                for (int j = 0; j < local_nr; j++) {
-                    ptr[k + offset_j - target_offset + (j + offset_i - source_offset) * target_size] = (*leaf->get_dense_data())(j, k);
+        char symmetry_type = hmatrix.get_symmetry_for_leaves();
+        for (auto leaf : hmatrix.get_leaves_for_symmetry()) {
+            int local_nr = leaf->get_target_cluster().get_size();
+            int local_nc = leaf->get_source_cluster().get_size();
+            int offset_i = leaf->get_target_cluster().get_offset();
+            int offset_j = leaf->get_source_cluster().get_offset();
+            if (leaf->is_dense()) {
+                for (int k = 0; k < local_nc; k++) {
+                    for (int j = 0; j < local_nr; j++) {
+                        ptr[k + offset_j - target_offset + (j + offset_i - source_offset) * target_size] = (*leaf->get_dense_data())(j, k);
+                    }
+                }
+            } else {
+
+                Matrix<CoefficientPrecision> low_rank_to_dense(local_nc, local_nr);
+                leaf->get_low_rank_data()->copy_to_dense(low_rank_to_dense.data());
+                for (int k = 0; k < local_nc; k++) {
+                    for (int j = 0; j < local_nr; j++) {
+                        ptr[k + offset_j - target_offset + (j + offset_i - source_offset) * target_size] = low_rank_to_dense(j, k);
+                    }
                 }
             }
-        } else {
-
-            Matrix<CoefficientPrecision> low_rank_to_dense(local_nc, local_nr);
-            leaf->get_low_rank_data()->copy_to_dense(low_rank_to_dense.data());
-            for (int k = 0; k < local_nc; k++) {
-                for (int j = 0; j < local_nr; j++) {
-                    ptr[k + offset_j - target_offset + (j + offset_i - source_offset) * target_size] = low_rank_to_dense(j, k);
-                }
-            }
-        }
-        if (symmetry_type == 'H') {
-            for (int k = 0; k < local_nc; k++) {
-                for (int j = 0; j < local_nr; j++) {
-                    ptr[k + offset_j - target_offset + (j + offset_i - source_offset) * target_size] = conj_if_complex(ptr[k + offset_j - target_offset + (j + offset_i - source_offset) * target_size]);
+            if (symmetry_type == 'H') {
+                for (int k = 0; k < local_nc; k++) {
+                    for (int j = 0; j < local_nr; j++) {
+                        ptr[k + offset_j - target_offset + (j + offset_i - source_offset) * target_size] = conj_if_complex(ptr[k + offset_j - target_offset + (j + offset_i - source_offset) * target_size]);
+                    }
                 }
             }
         }

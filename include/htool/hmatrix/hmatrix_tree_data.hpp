@@ -16,7 +16,7 @@ struct HMatrixTreeData {
     std::shared_ptr<const Cluster<CoordinatePrecision>> m_target_cluster_tree, m_source_cluster_tree; // root clusters
     underlying_type<CoefficientPrecision> m_epsilon{1e-6};
     CoordinatePrecision m_eta{10};
-    unsigned int m_maxblocksize{1000000};
+    unsigned int m_maxblocksize{1000000000};
     unsigned int m_minsourcedepth{0};
     unsigned int m_mintargetdepth{0};
     bool m_use_permutation{true};

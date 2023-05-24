@@ -176,7 +176,7 @@ class sympartialACA final : public VirtualLowRankGenerator<CoefficientPrecision,
                     if (q == 0) { // corner case where first row is zero, ACA fails, we build a dense block instead
                         q = -1;
                     }
-                    std::cout << "[Htool warning] ACA found a zero row in a " + std::to_string(t.get_size()) + "x" + std::to_string(s.get_size()) + " block. Final rank is " + std::to_string(q) << std::endl;
+                    // std::cout << "[Htool warning] ACA found a zero row in a " + std::to_string(t.get_size()) + "x" + std::to_string(s.get_size()) + " block. Final rank is " + std::to_string(q) << std::endl;
                     break;
                 }
             }
