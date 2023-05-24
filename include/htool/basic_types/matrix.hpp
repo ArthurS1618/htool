@@ -126,6 +126,17 @@ class Matrix {
     If _A_ is the instance calling the operator
     _A.get_stridedslice(i,j,k)_ returns the slice of _A_ containing every element from _start_ to _start_+_lenght with a step of _stride_. Modification forbidden
     */
+    //// TRansposé
+
+    Matrix transp(const Matrix &M) {
+        Matrix res(M.nb_cols(), M.nb_rows());
+        for (int k = 0; k < M.nb_rows(); ++k) {
+            for (int l = 0; l < M.nb_cols(); ++l) {
+                res(l, k) = M(k, l);
+            }
+        }
+        return res;
+    }
 
     std::vector<T> get_stridedslice(int start, int length, int stride) const {
         std::vector<T> result;

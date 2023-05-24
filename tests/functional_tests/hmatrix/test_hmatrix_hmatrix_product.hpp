@@ -411,7 +411,7 @@ bool test_hmatrix_hmatrix_product(int size_1, int size_2, int size_3, htool::und
     // //////////////////////////////////////////////////
     // std::cout << "______________________________________________________" << std::endl;
 
-    // // MESH
+    // // // MESH
     // int size = 518;
     // vector<double> points(3 * size);
     // create_disk(3, 0., size, points.data());
@@ -432,31 +432,31 @@ bool test_hmatrix_hmatrix_product(int size_1, int size_2, int size_3, htool::und
     // MatGenerator<double, double> temp(reference, *root_poisson, *root_poisson);
     // Matrix<double> unperm = temp.get_mat();
 
-    //// LU sur la matrice dense
-    // auto LetU = LU(reference);
+    // //// LU sur la matrice dense
+    // auto LetU = get_lu(LU(reference));
     // auto L    = LetU.first;
     // auto U    = LetU.second;
-    // for (int k = 0; k < 40; ++k) {
-    //     for (int l = 0; l < 40; ++l) {
-    //         std::cout << L(k, l) << ',';
-    //     }
-    //     std::cout << '\n'
-    //               << std::endl;
-    // }
-    // std::cout << "_______________________________________" << std::endl;
-    // for (int k = 0; k < 20; ++k) {
-    //     for (int l = 0; l < 20; ++l) {
-    //         std::cout << U(k, l) << ',';
-    //     }
-    //     std::cout << '\n'
-    //               << std::endl;
-    // }
-    // std::cout << "_______________________________________" << std::endl;
-    // std::cout << normFrob(L) << ',' << normFrob(U) << std::endl;
-    // std::cout << "erreur sur LU : " << normFrob(L * U - reference) << std::endl;
+    // // for (int k = 0; k < 40; ++k) {
+    // //     for (int l = 0; l < 40; ++l) {
+    // //         std::cout << L(k, l) << ',';
+    // //     }
+    // //     std::cout << '\n'
+    // //               << std::endl;
+    // // }
+    // // std::cout << "_______________________________________" << std::endl;
+    // // for (int k = 0; k < 20; ++k) {
+    // //     for (int l = 0; l < 20; ++l) {
+    // //         std::cout << U(k, l) << ',';
+    // //     }
+    // //     std::cout << '\n'
+    // //               << std::endl;
+    // // }
+    // // std::cout << "_______________________________________" << std::endl;
+    // // std::cout << normFrob(L) << ',' << normFrob(U) << std::endl;
+    // // std::cout << "erreur sur LU : " << normFrob(L * U - reference) << std::endl;
 
-    // // HMatrix  builder Lh et Uh
-    // double eta = 10;
+    // // // HMatrix  builder Lh et Uh
+    // // double eta = 10;
     // HMatrixTreeBuilder<T, htool::underlying_type<T>> hmatrix_tree_builderL(root_poisson, root_poisson, epsilon, eta, 'N', 'N');
     // HMatrixTreeBuilder<T, htool::underlying_type<T>> hmatrix_tree_builderU(root_poisson, root_poisson, epsilon, eta, 'N', 'N');
     // MatGenerator<double, double> lh(L, *root_poisson, *root_poisson);
@@ -493,65 +493,11 @@ bool test_hmatrix_hmatrix_product(int size_1, int size_2, int size_3, htool::und
     // std::cout << " erreur Lx=y" << norm2(x_sol - x_l) / norm2(x_sol) << std::endl;
     // std::cout << "erreur Ux = y" << norm2(x_solu - x_u) / norm2(x_solu) << std::endl;
 
-    // // // HMatrixTreeBuilder<T, htool::underlying_type<T>> hmatrix_tree_builder_21(root_cluster_2, root_cluster_1, epsilon, eta, 'N', 'N');
-    // MatGenerator<double, htool::underlying_type<double>> Mpoisson(root_poisson->get_size(), root_poisson->get_size(), *root_poisson, *root_poisson, "/work/sauniear/Documents/matrice_test/FreeFem Data/H_LU/Poisson518.txt");
-    // Matrix<double> poisson_perm = Mpoisson.get_perm_mat();
-    // auto mat                    = poisson_perm;
-    // std::cout << "test lu " << std::endl;
-    // std::vector<int> ipiv(518);
-    // int t    = 518;
-    // int *LDA = &t;
-    // int *nr  = &t;
-    // int *nc  = &t;
-    // // Lapack<double>::getrf(nr, nc, mat.data(), LDA, ipiv.data(), 0);
-    // //auto LetU = LU(poisson_perm);
-    // // Matrix<double> MM(518, 518);
-    // // MM.assign(518, 518, mat.data(), true);
-    // // auto LetU = get_lu(MM);
-    // auto L = get_lu(LetU).first;
-    // auto U = get_lu(LetU).second;
-    // std::cout << normFrob(L * U - poisson_perm) / normFrob(poisson_perm) << std::endl;
+    // // // // HMatrixTreeBuilder<T, htool::underlying_type<T>> hmatrix_tree_builder_21(root_cluster_2, root_cluster_1, epsilon, eta, 'N', 'N');
 
-    // MatGenerator<double, double> lh(L, *root_poisson, *root_poisson);
-    // MatGenerator<double, double> uh(U, *root_poisson, *root_poisson);
-
-    // auto lperm = lh.get_unperm_mat();
-    // auto uperm = uh.get_unperm_mat();
-    // MatGenerator<double, double> lll(lperm, *root_poisson, *root_poisson);
-    // MatGenerator<double, double> uuu(uperm, *root_poisson, *root_poisson);
-
-    // HMatrixTreeBuilder<T, htool::underlying_type<T>> hmatrix_tree_builder1(root_poisson, root_poisson, epsilon, eta, 'N', 'N');
-    // HMatrixTreeBuilder<T, htool::underlying_type<T>> hmatrix_tree_builder2(root_poisson, root_poisson, epsilon, eta, 'N', 'N');
-
-    // auto Lh = hmatrix_tree_builder1.build(lll);
-    // auto Uh = hmatrix_tree_builder2.build(uuu);
-    // Matrix<double> ll(518, 518);
-    // Matrix<double> uu(518, 518);
-    // copy_to_dense(Lh, ll.data());
-    // copy_to_dense(Uh, uu.data());
-    // std::cout << Uh.get_compression() << std::endl;
-
-    // std::cout << "erreur sur Lh " << normFrob(ll - L) / normFrob(L) << std::endl;
-    // std::cout << "erreur uh " << normFrob(U - uu) / normFrob(U) << std::endl;
-
-    // std::vector<double> x_sol(root_poisson->get_size(), 1.0);
-    // std::vector<double> x_solu(root_poisson->get_size(), 1.0);
-    // std::vector<double> yl(root_poisson->get_size(), 0.0);
-    // std::vector<double> yu(root_poisson->get_size(), 0.0);
-    // Lh.add_vector_product('N', 1.0, x_sol.data(), 0.0, yl.data());
-    // Uh.add_vector_product('N', 1.0, x_solu.data(), 0.0, yu.data());
-    // std::vector<double> x_u(root_poisson->get_size(), 0.0);
-    // // std::cout << "xu " << norm2(x_u) << ',' << x_u.size() << std::endl;
-    // std::vector<double> x_l(root_poisson->get_size(), 0.0);
-    // Lh.forward_substitution_extract(*root_poisson, yl, x_l);
-    // Uh.backward_substitution_extract(root_poisson->get_size(), root_poisson->get_offset(), yu, x_u);
-    // //  std::cout << norm2(x_u) << ',' << x_u.size() << std::endl;
-    // std::cout << " erreur Lx=y" << norm2(x_sol - x_l) / norm2(x_sol) << std::endl;
-    // std::cout << "erreur Ux = y" << norm2(x_solu - x_u) / norm2(x_solu) << std::endl;
-
-    // ///////////////////////////////////////
-    // //// test LU x =y
-    // ///////////////////////////////////
+    // // ///////////////////////////////////////
+    // // //// test LU x =y
+    // // ///////////////////////////////////
     // std::cout << "__________________________________" << std::endl;
     // std::cout << "test LU x =y" << std::endl;
     // std::vector<double> X(root_poisson->get_size(), 1.0);
