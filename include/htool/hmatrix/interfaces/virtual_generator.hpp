@@ -25,10 +25,12 @@ template <typename CoefficientPrecision>
 class MatrixGenerator : public VirtualGenerator<CoefficientPrecision> {
     int space_dim;
     Matrix<CoefficientPrecision> mat;
+    int target_offset;
+    int source_offset;
 
   public:
     // Constructor
-    MatrixGenerator(const Matrix<CoefficientPrecision> &M) : mat(M) {}
+    MatrixGenerator(const Matrix<CoefficientPrecision> &M, const int &t, const int &s) : mat(M), target_offset(t), source_offset(s) {}
 
     // Virtual function to overload
     CoefficientPrecision get_coef(const int &k, const int &j) const {
@@ -41,7 +43,7 @@ class MatrixGenerator : public VirtualGenerator<CoefficientPrecision> {
         for (int j = 0; j < M; j++) {
             for (int k = 0; k < N; k++) {
                 // cout<< "ici" << k<<','<< j << ',' <<rows[j]<< ',' << cols[k]<< ','<< mat.nb_rows()<< ',' << mat.nb_cols() << endl;
-                ptr[j + M * k] = mat(j + rows, k + cols);
+                ptr[j + M * k] = mat(j, k);
             }
         }
     }
