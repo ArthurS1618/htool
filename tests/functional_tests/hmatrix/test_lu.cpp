@@ -76,7 +76,7 @@ class MatGenerator : public VirtualGenerator<CoefficientPrecision> {
 };
 int main() {
     std::cout << "_________________________________________" << std::endl;
-    double epsilon = 1e-5;
+    double epsilon = 1e-6;
     double eta     = 10;
     // int size       = 2048;
     int size = std::pow(2, 9);
@@ -267,25 +267,100 @@ int main() {
     // auto ref_prod = dl * dd;
     Matrix<double> ref_21(size, size);
     copy_to_dense(root_hmatrix_21, ref_21.data());
-    auto X = Lprime.hmatrix_product(root_hmatrix_21);
+    auto L_hmat = Lprime.hmatrix_product(root_hmatrix_21);
 
     auto ref_prod = dl * ref_21;
 
     Matrix<double> dense_prod(size, size);
 
-    copy_to_dense(X, dense_prod.data());
+    copy_to_dense(L_hmat, dense_prod.data());
     std::cout << "norme ref prod " << normFrob(ref_prod) << std::endl;
     std::cout << " erreur entre lh uh et (lu)h" << normFrob(dense_prod - ref_prod) / normFrob(ref_prod) << std::endl;
 
-    // // On cherche Z tq L xx =  X ;
-    // // on initialise la hmat nulle
+    /////////////////////////
+    /// TEST MOINS
+
+    // std::cout << "test Plus " << std::endl;
+    // auto ref_m = dense_21 + dense_32;
+    // root_hmatrix_32.Plus(root_hmatrix_21);
+    // Matrix<double> test_m(size, size);
+    // copy_to_dense(root_hmatrix_32, test_m.data());
+    // std::cout << "erreur Plus " << normFrob(ref_m - test_m) / normFrob(ref_m) << std::endl;
+    // std::cout << "test Moins " << std::endl;
+    // auto ref_m = dense_21 - dense_32;
+    // root_hmatrix_21.Moins(root_hmatrix_32);
+    // Matrix<double> test_m(size, size);
+    // copy_to_dense(root_hmatrix_21, test_m.data());
+    // std::cout << "erreur Moins " << normFrob(ref_m - test_m) << std::endl;
+
+    // // // On cherche Z tq L xx =  X ;
+    // // // on initialise la hmat nulle
     HMatrixTreeBuilder<double, double> hmatrix_tree_builder_Z_m(root_cluster_1, root_cluster_1, epsilon, eta, 'N', 'N');
     auto hmatrix_Z = hmatrix_tree_builder_Z_m.build(Z);
-    std::cout << "!" << std::endl;
+    // std::cout << "!" << std::endl;
 
-    Forward_M_extract(Lprime, X, *root_cluster_1, *root_cluster_1, hmatrix_Z);
-
+    Forward_M_extract(Lprime, L_hmat, Lprime.get_target_cluster(), Lprime.get_source_cluster(), hmatrix_Z);
+    // forward_Daquin(Lprime, hmatrix_Z, L_hmat, *root_cluster_1, *root_cluster_1);
     Matrix<double> test_hprod(size, size);
     copy_to_dense(hmatrix_Z, test_hprod.data());
     std::cout << "erreur L Z = X : ||Z-Z_ref|| =" << normFrob(test_hprod - ref_21) / normFrob(ref_21) << std::endl;
+
+    auto test_l = Lprime.hmatrix_product(hmatrix_Z);
+    Matrix<double> tt(size, size);
+    copy_to_dense(test_l, tt.data());
+    std::cout << normFrob(tt - dense_prod) / normFrob(dense_prod) << std::endl;
+
+    Matrix<double> xsol(size, size);
+    for (int k = 0; k < size; ++k) {
+        auto yk = ref_prod.get_col(k);
+        std::vector<double> xk(size, 0.0);
+        Lprime.forward_substitution_extract(*root_cluster_1, xk, yk);
+        xsol.set_col(k, xk);
+    }
+
+    std::cout << normFrob(ref_21 - xsol) / normFrob(ref_21) << std::endl;
+    // TEST SUR SOUS BLOCS
+    // auto X11 = hmatrix_Z.get_block(size / 2, size / 2, 0, 0);
+    // auto L11 = Lprime.get_block(size / 2, size / 2, 0, 0);
+    // auto Z11 = L_hmat.get_block(size / 2, size / 2, 0, 0);
+    // Matrix<double> z11(size / 2, size / 2);
+    // copy_to_dense(*Z11, z11.data());
+
+    // Forward_M_extract(*L11, *Z11, L11->get_target_cluster(), L11->get_source_cluster(), *X11);
+
+    // Matrix<double> x11(size / 2, size / 2);
+    // Matrix<double> l11(size / 2, size / 2);
+
+    // copy_to_dense(*X11, x11.data());
+    // copy_to_dense(*L11, l11.data());
+    // std::cout << normFrob(l11 * x11 - z11) / normFrob(z11) << std::endl;
+
+    // std::cout << "test forwartd_M avec les mains" << std::endl;
+    // auto Lts = Lprime.get_block(64, 64, 448, 448);
+    // auto Zts = X.get_block(64, 64, 448, 320);
+
+    // Matrix<double> ldense(64, 64);
+    // copy_to_dense(*Lts, ldense.data());
+    // Matrix<double> zdense(64, 64);
+    // copy_to_dense(*Zts, zdense.data());
+
+    // std::vector<double> xt(size, 0.0);
+    // auto zj = zdense.get_col(3);
+    // for (int k = 0; k < 64; ++k) {
+    //     std::cout << zj[k] << std::endl;
+    // }
+    // std::vector<double> zt(size, 0.0);
+    // for (int k = 0; k < 64; ++k) {
+    //     zt[k + 448] = zj[k];
+    // }
+    // for (int k = 0; k < 64; ++k) {
+    //     std::cout << "!" << zt[k + 448] << std::endl;
+    // }
+    // Lprime.forward_substitution(Lts->get_target_cluster(), xt, zt);
+
+    // std::vector<double> xres(64, 0.0);
+    // for (int k = 0; k < 64; ++k) {
+    //     xres[k] = xt[k + 448];
+    // }
+    // std::cout << "alors ?" << norm2(ldense * xres - zj) / norm2(zj) << std::endl;
 }
