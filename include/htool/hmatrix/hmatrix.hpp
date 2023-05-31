@@ -1244,6 +1244,31 @@ class HMatrix : public TreeNode<HMatrix<CoefficientPrecision, CoordinatePrecisio
     //     // copy_to_dense(Z, zz.data());
     //     // std::cout << normFrob(ll * xx -)
     // }
+
+    void to_dense(Matrix<CoefficientPrecision> M) {
+        if (this->get_children().size() > 0) {
+            for (auto &child : this->get_children()) {
+                child->to_dense(M);
+            }
+        } else {
+            auto ptr = this->get_dense_data();
+            if (ptr != nullptr) {
+                auto mat = *ptr;
+                for (int k = 0; k < this->get_target_cluster().get_size(); ++k) {
+                    for (int l = 0; l < this->get_source_cluster().get_size(); ++l) {
+                        M(k + this->get_target_cluster().get_offset(), l + this->get_source_cluster().get_offset()) = mat(k, l);
+                    }
+                }
+            } else {
+                auto mat = this->get_low_rank_data()->Get_U() * this->get_low_rank_data()->Get_V();
+                for (int k = 0; k < this->get_target_cluster().get_size(); ++k) {
+                    for (int l = 0; l < this->get_source_cluster().get_size(); ++l) {
+                        M(k + this->get_target_cluster().get_offset(), l + this->get_source_cluster().get_size()) = mat(k, l);
+                    }
+                }
+            }
+        }
+    }
     friend void forward_Daquin(const HMatrix &L, HMatrix &X, HMatrix &Z, const Cluster<CoordinatePrecision> &t, const Cluster<CoordinatePrecision> &s) {
         auto Zts = Z.get_block(t.get_size(), s.get_size(), t.get_offset(), s.get_offset());
         if (Zts->is_hierarchical()) {
@@ -1303,11 +1328,202 @@ class HMatrix : public TreeNode<HMatrix<CoefficientPrecision, CoordinatePrecisio
         }
     }
 
-    // friend forward_substitution_dense(const HMatrix &L, HMatrix &X, HMatrix &Z, const Cluster<CoordinatePrecision> &t, const Cluster<CoordinatePrecision> &s) {
-    //     auto Zts = Z.get_block(t.get_size(), s.get_size(), t.get_offset(), s.get_offset());
-    //     if (Zts->is_hierachical) {
-    //     }
-    // }
+    void forward_substitution_this(const HMatrix &L, HMatrix &Z, Matrix<CoefficientPrecision> z, const Cluster<CoordinatePrecision> &t, const Cluster<CoordinatePrecision> &s, Matrix<CoefficientPrecision> &X) {
+        auto Zts = Z.get_block(t.get_size(), s.get_size(), t.get_offset(), s.get_offset());
+
+        if (Zts->is_dense()) {
+            Matrix<CoefficientPrecision> xdense(X.nb_rows(), X.nb_cols());
+            // copy_to_dense(*this, xdense.data());
+            auto Zdense = *Zts->get_dense_data();
+            Matrix<CoefficientPrecision> ll(t.get_size(), t.get_size());
+            auto ltemp = L.get_block(t.get_size(), t.get_size(), t.get_offset(), t.get_offset());
+            copy_to_dense(*ltemp, ll.data());
+            Matrix<CoefficientPrecision> Xupdate(t.get_size(), s.get_size());
+            // std::cout << "avant la boucle : " << normFrob(X - xdense) / normFrob(X) << std::endl;
+
+            for (int j = 0; j < s.get_size(); ++j) {
+                std::vector<CoefficientPrecision> Xtj(L.get_source_cluster().get_size(), 0.0);
+                std::vector<CoefficientPrecision> Ztj(Z.get_target_cluster().get_size(), 0.0);
+                for (int k = 0; k < t.get_size(); ++k) {
+                    Ztj[k + t.get_offset()] = z(k + t.get_offset(), j + s.get_offset());
+                    // Ztj[k + t.get_offset()] = Zdense(k, j);
+                }
+                L.forward_substitution_extract(t, Xtj, Ztj);
+                for (int k = 0; k < t.get_size(); ++k) {
+                    X(k + t.get_offset(), j + s.get_offset()) = Xtj[k + t.get_offset()];
+                    Xupdate(k, j)                             = Xtj[k + t.get_offset()];
+                }
+            }
+            // std::cout << "aprés la boucle : " << normFrob(X - xdense) / normFrob(X) << std::endl;
+            MatrixGenerator<CoefficientPrecision> gen(Xupdate, t.get_offset(), s.get_offset());
+            // std::cout << "avant compute : " << normFrob(xdense) << std::endl;
+            this->get_block(t.get_size(), s.get_size(), t.get_offset(), s.get_offset())->compute_dense_data(gen);
+
+            // // copy_to_dense(XX, xdense.data());
+            // std::cout << "aprés compute : " << normFrob(xdense) << std::endl;
+            // std::cout << "alors qu'on a rajourté une feuille de norme " << normFrob(*this->get_block(t.get_size(), s.get_size(), t.get_offset(), s.get_offset())->get_dense_data()) << std::endl;
+
+            /////test/////
+            // std::cout << " erreur sur le blocs rajouté :" << normFrob((*this->get_block(t.get_size(), s.get_size(), t.get_offset(), s.get_offset())->get_dense_data()) - Xupdate) / normFrob(Xupdate) << std::endl;
+            // std::cout << "norme de la feuille " << normFrob((*this->get_block(t.get_size(), s.get_size(), t.get_offset(), s.get_offset())->get_dense_data())) << ',' << normFrob(Xupdate) << std::endl;
+            // auto Xtemp = this->get_block(t.get_size(), s.get_size(), t.get_offset(), s.get_offset());
+            // std::cout << "  get block ? " << Xtemp->get_target_cluster().get_size() << ',' << Xtemp->get_source_cluster().get_size() << ',' << Xtemp->get_target_cluster().get_offset() << ',' << Xtemp->get_source_cluster().get_offset() << std::endl;
+            // std::cout << "   alors que " << t.get_size() << ',' << s.get_size() << ',' << t.get_offset() << ',' << s.get_offset() << std::endl;
+            // Matrix<CoefficientPrecision> xxx(X.nb_rows(), X.nb_cols());
+            // copy_to_dense(XX, xxx.data());
+            // std::cout << "    erreur sur X : " << normFrob(X - xxx) / normFrob(X) << std::endl;
+            // std::cout << "     wtf : " << normFrob(xxx) << ',' << normFrob(X) << std::endl;
+            // // std::cout << "compute dense avant - aprés : " << normFrob(xxx - xdense) << "alors que apré =" << normFrob(xxx) << " , avant = " << normFrob(xdense) << " et on a rajouté " << normFrob((*this->get_block(t.get_size(), s.get_size(), t.get_offset(), s.get_offset())->get_dense_data()) - Xupdate) << std::endl;
+            // std::cout << "norme de la feuille " << normFrob(*this->get_block(t.get_size(), s.get_size(), t.get_offset(), s.get_offset())->get_dense_data()) << std::endl;
+        } else {
+            for (int i = 0; i < t.get_children().size(); ++i) {
+                auto &child_t = t.get_children()[i];
+                for (auto &child_s : s.get_children()) {
+                    // std::cout << "avant forward " << std::endl;
+                    // Matrix<CoefficientPrecision> t1(X.nb_rows(), X.nb_cols());
+                    // Matrix<CoefficientPrecision> t2(z.nb_rows(), z.nb_cols());
+                    // copy_to_dense(XX, t1.data());
+                    // copy_to_dense(Z, t2.data());
+                    // std::cout << " X : " << normFrob(t1 - X) / normFrob(X) << " , Z : " << normFrob(z - t2) / normFrob(z) << std::endl;
+                    this->forward_substitution_this(L, Z, z, *child_t, *child_s, X);
+                    // std::cout << "aprés forward " << std::endl;
+                    // Matrix<CoefficientPrecision> t11(X.nb_rows(), X.nb_cols());
+                    // Matrix<CoefficientPrecision> t22(z.nb_rows(), z.nb_cols());
+                    // copy_to_dense(XX, t11.data());
+                    // copy_to_dense(Z, t22.data());
+                    // std::cout << " X : " << normFrob(t11 - X) / normFrob(X) << " , Z : " << normFrob(z - t22) / normFrob(z) << std::endl;
+                    for (int j = i + 1; j < t.get_children().size(); ++j) {
+                        auto &child_tt = t.get_children()[j];
+                        auto Ztemp     = Z.get_block(child_t->get_size(), child_s->get_size(), child_t->get_offset(), child_s->get_offset());
+                        auto Ltemp     = L.get_block(child_t->get_size(), child_tt->get_size(), child_t->get_offset(), child_tt->get_offset());
+                        auto Xtemp     = this->get_block(child_tt->get_size(), child_s->get_size(), child_tt->get_offset(), child_s->get_offset());
+                        Matrix<CoefficientPrecision> ll(Ltemp->get_target_cluster().get_size(), Ltemp->get_source_cluster().get_size());
+                        copy_to_dense(*Ltemp, ll.data());
+                        Matrix<CoefficientPrecision> xx(child_tt->get_size(), child_s->get_size());
+                        for (int k = 0; k < child_tt->get_size(); ++k) {
+                            for (int l = 0; l < child_s->get_size(); ++l) {
+                                xx(k, l) = X(k + child_tt->get_offset(), l + child_s->get_offset());
+                            }
+                        }
+                        auto M = ll * xx;
+                        for (int k = 0; k < child_t->get_size(); ++k) {
+                            for (int l = 0; l < child_s->get_size(); ++l) {
+                                z(k + child_t->get_offset(), l + child_s->get_offset()) = z(k + child_t->get_offset(), l + child_s->get_offset()) - M(k, l);
+                            }
+                        }
+                        // auto l = Ltemp->hmatrix_product(*Xtemp);
+                        // Matrix<CoefficientPrecision> ltest(child_t->get_size(), child_s->get_size());
+                        // copy_to_dense(l, ltest.data());
+                        // std::cout << "erreur L* x :" << normFrob(ltest - M) << normFrob(M) << std::endl;
+                        Ztemp->Moins(Ltemp->hmatrix_product(*Xtemp));
+                        // // tests//
+                        Matrix<CoefficientPrecision> ztest(Z.get_target_cluster().get_size(), Z.get_source_cluster().get_size());
+                        copy_to_dense(Z, ztest.data());
+                        std::cout << "erreur sur z : " << normFrob(z - ztest) / normFrob(z) << std::endl;
+                    }
+                }
+            }
+        }
+    }
+
+    friend void forward_substitution_dense(const HMatrix &L, HMatrix &Z, Matrix<CoefficientPrecision> z, const Cluster<CoordinatePrecision> &t, const Cluster<CoordinatePrecision> &s, Matrix<CoefficientPrecision> &X, HMatrix &XX) {
+        auto Zts = Z.get_block(t.get_size(), s.get_size(), t.get_offset(), s.get_offset());
+
+        if (Zts->is_dense()) {
+            Matrix<CoefficientPrecision> xdense(X.nb_rows(), X.nb_cols());
+            copy_to_dense(XX, xdense.data());
+            auto Zdense = *Zts->get_dense_data();
+            Matrix<CoefficientPrecision> ll(t.get_size(), t.get_size());
+            auto ltemp = L.get_block(t.get_size(), t.get_size(), t.get_offset(), t.get_offset());
+            copy_to_dense(*ltemp, ll.data());
+            Matrix<CoefficientPrecision> Xupdate(t.get_size(), s.get_size());
+            std::cout << "avant la boucle : " << normFrob(X - xdense) / normFrob(X) << std::endl;
+
+            for (int j = 0; j < s.get_size(); ++j) {
+                std::vector<CoefficientPrecision> Xtj(L.get_source_cluster().get_size(), 0.0);
+                std::vector<CoefficientPrecision> Ztj(Z.get_target_cluster().get_size(), 0.0);
+                for (int k = 0; k < t.get_size(); ++k) {
+                    Ztj[k + t.get_offset()] = z(k + t.get_offset(), j + s.get_offset());
+                    // Ztj[k + t.get_offset()] = Zdense(k, j);
+                }
+                L.forward_substitution_extract(t, Xtj, Ztj);
+                for (int k = 0; k < t.get_size(); ++k) {
+                    X(k + t.get_offset(), j + s.get_offset()) = Xtj[k + t.get_offset()];
+                    Xupdate(k, j)                             = Xtj[k + t.get_offset()];
+                }
+            }
+            std::cout << "aprés la boucle : " << normFrob(X - xdense) / normFrob(X) << std::endl;
+            MatrixGenerator<CoefficientPrecision> gen(Xupdate, t.get_offset(), s.get_offset());
+            std::cout << "avant compute : " << normFrob(xdense) << std::endl;
+            // XX.get_block(t.get_size(), s.get_size(), t.get_offset(), s.get_offset())->compute_dense_data(gen);
+            XX.get_block(t.get_size(), s.get_size(), t.get_offset(), s.get_offset())->set_dense_data(Xupdate);
+            copy_to_dense(XX, xdense.data());
+            std::cout << "aprés compute : " << normFrob(xdense) << std::endl;
+            std::cout << "alors qu'on a rajourté une feuille de norme " << normFrob(*XX.get_block(t.get_size(), s.get_size(), t.get_offset(), s.get_offset())->get_dense_data()) << std::endl;
+
+            /////test/////
+            std::cout << " erreur sur le blocs rajouté :" << normFrob((*XX.get_block(t.get_size(), s.get_size(), t.get_offset(), s.get_offset())->get_dense_data()) - Xupdate) / normFrob(Xupdate) << std::endl;
+            std::cout << "norme de la feuille " << normFrob((*XX.get_block(t.get_size(), s.get_size(), t.get_offset(), s.get_offset())->get_dense_data())) << ',' << normFrob(Xupdate) << std::endl;
+            auto Xtemp = XX.get_block(t.get_size(), s.get_size(), t.get_offset(), s.get_offset());
+            std::cout << "  get block ? " << Xtemp->get_target_cluster().get_size() << ',' << Xtemp->get_source_cluster().get_size() << ',' << Xtemp->get_target_cluster().get_offset() << ',' << Xtemp->get_source_cluster().get_offset() << std::endl;
+            std::cout << "   alors que " << t.get_size() << ',' << s.get_size() << ',' << t.get_offset() << ',' << s.get_offset() << std::endl;
+            Matrix<CoefficientPrecision> xxx(X.nb_rows(), X.nb_cols());
+            copy_to_dense(XX, xxx.data());
+            std::cout << "    erreur sur X : " << normFrob(X - xxx) / normFrob(X) << std::endl;
+            std::cout << "     wtf : " << normFrob(xxx) << ',' << normFrob(X) << std::endl;
+            // std::cout << "compute dense avant - aprés : " << normFrob(xxx - xdense) << "alors que apré =" << normFrob(xxx) << " , avant = " << normFrob(xdense) << " et on a rajouté " << normFrob((*XX.get_block(t.get_size(), s.get_size(), t.get_offset(), s.get_offset())->get_dense_data()) - Xupdate) << std::endl;
+            std::cout << "norme de la feuille " << normFrob(*XX.get_block(t.get_size(), s.get_size(), t.get_offset(), s.get_offset())->get_dense_data()) << std::endl;
+        } else {
+            for (int i = 0; i < t.get_children().size(); ++i) {
+                auto &child_t = t.get_children()[i];
+                for (auto &child_s : s.get_children()) {
+                    // std::cout << "avant forward " << std::endl;
+                    // Matrix<CoefficientPrecision> t1(X.nb_rows(), X.nb_cols());
+                    // Matrix<CoefficientPrecision> t2(z.nb_rows(), z.nb_cols());
+                    // copy_to_dense(XX, t1.data());
+                    // copy_to_dense(Z, t2.data());
+                    // std::cout << " X : " << normFrob(t1 - X) / normFrob(X) << " , Z : " << normFrob(z - t2) / normFrob(z) << std::endl;
+                    forward_substitution_dense(L, Z, z, *child_t, *child_s, X, XX);
+                    // std::cout << "aprés forward " << std::endl;
+                    // Matrix<CoefficientPrecision> t11(X.nb_rows(), X.nb_cols());
+                    // Matrix<CoefficientPrecision> t22(z.nb_rows(), z.nb_cols());
+                    // copy_to_dense(XX, t11.data());
+                    // copy_to_dense(Z, t22.data());
+                    // std::cout << " X : " << normFrob(t11 - X) / normFrob(X) << " , Z : " << normFrob(z - t22) / normFrob(z) << std::endl;
+                    for (int j = i + 1; j < t.get_children().size(); ++j) {
+                        auto &child_tt = t.get_children()[j];
+                        auto Ztemp     = Z.get_block(child_t->get_size(), child_s->get_size(), child_t->get_offset(), child_s->get_offset());
+                        auto Ltemp     = L.get_block(child_t->get_size(), child_tt->get_size(), child_t->get_offset(), child_tt->get_offset());
+                        auto Xtemp     = XX.get_block(child_tt->get_size(), child_s->get_size(), child_tt->get_offset(), child_s->get_offset());
+                        Matrix<CoefficientPrecision> ll(Ltemp->get_target_cluster().get_size(), Ltemp->get_source_cluster().get_size());
+                        copy_to_dense(*Ltemp, ll.data());
+                        Matrix<CoefficientPrecision> xx(child_tt->get_size(), child_s->get_size());
+                        for (int k = 0; k < child_tt->get_size(); ++k) {
+                            for (int l = 0; l < child_s->get_size(); ++l) {
+                                xx(k, l) = X(k + child_tt->get_offset(), l + child_s->get_offset());
+                            }
+                        }
+                        auto M = ll * xx;
+                        for (int k = 0; k < child_t->get_size(); ++k) {
+                            for (int l = 0; l < child_s->get_size(); ++l) {
+                                z(k + child_t->get_offset(), l + child_s->get_offset()) = z(k + child_t->get_offset(), l + child_s->get_offset()) - M(k, l);
+                            }
+                        }
+                        // auto l = Ltemp->hmatrix_product(*Xtemp);
+                        // Matrix<CoefficientPrecision> ltest(child_t->get_size(), child_s->get_size());
+                        // copy_to_dense(l, ltest.data());
+                        // std::cout << "erreur L* x :" << normFrob(ltest - M) << normFrob(M) << std::endl;
+                        Ztemp->Moins(Ltemp->hmatrix_product(*Xtemp));
+                        // // tests//
+                        Matrix<CoefficientPrecision> ztest(Z.get_target_cluster().get_size(), Z.get_source_cluster().get_size());
+                        copy_to_dense(Z, ztest.data());
+                        std::cout << "erreur sur z : " << normFrob(z - ztest) / normFrob(z) << std::endl;
+                    }
+                }
+            }
+        }
+    }
+
     friend void Forward_M_extract(const HMatrix &L, HMatrix &Z, const Cluster<CoordinatePrecision> &t, const Cluster<CoordinatePrecision> &s, HMatrix &X) {
         auto Zts = Z.get_block(t.get_size(), s.get_size(), t.get_offset(), s.get_offset());
         auto Xts = X.get_block(t.get_size(), s.get_size(), t.get_offset(), s.get_offset());
