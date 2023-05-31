@@ -39,6 +39,38 @@ class VirtualGeneratorWithPermutation : public VirtualGenerator<CoefficientPreci
 };
 
 template <typename CoefficientPrecision>
+class MatGenerator : public VirtualGenerator<CoefficientPrecision> {
+    int space_dim;
+    CoefficientPrecision *ptr;
+    int target_offset;
+    int source_offset;
+    int nr;
+    int nc;
+
+  public:
+    // Constructor
+    MatGenerator(const Matrix<CoefficientPrecision> &mat, const int &t, const int &s, const int &r, const int &c) : nr(r), nc(c), target_offset(t), source_offset(s) { ptr = mat.data(); }
+
+    // Virtual function to overload
+    CoefficientPrecision get_coef(const int &k, const int &j) {
+        return ptr[k + nr * j];
+    }
+
+    // Virtual function to overload
+    void copy_submatrix(const int M, const int N, const int rows, const int cols, CoefficientPrecision *ptrr) const override {
+        // const int rr = rows.get_perm_data() ;  int* cc= cols.get_perm_data();
+        // std::cout << "appel copy_sub avec M,N"
+        for (int j = 0; j < M; j++) {
+            for (int k = 0; k < N; k++) {
+                // cout<< "ici" << k<<','<< j << ',' <<rows[j]<< ',' << cols[k]<< ','<< mat.nb_rows()<< ',' << mat.nb_cols() << endl;
+                // std::cout << "appel copy_sub avec commevvrai offset: = " << rows - target_offset << ',' << cols - source_offset << std::endl;
+
+                ptrr[j + M * k] = ptr[k + rows - target_offset + nr * (j + cols - source_offset)];
+            }
+        }
+    }
+};
+template <typename CoefficientPrecision>
 class MatrixGenerator : public VirtualGenerator<CoefficientPrecision> {
     int space_dim;
     Matrix<CoefficientPrecision> mat;
@@ -47,19 +79,22 @@ class MatrixGenerator : public VirtualGenerator<CoefficientPrecision> {
 
   public:
     // Constructor
-    MatrixGenerator(const Matrix<CoefficientPrecision> &M, const int &t, const int &s) : mat(M), target_offset(t), source_offset(s) {}
+    MatrixGenerator(const Matrix<CoefficientPrecision> &M, const int &t, const int &s) : target_offset(t), source_offset(s) { mat = M; }
 
     // Virtual function to overload
-    CoefficientPrecision get_coef(const int &k, const int &j) const {
+    CoefficientPrecision get_coef(const int &k, const int &j) {
         return mat(k, j);
     }
 
     // Virtual function to overload
-    void copy_submatrix(int M, int N, int rows, int cols, CoefficientPrecision *ptr) const override {
+    void copy_submatrix(const int M, const int N, const int rows, const int cols, CoefficientPrecision *ptr) const override {
         // const int rr = rows.get_perm_data() ;  int* cc= cols.get_perm_data();
+        // std::cout << "appel copy_sub avec M,N"
         for (int j = 0; j < M; j++) {
             for (int k = 0; k < N; k++) {
                 // cout<< "ici" << k<<','<< j << ',' <<rows[j]<< ',' << cols[k]<< ','<< mat.nb_rows()<< ',' << mat.nb_cols() << endl;
+                // std::cout << "appel copy_sub avec commevvrai offset: = " << rows - target_offset << ',' << cols - source_offset << std::endl;
+
                 ptr[j + M * k] = mat(j, k);
             }
         }
