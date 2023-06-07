@@ -7,26 +7,42 @@
 #include <htool/testing/generator_test.hpp>
 #include <htool/testing/geometry.hpp>
 #include <htool/testing/partition.hpp>
+#include <htool/wrappers/wrapper_lapack.hpp>
+
 #include <mpi.h>
 #include <regex>
 
 using namespace std;
 using namespace htool;
 
+template <class CoefficientPrecision, class CoordinatePrecision>
+Matrix<CoefficientPrecision> get_unperm_mat(const Matrix<CoefficientPrecision> mat, const Cluster<CoordinatePrecision> &target, const Cluster<CoordinatePrecision> &source) {
+    CoefficientPrecision *ptr      = new CoefficientPrecision[target.get_size() * source.get_size()];
+    const auto &target_permutation = target.get_permutation();
+    const auto &source_permutation = source.get_permutation();
+    for (int i = 0; i < target.get_size(); i++) {
+        for (int j = 0; j < source.get_size(); j++) {
+            ptr[target_permutation[i] + source_permutation[j] * target.get_size()] = mat(i, j);
+        }
+    }
+    Matrix<CoefficientPrecision> M;
+    M.assign(target.get_size(), source.get_size(), ptr, true);
+    return M;
+}
 //////////////////////////
 //// GENERATOR -> Prend Une matrice ou un fichier
 //////////////////////////
 template <class CoefficientPrecision, class CoordinatePrecision>
-class MatGenerator : public VirtualGenerator<CoefficientPrecision> {
+class Matgenerator : public VirtualGenerator<CoefficientPrecision> {
   private:
     Matrix<CoefficientPrecision> mat;
     const Cluster<CoordinatePrecision> &target;
     const Cluster<CoordinatePrecision> &source;
 
   public:
-    MatGenerator(Matrix<CoefficientPrecision> &mat0, const Cluster<CoordinatePrecision> &target0, const Cluster<CoordinatePrecision> &source0) : mat(mat0), target(target0), source(source0){};
+    Matgenerator(Matrix<CoefficientPrecision> &mat0, const Cluster<CoordinatePrecision> &target0, const Cluster<CoordinatePrecision> &source0) : mat(mat0), target(target0), source(source0){};
 
-    MatGenerator(int nr, int nc, const Cluster<CoordinatePrecision> &target0, const Cluster<CoordinatePrecision> &source0, const string &matfile) : target(target0), source(source0) {
+    Matgenerator(int nr, int nc, const Cluster<CoordinatePrecision> &target0, const Cluster<CoordinatePrecision> &source0, const string &matfile) : target(target0), source(source0) {
         ifstream file;
         file.open(matfile);
         CoefficientPrecision *data = new CoefficientPrecision[nr * nc];
@@ -69,7 +85,7 @@ class MatGenerator : public VirtualGenerator<CoefficientPrecision> {
                 }
                 i += 1;
             }
-                }
+        }
         file.close();
         Matrix<CoefficientPrecision> temp(nr, nc);
         temp.assign(nr, nc, data, true);
@@ -91,6 +107,19 @@ class MatGenerator : public VirtualGenerator<CoefficientPrecision> {
     Matrix<CoefficientPrecision> get_perm_mat() {
         CoefficientPrecision *ptr = new CoefficientPrecision[target.get_size() * source.get_size()];
         this->copy_submatrix(target.get_size(), target.get_size(), 0, 0, ptr);
+        Matrix<CoefficientPrecision> M;
+        M.assign(target.get_size(), source.get_size(), ptr, true);
+        return M;
+    }
+    Matrix<CoefficientPrecision> get_unperm_mat() {
+        CoefficientPrecision *ptr      = new CoefficientPrecision[target.get_size() * source.get_size()];
+        const auto &target_permutation = target.get_permutation();
+        const auto &source_permutation = source.get_permutation();
+        for (int i = 0; i < target.get_size(); i++) {
+            for (int j = 0; j < source.get_size(); j++) {
+                ptr[target_permutation[i] + source_permutation[j] * target.get_size()] = mat(i, j);
+            }
+        }
         Matrix<CoefficientPrecision> M;
         M.assign(target.get_size(), source.get_size(), ptr, true);
         return M;
@@ -141,19 +170,118 @@ int main() {
     ///////////////////////////////////////////////
     // test LU
     ///////////////////////////
-    vector<double> points = to_mesh("/work/sauniear/Documents/matrice_test/FreeFem Data/H_LU/mesh_poisson518.txt");
+
+    //////
+    /// RECUPERATION CLUSTER
+    ///////////
+    vector<double> points = to_mesh("/work/sauniear/Documents/matrice_test/Freefem/Poisson/mesh_poisson_vertices5904.txt");
     for (int k = 0; k < 10; ++k) {
         std::cout << points[k] << ',';
     }
     std::cout << std::endl;
+    std::cout << points.size() / 3 << std::endl;
+    int size = points.size() / 3;
+    /////
+    /// CLUSTER TREE
+    ///////
     ClusterTreeBuilder<double, ComputeLargestExtent<double>, RegularSplitting<double>> normal_build(points.size() / 3, 3, points.data(), 2, 2);
     std::shared_ptr<Cluster<double>> root_normal = make_shared<Cluster<double>>(normal_build.create_cluster_tree());
-    MatGenerator<double, double> m(4396, 4396, *root_normal, *root_normal, "/work/sauniear/Documents/matrice_test/FreeFem Data/H_LU/Poisson518.txt");
-    Matrix<double> M = m.get_mat();
+    ///////
+    /// RECUPERATION MATRICE
+    //////////
+    Matgenerator<double, double> m(5904, 5904, *root_normal, *root_normal, "/work/sauniear/Documents/matrice_test/Freefem/Poisson/Vertices_5904_poisson.txt");
+    Matrix<double> LU = m.get_mat();
+    auto M            = LU;
     for (int k = 0; k < 10; ++k) {
-        std::cout << M(1, k) << std::endl;
+        for (int l = 0; l < 10; ++l) {
+            std::cout << LU(k, l) << ',';
+        }
+        std::cout << std::endl;
     }
 
+    /////
+    /// LU
+    ///////
+
+    std::vector<int> ipiv(size, 0.0);
+    int info = -1;
+    Lapack<double>::getrf(&size, &size, LU.data(), &size, ipiv.data(), &info);
+    std::cout << "_______________________" << std::endl;
+    for (int k = 0; k < 10; ++k) {
+        for (int l = 0; l < 10; ++l) {
+            std::cout << LU(k, l) << ',';
+        }
+        std::cout << std::endl;
+    }
+    Matrix<double> L(size, size);
+    Matrix<double> U(size, size);
+    for (int k = 0; k < size; ++k) {
+        L(k, k) = 1;
+        U(k, k) = LU(k, k);
+        for (int l = 0; l < k; ++l) {
+            L(k, l) = LU(k, l);
+            U(l, k) = LU(l, k);
+        }
+    }
+    std::cout << "erreur LU " << normFrob(L * U - M) / normFrob(M) << std::endl;
+    //////////
+    /// ASSEMBLAGE HMATRICES
+    ///////////
+    double eta     = 1;
+    double epsilon = 100;
+    int rk         = 5;
+    Matgenerator<double, double> gen_L(L, *root_normal, *root_normal);
+    Matgenerator<double, double> gen_U(U, *root_normal, *root_normal);
+    HMatrixTreeBuilder<double, double> hmatrix_L_builder(root_normal, root_normal, epsilon, eta, 'N', 'N', rk);
+    HMatrixTreeBuilder<double, double> hmatrix_U_builder(root_normal, root_normal, epsilon, eta, 'N', 'N', rk);
+    HMatrixTreeBuilder<double, double> hmatrix_m_builder(root_normal, root_normal, epsilon, eta, 'N', 'N', rk);
+    hmatrix_m_builder.set_epsilon(epsilon);
+    std::cout << hmatrix_m_builder.get_epsilon() << std::endl;
+
+    Matgenerator<double, double> gen_test(LU, *root_normal, *root_normal);
+
+    ////
+    /// test pour bien gerer de le passage avec les permutations....
+    ///////////
+
+    hmatrix_m_builder.set_eta(eta);
+    hmatrix_m_builder.set_rk(rk);
+    auto H(hmatrix_m_builder.build(gen_test));
+    Matrix<double> mm(size, size);
+    copy_to_dense(H, mm.data());
+    auto unperm = get_unperm_mat(mm, H.get_target_cluster(), H.get_source_cluster());
+    std::cout << "epsilon " << H.get_epsilon() << std::endl;
+    std ::cout << "error " << normFrob(LU - unperm) << std::endl;
+    std::cout << " compression " << H.get_compression() << std::endl;
+
+    // auto Lh(hmatrix_L_builder.build(gen_L));
+    // auto Uh(hmatrix_U_builder.build(gen_U));
+    // // auto H(hmatrix_m_builder.build(m));
+
+    // std::cout << " info Lh " << std::endl;
+
+    // Matrix<double> Lh_dense(size, size);
+    // copy_to_dense(Lh, Lh_dense.data());
+
+    // double cl = Lh.get_compression();
+    // std::cout << "compression " << cl << std::endl;
+    // auto l_perm = get_unperm_mat(Lh_dense, Lh.get_target_cluster(), Lh.get_source_cluster());
+    // std::cout << "erreur " << normFrob(L - l_perm) / normFrob(L) << std::endl;
+    // std::cout << "Uh info " << std::endl;
+    // Matrix<double> Uh_dense(size, size);
+    // copy_to_dense(Uh, Uh_dense.data());
+    // double cu   = Uh.get_compression();
+    // auto u_perm = get_unperm_mat(Uh_dense, Uh.get_target_cluster(), Uh.get_source_cluster());
+    // std::cout << "compression " << cu << std::endl;
+    // std::cout << "erreur " << normFrob(U - u_perm) / normFrob(U) << std::endl;
+
+    // Matrix<double> ref(size, size);
+    // copy_to_dense(H, ref.data());
+    // Matrix<double> prod(size, size);
+    // copy_to_dense(Lh.hmatrix_product(Uh), prod.data());
+    // std::cout << normFrob(prod - M) / normFrob(M) << std::endl;
+
+    //////////////////////////////////////////
     // vector<double> points = to_mesh("/work/sauniear/Documents/matrice_test/FreeFem Data/Regulier/Vertices4396/mesh_reg_vertices4396.txt");
     // ClusterTreeBuilder<double, ComputeLargestExtent<double>, RegularSplitting<double>> normal_build(points.size() / 3, 3, points.data(), 2, 2);
     // std::shared_ptr<Cluster<double>> root_normal = make_shared<Cluster<double>>(normal_build.create_cluster_tree());
