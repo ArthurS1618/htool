@@ -89,6 +89,11 @@ class HMatrixTreeBuilder {
     }
 
   public:
+    ///////je rajoute des getters pour avoir des info
+    //////////
+    double get_epsilon() { return m_epsilon; }
+    int get_rk() { return m_reqrank; }
+    double get_eta() { return m_eta; }
     explicit HMatrixTreeBuilder(std::shared_ptr<const ClusterType> root_cluster_tree_target, std::shared_ptr<const ClusterType> root_source_cluster_tree, underlying_type<CoefficientPrecision> epsilon = 1e-6, CoordinatePrecision eta = 10, char symmetry = 'N', char UPLO = 'N', int reqrank = -1) : m_target_root_cluster(root_cluster_tree_target), m_source_root_cluster(root_source_cluster_tree), m_epsilon(epsilon), m_eta(eta), m_symmetry_type(symmetry), m_UPLO_type(UPLO), m_reqrank(reqrank), m_low_rank_generator(std::make_shared<sympartialACA<CoefficientPrecision, CoordinatePrecision>>()), m_admissibility_condition(std::make_shared<RjasanowSteinbach<CoordinatePrecision>>()) {
         if (!((m_symmetry_type == 'N' || m_symmetry_type == 'H' || m_symmetry_type == 'S')
               && (m_UPLO_type == 'N' || m_UPLO_type == 'L' || m_UPLO_type == 'U')
@@ -112,6 +117,9 @@ class HMatrixTreeBuilder {
     HMatrixType build(const VirtualGenerator<CoefficientPrecision> &generator);
 
     // Setters
+    void set_epsilon(const double &eps) { m_epsilon = eps; }
+    void set_rk(const int &rk) { m_reqrank = rk; }
+    void set_eta(const double &eta) { m_eta = eta; }
     void set_low_rank_generator(std::shared_ptr<VirtualLowRankGenerator<CoefficientPrecision, CoordinatePrecision>> ptr) { m_low_rank_generator = ptr; };
     void set_admissibility_condition(std::shared_ptr<VirtualAdmissibilityCondition<CoordinatePrecision>> ptr) { m_admissibility_condition = ptr; };
     void set_target_partition_number(int target_partition_number) {
@@ -130,6 +138,9 @@ HMatrix<CoefficientPrecision, CoordinatePrecision> HMatrixTreeBuilder<Coefficien
     HMatrixType root_hmatrix(m_target_root_cluster, m_source_root_cluster);
     root_hmatrix.set_admissibility_condition(m_admissibility_condition);
     root_hmatrix.set_low_rank_generator(m_low_rank_generator);
+    // JE RAJOUTE CA
+    root_hmatrix.set_epsilon(m_epsilon);
+    root_hmatrix.set_eta(m_eta);
 
     // Build hierarchical block structure
     bool not_pushed = false;

@@ -245,6 +245,18 @@ int main() {
     std::cout << "erreur relative de x_backward - x " << norm2(x_backward_prime - x_prime2) / norm2(x_prime2) << std::endl;
     std::cout << " erreur relative de U*x-U*x_backward " << norm2(dd * x_backward_prime - dd * x_prime2) / norm2(dd * x_prime2) << std::endl;
 
+    ///////////////////
+    //// Forward_T xU = y
+    //////////////////
+    auto xprime_3 = generate_random_vector(size);
+    std::vector<double> y3(size, 0.0);
+    Uprime.add_vector_product('T', 1.0, xprime_3.data(), 0.0, y3.data());
+    std::cout << "prod ok" << ',' << norm2(y3) << std::endl;
+    std::vector<double> x_forward_t(size, 0.0);
+    Uprime.forward_substitution_extract_T(*root_cluster_1, x_forward_t, y3);
+    std::cout << "forward_T" << ',' << norm2(x_forward_t) << std::endl;
+    std::cout << "erreur relative de x_ft - x :" << norm2(x_forward_t - xprime_3) / norm2(xprime_3) << std::endl;
+
     ///////////////////////
     // FORWARD_BACKWARD  LUx = y
     //////////////////////
@@ -276,67 +288,177 @@ int main() {
     copy_to_dense(L_hmat, dense_prod.data());
     std::cout << "norme ref prod " << normFrob(ref_prod) << std::endl;
     std::cout << " erreur entre lh uh et (lu)h" << normFrob(dense_prod - ref_prod) / normFrob(ref_prod) << std::endl;
+    HMatrix<double, double> hmatrix_Z(root_cluster_1, root_cluster_1);
+    ///////////////////
+    /// FORWARD_M -> LX =Z
+    ///////////////////
+    // hmatrix_Z.copy_zero(L_hmat);
 
-    /////////////////////////
-    /// TEST MOINS
+    // Matrix<double> res(size, size);
+    // Forward_M(Lprime, L_hmat, *root_cluster_1, *root_cluster_1, hmatrix_Z);
 
-    // std::cout << "test Plus " << std::endl;
-    // auto ref_m = dense_21 + dense_32;
-    // root_hmatrix_32.Plus(root_hmatrix_21);
-    // Matrix<double> test_m(size, size);
-    // copy_to_dense(root_hmatrix_32, test_m.data());
-    // std::cout << "erreur Plus " << normFrob(ref_m - test_m) / normFrob(ref_m) << std::endl;
-    // std::cout << "test Moins " << std::endl;
-    // auto ref_m = dense_21 - dense_32;
-    // root_hmatrix_21.Moins(root_hmatrix_32);
-    // Matrix<double> test_m(size, size);
-    // copy_to_dense(root_hmatrix_21, test_m.data());
-    // std::cout << "erreur Moins " << normFrob(ref_m - test_m) << std::endl;
+    // copy_to_dense(hmatrix_Z, res.data());
+    // std::cout << "erreur ref - dense ( res) " << normFrob(res - ref_21) / normFrob(ref_21) << std::endl;
 
-    // // // On cherche Z tq L xx =  X ;
-    // // // on initialise la hmat nulle
-    HMatrixTreeBuilder<double, double> hmatrix_tree_builder_Z_m(root_cluster_1, root_cluster_1, epsilon, eta, 'N', 'N');
-    auto hmatrix_Z = hmatrix_tree_builder_Z_m.build(Z);
-    // std::cout << "!" << std::endl;
+    /// FORWARD_M_T -> XU =Z
+    // auto hmat_U = root_hmatrix_21.hmatrix_product(Uprime);
 
-    // Forward_M_extract(Lprime, L_hmat, Lprime.get_target_cluster(), Lprime.get_source_cluster(), hmatrix_Z);
-    // // forward_Daquin(Lprime, hmatrix_Z, L_hmat, *root_cluster_1, *root_cluster_1);
-    // Matrix<double> test_hprod(size, size);
-    // copy_to_dense(hmatrix_Z, test_hprod.data());
-    // std::cout << "erreur L Z = X : ||Z-Z_ref|| =" << normFrob(test_hprod - ref_21) / normFrob(ref_21) << std::endl;
+    // hmatrix_Z.copy_zero(hmat_U);
+    // hmatrix_Z.set_low_rank_generator(root_hmatrix_21.get_lr());
 
-    // auto test_l = Lprime.hmatrix_product(hmatrix_Z);
-    // Matrix<double> tt(size, size);
-    // copy_to_dense(test_l, tt.data());
-    // std::cout << normFrob(tt - dense_prod) / normFrob(dense_prod) << std::endl;
+    // hmatrix_Z.set_admissibility_condition(root_hmatrix_21.get_adm());
+    // Matrix<double> ttest(size, size);
+    // copy_to_dense(hmat_U, ttest.data());
+    // std::cout << normFrob(ttest) << std::endl;
+    // Matrix<double> res(size, size);
+    // Forward_M_T(Uprime, hmat_U, *root_cluster_1, *root_cluster_1, hmatrix_Z);
+    // copy_to_dense(hmatrix_Z, res.data());
+    // std::cout << "erreur forward_M_T " << normFrob(res - ref_21) / normFrob(ref_21) << std::endl;
 
-    // Matrix<double> xsol(size, size);
-    // for (int k = 0; k < size; ++k) {
-    //     auto yk = ref_prod.get_col(k);
-    //     std::vector<double> xk(size, 0.0);
-    //     Lprime.forward_substitution_extract(*root_cluster_1, xk, yk);
-    //     xsol.set_col(k, xk);
+    ////////////////////////////////
+    // H_LU
+    ////////////////////////////////
+
+    // auto z1 = root_hmatrix_21.get_block(32, 32, 32, 0);
+    // std::cout << z1->get_children().size() << std::endl;
+    HMatrix<double, double> Uh(root_cluster_1, root_cluster_1);
+    HMatrix<double, double> Lh(root_cluster_1, root_cluster_1);
+    Uh.copy_zero(root_hmatrix_21);
+    Lh.copy_zero(root_hmatrix_21);
+    Uh.set_admissibility_condition(root_hmatrix_21.get_adm());
+    Lh.set_admissibility_condition(root_hmatrix_21.get_adm());
+    Uh.set_low_rank_generator(root_hmatrix_21.get_lr());
+    Lh.set_low_rank_generator(root_hmatrix_21.get_lr());
+
+    H_LU(Lh, Uh, root_hmatrix_21, *root_cluster_1);
+
+    auto lu = Lh.hmatrix_product(Uh);
+    Matrix<double> lu_dense(size, size);
+    copy_to_dense(lu, lu_dense.data());
+    std::cout << normFrob(lu_dense - ref_21) / normFrob(ref_21) << std::endl;
+
+    //////////////////////////////////////////////////////////////////////
+    // forward_substitution_dense(Lprime, L_hmat, dense_prod, Lprime.get_target_cluster(), Lprime.get_source_cluster(), res, hmatrix_Z);
+    // // hmatrix_Z.forward_substitution_this(Lprime, L_hmat, dense_prod, Lprime.get_target_cluster(), Lprime.get_source_cluster(), res);
+
+    // std::cout << "erreur sur le dense" << normFrob(res - ref_21) / normFrob(ref_21) << std::endl;
+
+    // Matrix<double> res_h(size, size);
+    // copy_to_dense(hmatrix_Z, res_h.data());
+    // std::cout << " erreur sur le Hmat" << normFrob(res_h - ref_21) / normFrob(ref_21) << std::endl;
+
+    // auto test_h = Lprime.hmatrix_product(hmatrix_Z);
+    // Matrix<double> densep(size, size);
+    // copy_to_dense(test_h, densep.data());
+    // std::cout << "erreur aprés produit " << normFrob(densep - ref_prod) / normFrob(ref_prod) << std::endl;
+
+    // auto bloc = hmatrix_Z.get_block(32, 32, 480, 448);
+    // std::cout << "est ce qu'il a écrit sur la feuille ?" << normFrob(*bloc->get_dense_data()) << std::endl;
+    ////////////////////////////////////////////////////////////////////////
+
+    //////////////////////////////////////////////
+    /////TEST ANI
+    /////////////////////////////
+
+    // Matrix<double> A11(size / 2, size / 2);
+    // Matrix<double> A12(size / 2, size / 2);
+    // Matrix<double> A21(size / 2, size / 2);
+    // Matrix<double> A22(size / 2, size / 2);
+    // Matrix<double> reference(size, size);
+    // Matrix<double> li(size, size);
+    // for (int k = 0; k < size / 2; ++k) {
+    //     for (int l = 0; l < size / 2; ++l) {
+    //         std::mt19937 generator(std::chrono::system_clock::now().time_since_epoch().count());
+    //         std::uniform_real_distribution<double> distribution(0.0, 1.0);
+    //         A11(k, l) = distribution(generator);
+    //         A12(k, l) = distribution(generator);
+    //         A21(k, l) = distribution(generator);
+    //         A22(k, l) = distribution(generator);
+    //         li(k, l)  = 0;
+    //     }
     // }
+    // // // A11.assign(size / 2, size / 2, A11.data(), false);
 
-    // std::cout << normFrob(ref_21 - xsol) / normFrob(ref_21) << std::endl;
+    // HMatrix<double, double> hmat(root_cluster_1, root_cluster_1);
+    // auto a11 = hmat.add_child(root_cluster_1->get_children()[0].get(), root_cluster_1->get_children()[0].get());
+    // a11->set_dense_data(A11);
+    // auto a12 = hmat.add_child(root_cluster_1->get_children()[0].get(), root_cluster_1->get_children()[1].get());
+    // a12->set_dense_data(A12);
+    // auto a21 = hmat.add_child(root_cluster_1->get_children()[1].get(), root_cluster_1->get_children()[0].get());
+    // a21->set_dense_data(A21);
+    // auto a22 = hmat.add_child(root_cluster_1->get_children()[1].get(), root_cluster_1->get_children()[1].get());
+    // a22->set_dense_data(A22);
+    // copy_to_dense(hmat, reference.data());
 
-    Matrix<double> res(size, size);
-    forward_substitution_dense(Lprime, L_hmat, dense_prod, Lprime.get_target_cluster(), Lprime.get_source_cluster(), res, hmatrix_Z);
-    // hmatrix_Z.forward_substitution_this(Lprime, L_hmat, dense_prod, Lprime.get_target_cluster(), Lprime.get_source_cluster(), res);
+    // HMatrixTreeBuilder<double, double> hmatrix_tree_builder_test(root_cluster_1, root_cluster_1, epsilon, eta, 'N', 'N');
+    // auto X_h = hmatrix_tree_builder_test.build(Z);
+    // Matrix<double> X(size, size);
 
-    std::cout << "erreur sur le dense" << normFrob(res - ref_21) / normFrob(ref_21) << std::endl;
+    // // HMatrix<double, double> lmat(root_cluster_1, root_cluster_1);
+    // //  lmat.get_block(size / 2, size / 2, 0, 0)->set_dense_data(A11);
+    // //  lmat.get_block(size / 2, size / 2, size / 2, 0)->set_dense_data(A21);
+    // //  lmat.get_block(size / 2, size / 2, size / 2, size / 2)->set_dense_data(A22);
+    // // HMatrixTreeBuilder<double, double> hmatrix_tree_builder_l(root_cluster_1, root_cluster_1, epsilon, eta, 'N', 'N');
+    // // auto lmat = hmatrix_tree_builder_l.build(Z);
+    // // std::cout << lmat.get_leaves().size() << std::endl;
 
-    Matrix<double> res_h(size, size);
-    copy_to_dense(hmatrix_Z, res_h.data());
-    std::cout << " erreur sur le Hmat" << normFrob(res_h - ref_21) / normFrob(ref_21) << std::endl;
+    // // hmat.Get_L(lmat);
+    // // std::cout << "nb son " << lmat.get_children().size() << std::endl;
+    // // std::cout << "info son 1 " << std::endl;
+    // // std::cout << lmat.get_children()[0]->get_children().size() << std::endl;
+    // // std::cout << "norme " << normFrob(*lmat.get_children()[0]->get_dense_data()) << std::endl;
+    // // std::cout << "target" << lmat.get_children()[0]->get_target_cluster().get_size() << ',' << lmat.get_children()[0]->get_target_cluster().get_offset() << std::endl;
+    // // std::cout << "source" << lmat.get_children()[0]->get_source_cluster().get_size() << ',' << lmat.get_children()[0]->get_source_cluster().get_offset() << std::endl;
+    // // std::cout << "info son 2 " << std::endl;
+    // // std::cout << lmat.get_children()[1]->get_children().size() << std::endl;
+    // // std::cout << "norme " << normFrob(*lmat.get_children()[1]->get_dense_data()) << std::endl;
+    // // std::cout << "target" << lmat.get_children()[1]->get_target_cluster().get_size() << ',' << lmat.get_children()[1]->get_target_cluster().get_offset() << std::endl;
+    // // std::cout << "source" << lmat.get_children()[1]->get_source_cluster().get_size() << ',' << lmat.get_children()[1]->get_source_cluster().get_offset() << std::endl;
 
-    auto test_h = L_hmat.hmatrix_product(hmatrix_Z);
-    Matrix<double> densep(size, size);
-    copy_to_dense(test_h, densep.data());
-    std::cout << "erreur aprés produit " << normFrob(densep - ref_prod) / normFrob(ref_prod) << std::endl;
+    // // std::cout << lmat.get_leaves().size() << std::endl;
+    // HMatrix<double, double> lmat(root_cluster_1, root_cluster_1);
 
-    auto bloc = hmatrix_Z.get_block(32, 32, 480, 448);
-    std::cout << "est ce qu'il a écrit sur la feuille ?" << normFrob(*bloc->get_dense_data()) << std::endl;
+    // // Matrix<double> ldense(size, size);
+    // // lmat.To_dense(ldense);
+    // auto l11 = lmat.add_child(root_cluster_1->get_children()[0].get(), root_cluster_1->get_children()[0].get());
+    // l11->set_dense_data(A11);
+    // auto l12 = lmat.add_child(root_cluster_1->get_children()[0].get(), root_cluster_1->get_children()[1].get());
+    // l12->set_dense_data(li);
+    // auto l21 = lmat.add_child(root_cluster_1->get_children()[1].get(), root_cluster_1->get_children()[0].get());
+    // l21->set_dense_data(A21);
+    // auto l22 = lmat.add_child(root_cluster_1->get_children()[1].get(), root_cluster_1->get_children()[1].get());
+    // l22->set_dense_data(A22);
+    // lmat.set_admissibility_condition(root_hmatrix_21.get_adm());
+
+    // Matrix<double> l_dense(size, size);
+    // copy_to_dense(lmat, l_dense.data());
+    // std::cout << normFrob(l_dense) << ',' << normFrob(reference) << std::endl;
+    // std::cout << "prod begin " << std::endl;
+    // auto prod = lmat.hmatrix_product(hmat);
+    // std::cout << "prod ok " << std::endl;
+    // Matrix<double> prod_to_dense(size, size);
+    // copy_to_dense(prod, prod_to_dense.data());
+    // std::cout << "alors ?" << normFrob(prod_to_dense - l_dense * reference) / normFrob(prod_to_dense) << std::endl;
+    // std::cout << "nb sons de prod :" << std::endl;
+    // std::cout << prod.get_block(size / 2, size / 2, 0, 0)->get_children().size() << std::endl;
+    // std::cout << prod.get_block(size / 2, size / 2, size / 2, 0)->get_children().size() << std::endl;
+    // std::cout << prod.get_block(size / 2, size / 2, 0, size / 2)->get_children().size() << std::endl;
+    // std::cout << prod.get_block(size / 2, size / 2, size / 2, size / 2)->get_children().size() << std::endl;
+    // std::cout << "nb sons de l :" << std::endl;
+    // std::cout << lmat.get_block(size / 2, size / 2, 0, 0)->get_children().size() << std::endl;
+    // std::cout << lmat.get_block(size / 2, size / 2, size / 2, 0)->get_children().size() << std::endl;
+    // std::cout << lmat.get_block(size / 2, size / 2, 0, size / 2)->get_children().size() << std::endl;
+    // std::cout << lmat.get_block(size / 2, size / 2, size / 2, size / 2)->get_children().size() << std::endl;
+
+    // forward_substitution_dense(lmat, prod, prod_to_dense, *root_cluster_1, *root_cluster_1, X, X_h);
+    // std::cout << "erreur sur le dense " << normFrob(reference - X) / normFrob(reference) << std::endl;
+    // Matrix<double> Xdense(size, size);
+    // copy_to_dense(X_h, Xdense.data());
+    // std::cout << "edrreur sur ref - dense(hmat) " << normFrob(Xdense - reference) / normFrob(reference) << std::endl;
+    // auto test_prod = lmat.hmatrix_product(X_h);
+    // Matrix<double> test_prod_dense(size, size);
+    // copy_to_dense(test_prod, test_prod_dense.data());
+    // std::cout << normFrob(test_prod_dense - prod_to_dense) / normFrob(prod_to_dense) << std::endl;
     //////////////////////////////////////////////////:
     /// TEST FORWARD BUILD
     ///////////////////////////////////////////////////////
