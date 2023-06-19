@@ -198,7 +198,7 @@ int main() {
         }
         std::cout << std::endl;
     }
-
+    std::cout << "matrice et mesh recupérée" << std::endl;
     /////
     /// LU
     ///////
@@ -224,49 +224,52 @@ int main() {
         }
     }
     std::cout << "erreur LU " << normFrob(L * U - M) / normFrob(M) << std::endl;
+    std::cout << "ipiv " << std::endl;
+    double test = 0;
+    for (int k = 0; k < size; ++k) {
+        test = std::max(test, std::abs(ipiv[k] - k - 1) * 1.0);
+    }
+    std::cout << test << std::endl;
     //////////
     /// ASSEMBLAGE HMATRICES
     ///////////
-    double eta     = 1;
-    double epsilon = 100;
-    int rk         = 5;
-    Matgenerator<double, double> gen_L(L, *root_normal, *root_normal);
-    Matgenerator<double, double> gen_U(U, *root_normal, *root_normal);
-    HMatrixTreeBuilder<double, double> hmatrix_L_builder(root_normal, root_normal, epsilon, eta, 'N', 'N', rk);
-    HMatrixTreeBuilder<double, double> hmatrix_U_builder(root_normal, root_normal, epsilon, eta, 'N', 'N', rk);
-    HMatrixTreeBuilder<double, double> hmatrix_m_builder(root_normal, root_normal, epsilon, eta, 'N', 'N', rk);
-    hmatrix_m_builder.set_epsilon(epsilon);
-    std::cout << hmatrix_m_builder.get_epsilon() << std::endl;
-
-    Matgenerator<double, double> gen_test(LU, *root_normal, *root_normal);
 
     ////
     /// test pour bien gerer de le passage avec les permutations....
     ///////////
+    double epsilon = -1.0;
+    int eta        = 10;
+    HMatrixTreeBuilder<double, double> hmatrix_m_builder(root_normal, root_normal, epsilon, eta, 'N', 'N');
+    HMatrixTreeBuilder<double, double> hmatrix_L_builder(root_normal, root_normal, epsilon, eta, 'N', 'N');
+    HMatrixTreeBuilder<double, double> hmatrix_U_builder(root_normal, root_normal, epsilon, eta, 'N', 'N');
+    // HMatrixTreeBuilder<double, double> hmatrix_tree_builder_U(root_cluster_1, root_cluster_1, epsilon, eta, 'N', 'N');
 
     hmatrix_m_builder.set_eta(eta);
-    hmatrix_m_builder.set_rk(rk);
-    auto H(hmatrix_m_builder.build(gen_test));
-    Matrix<double> mm(size, size);
-    copy_to_dense(H, mm.data());
-    auto unperm = get_unperm_mat(mm, H.get_target_cluster(), H.get_source_cluster());
-    std::cout << "epsilon " << H.get_epsilon() << std::endl;
-    std ::cout << "error " << normFrob(LU - unperm) << std::endl;
-    std::cout << " compression " << H.get_compression() << std::endl;
+    hmatrix_m_builder.set_rk(5);
+    Matgenerator<double, double> gen_L(L, *root_normal, *root_normal);
+    // auto H(hmatrix_m_builder.build(gen_test));
+    // Matrix<double> mm(size, size);
+    // copy_to_dense(H, mm.data());
+    // auto unperm = get_unperm_mat(mm, H.get_target_cluster(), H.get_source_cluster());
+    // std::cout << "epsilon " << H.get_epsilon() << std::endl;
+    // std ::cout << "error " << normFrob(LU - unperm) << std::endl;
+    // std::cout << " compression " << H.get_compression() << std::endl;
 
-    // auto Lh(hmatrix_L_builder.build(gen_L));
-    // auto Uh(hmatrix_U_builder.build(gen_U));
-    // // auto H(hmatrix_m_builder.build(m));
+    auto Lh(hmatrix_L_builder.build(gen_L));
+    // auto H(hmatrix_m_builder.build(m));
 
-    // std::cout << " info Lh " << std::endl;
+    std::cout << " info Lh " << std::endl;
 
-    // Matrix<double> Lh_dense(size, size);
-    // copy_to_dense(Lh, Lh_dense.data());
+    Matrix<double> Lh_dense(size, size);
+    copy_to_dense(Lh, Lh_dense.data());
 
-    // double cl = Lh.get_compression();
-    // std::cout << "compression " << cl << std::endl;
-    // auto l_perm = get_unperm_mat(Lh_dense, Lh.get_target_cluster(), Lh.get_source_cluster());
-    // std::cout << "erreur " << normFrob(L - l_perm) / normFrob(L) << std::endl;
+    double cl = Lh.get_compression();
+    std::cout << "compression " << cl << std::endl;
+    auto l_perm = get_unperm_mat(Lh_dense, Lh.get_target_cluster(), Lh.get_source_cluster());
+    std::cout << "erreur " << normFrob(L - l_perm) / normFrob(L) << std::endl;
+
+    std::cout << Lh.get_epsilon() << ',' << hmatrix_L_builder.get_epsilon() << std::endl;
+
     // std::cout << "Uh info " << std::endl;
     // Matrix<double> Uh_dense(size, size);
     // copy_to_dense(Uh, Uh_dense.data());

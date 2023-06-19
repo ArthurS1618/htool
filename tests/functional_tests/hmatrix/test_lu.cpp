@@ -76,7 +76,7 @@ class MatGenerator : public VirtualGenerator<CoefficientPrecision> {
 };
 int main() {
     std::cout << "_________________________________________" << std::endl;
-    double epsilon = 1e-6;
+    double epsilon = 1e-3;
     double eta     = 10;
     // int size       = 2048;
     int size = std::pow(2, 9);
@@ -204,98 +204,105 @@ int main() {
     ////////////////////////////////
     //// On initialise une Hmatrice nulle
 
-    Matrix<double> zero(root_cluster_1->get_size(), root_cluster_1->get_size());
-    DenseGenerator<double> Z(zero);
+    // Matrix<double> zero(root_cluster_1->get_size(), root_cluster_1->get_size());
+    // DenseGenerator<double> Z(zero);
+
+    // // //////////////////
+    // // // FORWARD   L x = y
+    // // /////////////////
+    // HMatrixTreeBuilder<double, double> hmatrix_tree_builder_Z(root_cluster_1, root_cluster_1, epsilon, eta, 'N', 'N');
+    // auto Lprime = hmatrix_tree_builder_Z.build(Z);
+    // root_hmatrix_21.Get_L(Lprime);
+    // Matrix<double> dl(root_cluster_1->get_size(), root_cluster_1->get_size());
+    // copy_to_dense(Lprime, dl.data());
+    // auto x_prime = generate_random_vector(size);
+    // std::vector<double> y_prime(size, 0.0);
+    // std::vector<double> x_forward_prime(size, 0.0);
+    // Lprime.add_vector_product('N', 1.0, x_prime.data(), 0.0, y_prime.data());
+    // Lprime.forward_substitution_extract(*root_cluster_1, x_forward_prime, y_prime);
+    // std::cout << "forward " << std::endl;
+    // std::cout << "erreur relative de x_forward - x " << norm2(x_forward_prime - x_prime) / norm2(x_prime) << std::endl;
+    // std::cout << " erreur relative de L*x-L*x_forward " << norm2(dl * x_forward_prime - dl * x_prime) / norm2(dl * x_prime) << std::endl;
 
     // //////////////////
-    // // FORWARD   L x = y
+    // // BACKWARD  Ux = y
     // /////////////////
-    HMatrixTreeBuilder<double, double> hmatrix_tree_builder_Z(root_cluster_1, root_cluster_1, epsilon, eta, 'N', 'N');
-    auto Lprime = hmatrix_tree_builder_Z.build(Z);
-    root_hmatrix_21.Get_L(Lprime);
-    Matrix<double> dl(root_cluster_1->get_size(), root_cluster_1->get_size());
-    copy_to_dense(Lprime, dl.data());
-    auto x_prime = generate_random_vector(size);
-    std::vector<double> y_prime(size, 0.0);
-    std::vector<double> x_forward_prime(size, 0.0);
-    Lprime.add_vector_product('N', 1.0, x_prime.data(), 0.0, y_prime.data());
-    Lprime.forward_substitution_extract(*root_cluster_1, x_forward_prime, y_prime);
-    std::cout << "forward " << std::endl;
-    std::cout << "erreur relative de x_forward - x " << norm2(x_forward_prime - x_prime) / norm2(x_prime) << std::endl;
-    std::cout << " erreur relative de L*x-L*x_forward " << norm2(dl * x_forward_prime - dl * x_prime) / norm2(dl * x_prime) << std::endl;
+    // HMatrixTreeBuilder<double, double> hmatrix_tree_builder_Zu(root_cluster_1, root_cluster_1, epsilon, eta, 'N', 'N');
+    // auto Uprime = hmatrix_tree_builder_Zu.build(Z);
+    // root_hmatrix_21.Get_U(Uprime);
+    // Matrix<double> dd(root_cluster_1->get_size(), root_cluster_1->get_size());
+    // copy_to_dense(Uprime, dd.data());
+    // auto x_prime2 = generate_random_vector(size);
+    // std::vector<double> y_prime2(size, 0.0);
+    // std::vector<double> x_backward_prime(size, 0.0);
+    // Uprime.add_vector_product('N', 1.0, x_prime2.data(), 0.0, y_prime2.data());
+    // std::cout << norm2(y_prime2) << std::endl;
+    // std::cout << norm2(dd * x_prime2) << std::endl;
 
-    //////////////////
-    // BACKWARD  Ux = y
-    /////////////////
-    HMatrixTreeBuilder<double, double> hmatrix_tree_builder_Zu(root_cluster_1, root_cluster_1, epsilon, eta, 'N', 'N');
-    auto Uprime = hmatrix_tree_builder_Zu.build(Z);
-    root_hmatrix_21.Get_U(Uprime);
-    Matrix<double> dd(root_cluster_1->get_size(), root_cluster_1->get_size());
-    copy_to_dense(Uprime, dd.data());
-    auto x_prime2 = generate_random_vector(size);
-    std::vector<double> y_prime2(size, 0.0);
-    std::vector<double> x_backward_prime(size, 0.0);
-    Uprime.add_vector_product('N', 1.0, x_prime2.data(), 0.0, y_prime2.data());
-    std::cout << norm2(y_prime2) << std::endl;
-    std::cout << norm2(dd * x_prime2) << std::endl;
+    // Uprime.backward_substitution_extract(*root_cluster_1, x_backward_prime, y_prime2);
 
-    Uprime.backward_substitution_extract(*root_cluster_1, x_backward_prime, y_prime2);
+    // std::cout << "backward " << std::endl;
+    // std::cout << "erreur relative de x_backward - x " << norm2(x_backward_prime - x_prime2) / norm2(x_prime2) << std::endl;
+    // std::cout << " erreur relative de U*x-U*x_backward " << norm2(dd * x_backward_prime - dd * x_prime2) / norm2(dd * x_prime2) << std::endl;
 
-    std::cout << "backward " << std::endl;
-    std::cout << "erreur relative de x_backward - x " << norm2(x_backward_prime - x_prime2) / norm2(x_prime2) << std::endl;
-    std::cout << " erreur relative de U*x-U*x_backward " << norm2(dd * x_backward_prime - dd * x_prime2) / norm2(dd * x_prime2) << std::endl;
+    // ///////////////////
+    // //// Forward_T xU = y
+    // //////////////////
+    // auto xprime_3 = generate_random_vector(size);
+    // std::vector<double> y3(size, 0.0);
+    // Uprime.add_vector_product('T', 1.0, xprime_3.data(), 0.0, y3.data());
+    // std::cout << "prod ok" << ',' << norm2(y3) << std::endl;
+    // std::vector<double> x_forward_t(size, 0.0);
+    // Uprime.forward_substitution_extract_T(*root_cluster_1, x_forward_t, y3);
+    // std::cout << "forward_T" << ',' << norm2(x_forward_t) << std::endl;
+    // std::cout << "erreur relative de x_ft - x :" << norm2(x_forward_t - xprime_3) / norm2(xprime_3) << std::endl;
 
-    ///////////////////
-    //// Forward_T xU = y
-    //////////////////
-    auto xprime_3 = generate_random_vector(size);
-    std::vector<double> y3(size, 0.0);
-    Uprime.add_vector_product('T', 1.0, xprime_3.data(), 0.0, y3.data());
-    std::cout << "prod ok" << ',' << norm2(y3) << std::endl;
-    std::vector<double> x_forward_t(size, 0.0);
-    Uprime.forward_substitution_extract_T(*root_cluster_1, x_forward_t, y3);
-    std::cout << "forward_T" << ',' << norm2(x_forward_t) << std::endl;
-    std::cout << "erreur relative de x_ft - x :" << norm2(x_forward_t - xprime_3) / norm2(xprime_3) << std::endl;
+    // ///////////////////////
+    // // FORWARD_BACKWARD  LUx = y
+    // //////////////////////
+    // auto x_ref               = generate_random_vector(size);
+    // std::vector<double> y_lu = dl * dd * x_ref;
+    // std::vector<double> x_lu(size, 0.0);
+    // forward_backward(Lprime, Uprime, *root_cluster_1, x_lu, y_lu);
+    // // auto test = dl*dd*x_lu
+    // std::cout << "forward backward " << std::endl;
+    // std::cout << "erreur Lux = y  " << norm2(x_ref - x_lu) / norm2(x_ref) << std::endl;
 
-    ///////////////////////
-    // FORWARD_BACKWARD  LUx = y
-    //////////////////////
-    auto x_ref               = generate_random_vector(size);
-    std::vector<double> y_lu = dl * dd * x_ref;
-    std::vector<double> x_lu(size, 0.0);
-    forward_backward(Lprime, Uprime, *root_cluster_1, x_lu, y_lu);
-    // auto test = dl*dd*x_lu
-    std::cout << "forward backward " << std::endl;
-    std::cout << "erreur Lux = y  " << norm2(x_ref - x_lu) / norm2(x_ref) << std::endl;
-
-    /////////////////////////////////////////////
-    /// LA MEME CHOSE MAIS AVEC DES MATRICES
-    //////////////////////////////////////
-    std::cout << "equations matricielles " << std::endl;
+    // /////////////////////////////////////////////
+    // /// LA MEME CHOSE MAIS AVEC DES MATRICES
+    // //////////////////////////////////////
+    // std::cout << "equations matricielles " << std::endl;
     /////////////////////////
     /// FORWARD_M L x = H ( tout en Hmat)
     ///////////////////////
     // auto X        = Lprime.hmatrix_product(Uprime);
     // auto ref_prod = dl * dd;
-    Matrix<double> ref_21(size, size);
-    copy_to_dense(root_hmatrix_21, ref_21.data());
-    auto L_hmat = Lprime.hmatrix_product(root_hmatrix_21);
+    // Matrix<double> ref_21(size, size);
+    // copy_to_dense(root_hmatrix_21, ref_21.data());
+    // auto L_hmat = Lprime.hmatrix_product(root_hmatrix_21);
 
-    auto ref_prod = dl * ref_21;
+    // auto ref_prod = dl * ref_21;
 
-    Matrix<double> dense_prod(size, size);
+    // Matrix<double> dense_prod(size, size);
 
-    copy_to_dense(L_hmat, dense_prod.data());
-    std::cout << "norme ref prod " << normFrob(ref_prod) << std::endl;
-    std::cout << " erreur entre lh uh et (lu)h" << normFrob(dense_prod - ref_prod) / normFrob(ref_prod) << std::endl;
-    HMatrix<double, double> hmatrix_Z(root_cluster_1, root_cluster_1);
+    // copy_to_dense(L_hmat, dense_prod.data());
+    // std::cout << "norme ref prod " << normFrob(ref_prod) << std::endl;
+    // std::cout << " erreur entre lh uh et (lu)h" << normFrob(dense_prod - ref_prod) / normFrob(ref_prod) << std::endl;
+    // HMatrix<double, double> hmatrix_Z(root_cluster_1, root_cluster_1);
+
+    // std::cout << "hmult ?" << std::endl;
+    // auto prod = root_hmatrix_21.hmatrix_product(root_hmatrix_21);
+    // Matrix<double> pp(size, size);
+    // copy_to_dense(prod, pp.data());
+    // std::cout << normFrob(pp - ref_21 * ref_21) / normFrob(ref_21 * ref_21) << std::endl;
     ///////////////////
     /// FORWARD_M -> LX =Z
-    ///////////////////
+    // forward marche mais pas dans < lu donc la c'est forward new (juste enlevé le new pour tester forward)
+    /////////////////
     // hmatrix_Z.copy_zero(L_hmat);
 
     // Matrix<double> res(size, size);
-    // Forward_M(Lprime, L_hmat, *root_cluster_1, *root_cluster_1, hmatrix_Z);
+    // Forward_M_new(Lprime, L_hmat, *root_cluster_1, *root_cluster_1, hmatrix_Z);
 
     // copy_to_dense(hmatrix_Z, res.data());
     // std::cout << "erreur ref - dense ( res) " << normFrob(res - ref_21) / normFrob(ref_21) << std::endl;
@@ -311,7 +318,7 @@ int main() {
     // copy_to_dense(hmat_U, ttest.data());
     // std::cout << normFrob(ttest) << std::endl;
     // Matrix<double> res(size, size);
-    // Forward_M_T(Uprime, hmat_U, *root_cluster_1, *root_cluster_1, hmatrix_Z);
+    // Forward_M_T_new(Uprime, hmat_U, *root_cluster_1, *root_cluster_1, hmatrix_Z);
     // copy_to_dense(hmatrix_Z, res.data());
     // std::cout << "erreur forward_M_T " << normFrob(res - ref_21) / normFrob(ref_21) << std::endl;
 
@@ -319,25 +326,57 @@ int main() {
     // H_LU
     ////////////////////////////////
 
+    // root_hmatrix_21.Get_Block(10, 10, 10, 10);
+
     // auto z1 = root_hmatrix_21.get_block(32, 32, 32, 0);
     // std::cout << z1->get_children().size() << std::endl;
-    HMatrix<double, double> Uh(root_cluster_1, root_cluster_1);
-    HMatrix<double, double> Lh(root_cluster_1, root_cluster_1);
-    Uh.copy_zero(root_hmatrix_21);
-    Lh.copy_zero(root_hmatrix_21);
-    Uh.set_admissibility_condition(root_hmatrix_21.get_adm());
-    Lh.set_admissibility_condition(root_hmatrix_21.get_adm());
-    Uh.set_low_rank_generator(root_hmatrix_21.get_lr());
-    Lh.set_low_rank_generator(root_hmatrix_21.get_lr());
+    // HMatrix<double, double> Uh(root_cluster_1, root_cluster_1);
+    // HMatrix<double, double> Lh(root_cluster_1, root_cluster_1);
+    // Uh.copy_zero(root_hmatrix_21);
+    // Lh.copy_zero(root_hmatrix_21);
+    // Uh.set_admissibility_condition(root_hmatrix_21.get_adm());
+    // Lh.set_admissibility_condition(root_hmatrix_21.get_adm());
+    // Uh.set_low_rank_generator(root_hmatrix_21.get_lr());
+    // Lh.set_low_rank_generator(root_hmatrix_21.get_lr());
+    // std::cout << "!!" << std::endl;
 
-    H_LU(Lh, Uh, root_hmatrix_21, *root_cluster_1);
+    // // H_LU_new(Lh, Uh, root_hmatrix_21, *root_cluster_1);
+    // my_hlu(root_hmatrix_21, Lh, Uh, *root_cluster_1);
 
-    auto lu = Lh.hmatrix_product(Uh);
-    Matrix<double> lu_dense(size, size);
-    copy_to_dense(lu, lu_dense.data());
-    std::cout << normFrob(lu_dense - ref_21) / normFrob(ref_21) << std::endl;
+    // auto lu = Lh.hmatrix_product(Uh);
+    // Matrix<double> lu_dense(size, size);
+    // Matrix<double> ll(size, size);
+    // Matrix<double> uu(size, size);
+    // copy_to_dense(Lh, ll.data());
+    // copy_to_dense(Uh, uu.data());
+    // std::cout << "=====================================" << std::endl;
+    // std::cout << normFrob(ll) << ',' << normFrob(uu) << ',' << normFrob(ref_21) << std::endl;
+    // std::cout << normFrob(ll * uu - ref_21) / normFrob(ref_21) << std::endl;
 
-    //////////////////////////////////////////////////////////////////////
+    // copy_to_dense(lu, lu_dense.data());
+    // std::cout << "!!" << std::endl;
+    // std::cout << normFrob(lu_dense - ref_21) / normFrob(ref_21) << std::endl;
+
+    ///////////////////////:
+    /// HLU DENSE
+    //////////////////
+    // Matrix<double> ldense(size, size);
+    // Matrix<double> udense(size, size);
+    // auto reff = ref_21;
+    // H_LU_dense(Lh, Uh, root_hmatrix_21, *root_cluster_1, reff, ldense, udense);
+    // Matrix<double> ll(size, size);
+    // Matrix<double> uu(size, size);
+    // copy_to_dense(Lh, ll.data());
+    // copy_to_dense(Uh, uu.data());
+    // std::cout << normFrob(ll * uu - ref_21) / normFrob(ref_21) << std::endl;
+    // for (int k = 0; k < 15; ++k) {
+    //     for (int l = 0; l < 15; ++l) {
+    //         std::cout << uu(k, l) << ',';
+    //     }
+    //     std::cout << std::endl;
+    // }
+
+    ////////////////////////////////////////////////////////////////////
     // forward_substitution_dense(Lprime, L_hmat, dense_prod, Lprime.get_target_cluster(), Lprime.get_source_cluster(), res, hmatrix_Z);
     // // hmatrix_Z.forward_substitution_this(Lprime, L_hmat, dense_prod, Lprime.get_target_cluster(), Lprime.get_source_cluster(), res);
 

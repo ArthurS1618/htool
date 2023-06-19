@@ -217,6 +217,7 @@ class SumExpression : public VirtualGenerator<CoefficientPrecision> {
             Matrix<CoefficientPrecision> kdense(K->get_target_cluster().get_size(), K->get_source_cluster().get_size());
             copy_to_dense(*H, hdense.data());
             copy_to_dense(*K, kdense.data());
+
             Matrix<CoefficientPrecision> hk = hdense * kdense;
             for (int i = 0; i < M; ++i) {
                 for (int j = 0; j < N; ++j) {
