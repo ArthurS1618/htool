@@ -3054,14 +3054,14 @@ void HMatrix<CoefficientPrecision, CoordinatePrecision>::recursive_build_hmatrix
     //     std::cout << "ici   !!!!   " << sum_expr.get_sr()[0].nb_rows() << ',' << sum_expr.get_sr()[0].nb_cols() << ',' << sum_expr.get_sr()[1].nb_rows() << ',' << sum_expr.get_sr()[1].nb_cols() << std::endl;
     // }
     // critère pour descendre : on est sur une feuille ou pas:
-    bool admissible    = this->m_tree_data->m_admissibility_condition->ComputeAdmissibility(target_cluster, source_cluster, this->get_eta());
+    bool admissible    = this->m_tree_data->m_admissibility_condition->ComputeAdmissibility(target_cluster, source_cluster, this->m_tree_data->m_eta);
     auto test_restrict = sum_expr.is_restrictible();
     if (admissible) {
         // this->compute_dense_data(sum_expr);
         //  this->compute_low_rank_data(sum_expr, *this->get_lr(), this->get_rk(), this->get_epsilon());
         // auto &temp = *this;
         // Je dois rajouter ca sinon ca plante avec forward_T_M...
-        LowRankMatrix<CoefficientPrecision, CoordinatePrecision> lr(sum_expr, *this->get_lr(), this->get_target_cluster(), this->get_source_cluster(), -1, 0.0001);
+        LowRankMatrix<CoefficientPrecision, CoordinatePrecision> lr(sum_expr, *this->m_tree_data->m_low_rank_generator, this->get_target_cluster(), this->get_source_cluster(), -1, 0.0001);
         if ((lr.Get_U().nb_rows() == 0) or (lr.Get_U().nb_cols() == 0) or (lr.Get_V().nb_rows() == 0) or (lr.Get_V().nb_cols() == 0)) {
             this->compute_dense_data(sum_expr);
             // this->Plus(temp);
