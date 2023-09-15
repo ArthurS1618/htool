@@ -126,7 +126,12 @@ if(OpenMP_CXX_FOUND)
 endif()
 target_compile_features(htool INTERFACE cxx_std_11)
 
-if("${BLA_VENDOR}" STREQUAL "Intel10_64lp_seq" OR "${BLA_VENDOR}" STREQUAL "Intel10_64lp")
+if("${BLA_VENDOR}" STREQUAL "Intel10_32"
+   OR "${BLA_VENDOR}" STREQUAL "Intel10_64lp"
+   OR "${BLA_VENDOR}" STREQUAL "Intel10_64lp_seq"
+   OR "${BLA_VENDOR}" STREQUAL "Intel10_64ilp"
+   OR "${BLA_VENDOR}" STREQUAL "Intel10_64ilp_seq"
+   OR "${BLA_VENDOR}" STREQUAL "Intel10_64_dyn")
     target_compile_definitions(htool INTERFACE "-DHPDDM_MKL -DHTOOL_MKL")
 endif()
 
