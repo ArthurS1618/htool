@@ -161,6 +161,18 @@ class Mydriection {
 };
 
 template <typename T>
+class constdir {
+  private:
+    std::vector<T> convection;
+
+  public:
+    constdir(const std::vector<T> &c) : convection(c) {}
+    std::vector<T> compute_direction(const Cluster<T> *cluster, const std::vector<int> &permutation, int spatial_dimension, const T *const coordinates, const T *const radii, const T *const weights) {
+        return convection;
+    }
+};
+
+template <typename T>
 class DirectionConvection {
   private:
     std::vector<T> convection;

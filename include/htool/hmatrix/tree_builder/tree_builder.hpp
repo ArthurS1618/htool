@@ -118,7 +118,6 @@ class HMatrixTreeBuilder {
     void set_epsilon(const double &eps) { m_epsilon = eps; }
     void set_rk(const int &rk) { m_reqrank = rk; }
     void set_eta(const double &eta) { m_eta = eta; }
-    void set_perm(const bool &b) { m_use_permutation = b; }
     void set_low_rank_generator(std::shared_ptr<VirtualLowRankGenerator<CoefficientPrecision, CoordinatePrecision>> ptr) { m_low_rank_generator = ptr; };
     void set_admissibility_condition(std::shared_ptr<VirtualAdmissibilityCondition<CoordinatePrecision>> ptr) { m_admissibility_condition = ptr; };
     void set_target_partition_number(int target_partition_number) {
@@ -159,6 +158,9 @@ HMatrix<CoefficientPrecision, CoordinatePrecision> HMatrixTreeBuilder<Coefficien
         if (is_root_admissible) {
             m_admissible_tasks.emplace_back(&root_hmatrix);
         } else {
+            /////////////////////////
+            /// Je rajoute le if pas avoir des énormes blocs admissibles dense------------------> ARTHUR
+            ////////////////////////////
             m_dense_tasks.emplace_back(&root_hmatrix);
         }
     }

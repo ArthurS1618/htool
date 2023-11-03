@@ -27,6 +27,31 @@ class RegularSplitting {
 };
 
 template <typename T>
+class troisSplitting {
+  public:
+    void splitting(Cluster<T> *curr_cluster, const std::vector<int> &, int, const T *, int current_number_of_children, int minclustersize, const std::vector<T> &, std::vector<std::pair<int, int>> &current_partition) {
+
+        int size = curr_cluster->get_size();
+        current_partition.resize(current_number_of_children);
+
+        // Children
+        int sizem = minclustersize;
+        int sizeM = int((size - sizem) / 2);
+        // std::cout << "on est dans split" << std::endl;
+        // std::cout << size , sizeM << std::endl;
+        if (sizeM > minclustersize) {
+            current_partition[0] = std::pair<int, int>(curr_cluster->get_offset(), sizeM);
+            current_partition[1] = std::pair<int, int>(curr_cluster->get_offset() + sizeM + sizem, sizeM);
+            current_partition[2] = std::pair<int, int>(curr_cluster->get_offset() + sizeM, sizem);
+
+            current_partition.back() = std::pair<int, int>(curr_cluster->get_offset() + sizeM + sizem, size - sizeM - sizem);
+        } else {
+            current_partition.clear();
+        }
+    } // namespace htool
+};
+
+template <typename T>
 class GeometricSplitting {
     RegularSplitting<T> regular_splitting;
 

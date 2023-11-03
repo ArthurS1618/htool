@@ -32,6 +32,7 @@ class ClusterTreeBuilder {
 
     DirectionComputationStrategy m_direction_computation_strategy;
     SplittingStrategy m_splitting_strategy;
+    std::vector<T> direction;
 
   public:
     ClusterTreeBuilder(int number_of_points, int spatial_dimension, const T *coordinates, const T *radii, const T *weights, int number_of_children, int size_partition, const DirectionComputationStrategy &direction_computation_strategy = DirectionComputationStrategy(), const SplittingStrategy &splitting_strategy = SplittingStrategy()) : m_number_of_points(number_of_points), m_spatial_dimension(spatial_dimension), m_coordinates(coordinates), m_radii(radii), m_weights(weights), m_number_of_children(number_of_children), m_size_partition(size_partition), m_direction_computation_strategy(direction_computation_strategy), m_splitting_strategy(splitting_strategy) {}
@@ -55,13 +56,18 @@ class ClusterTreeBuilder {
         }
     }
 
-    void set_direction_computation_strategy(const DirectionComputationStrategy &direction_computation_strategy) { m_direction_computation_strategy = direction_computation_strategy; }
+    void set_direction_computation_strategy(const std::vector<T> direction_computation_strategy) {
+        constdir<T> mydir(direction_computation_strategy);
+        m_direction_computation_strategy = mydir;
+    }
 
     void set_splitting_strategy(const SplittingStrategy &splitting_strategy) { m_splitting_strategy = splitting_strategy; }
 
     void set_minclustersize(int minclustersize) { m_minclustersize = minclustersize; }
     Cluster<T> create_cluster_tree();
     Cluster<T> create_directional_tree();
+    Cluster<T> create_trois_cluster_tree(const std::vector<T>);
+    Cluster<T> create_alternate_tree(const std::vector<T>, const std::vector<T>);
 };
 
 template <typename T, class DirectionComputationStrategy, class SplittingStrategy>
@@ -185,6 +191,390 @@ Cluster<T> ClusterTreeBuilder<T, DirectionComputationStrategy, SplittingStrategy
 
     return root_cluster;
 }
+
+template <typename T, class DirectionComputationStrategy, class SplittingStrategy>
+Cluster<T> ClusterTreeBuilder<T, DirectionComputationStrategy, SplittingStrategy>::create_directional_tree() {
+
+    // default values
+    std::vector<T> default_radii{};
+    std::vector<T> default_weights{};
+    if (m_radii == nullptr) {
+        default_radii.resize(m_number_of_points, 0);
+        m_radii = default_radii.data();
+    }
+    if (m_weights == nullptr) {
+        default_weights.resize(m_number_of_points, 1);
+        m_weights = default_weights.data();
+    }
+
+    // Intialization of root
+    std::vector<T> center = compute_center(0, m_number_of_points);
+    T radius              = compute_radius(center, 0, m_number_of_points);
+    Cluster<T> root_cluster(radius, center, -1, 0, m_number_of_points);
+    std::vector<int> &permutation = root_cluster.get_permutation();
+    // Taking care of partition initialisation
+    std::stack<Cluster<T> *> cluster_stack(std::deque<Cluster<T> *>{&root_cluster});
+
+    if (m_partition_type == Given) {
+        cluster_stack.pop();
+        bool is_child_on_partition = true;
+        root_cluster.set_is_permutation_local(true);
+        for (int p = 0; p < m_partition.size(); p++) {
+            center                           = compute_center(m_partition[p].first, m_partition[p].second, permutation.data());
+            radius                           = compute_radius(center, m_partition[p].first, m_partition[p].second, permutation.data());
+            Cluster<T> *cluster_on_partition = root_cluster.add_child(radius, center, p, m_partition[p].first, m_partition[p].second, p, is_child_on_partition);
+            cluster_stack.push(cluster_on_partition);
+        }
+    }
+
+    // Recursive build
+    std::vector<std::pair<int, int>> current_splitting(m_number_of_children);
+
+    while (!cluster_stack.empty()) {
+        Cluster<T> *current_cluster = cluster_stack.top();
+        cluster_stack.pop();
+        auto current_offset            = current_cluster->get_offset();
+        auto current_size              = current_cluster->get_size();
+        int current_number_of_children = ((current_cluster->get_depth() == 0) && (m_partition_type == Simple)) ? m_size_partition : m_number_of_children;
+
+        // Direction of largest extent
+        std::vector<T> direction(m_spatial_dimension, 0);
+        direction[1] = 1;
+        // direction = m_direction_computation_strategy.compute_direction(current_cluster, permutation, m_spatial_dimension, m_coordinates, m_radii, m_weights);
+
+        // Sort along direction
+        std::sort(permutation.begin() + current_offset, permutation.begin() + current_offset + current_size, [&](int a, int b) {
+            T c = std::inner_product(m_coordinates + m_spatial_dimension * a, m_coordinates + m_spatial_dimension * (1 + a), direction.data(), T(0));
+            T d = std::inner_product(m_coordinates + m_spatial_dimension * b, m_coordinates + m_spatial_dimension * (1 + b), direction.data(), T(0));
+            return c < d;
+        });
+
+        // Compute numbering
+        m_splitting_strategy.splitting(current_cluster, permutation, m_spatial_dimension, m_coordinates, current_number_of_children, m_minclustersize, direction, current_splitting);
+        std::vector<Cluster<T> *> children;
+
+        if (current_splitting.size() > 0) {
+            bool is_child_on_partition = false;
+            for (int p = 0; p < current_splitting.size(); p++) {
+                center = compute_center(current_splitting[p].first, current_splitting[p].second, permutation.data());
+                radius = compute_radius(center, current_splitting[p].first, current_splitting[p].second, permutation.data());
+
+                int rank_of_child = current_cluster->get_rank();
+                if ((current_cluster->get_depth() == 0) && (m_partition_type == Simple)) {
+                    rank_of_child         = p;
+                    is_child_on_partition = true;
+                }
+                children.emplace_back(current_cluster->add_child(radius, center, rank_of_child, current_splitting[p].first, current_splitting[p].second, current_cluster->get_counter() * current_number_of_children + p, is_child_on_partition));
+            }
+
+            // Recursivity
+            for (auto &child : children) {
+                cluster_stack.push(child);
+            }
+        } else if (current_cluster->get_rank() < 0) {
+            htool::Logger::get_instance().log(Logger::LogLevel::ERROR, "Cluster tree reached maximal depth, but not enough children to define a partition"); // LCOV_EXCL_LINE
+        } else {
+            current_cluster->set_maximal_depth(std::max(current_cluster->get_maximal_depth(), current_cluster->get_depth()));
+            current_cluster->set_minimal_depth(std::min(current_cluster->get_minimal_depth(), current_cluster->get_depth()));
+        }
+
+        if (m_partition_type == PartitionType::Simple && current_cluster->get_depth() == 0) {
+            for (const auto &child : children)
+                m_partition.emplace_back(child->get_offset(), child->get_size());
+        }
+    }
+
+    return root_cluster;
+}
+
+template <typename T, class DirectionComputationStrategy, class SplittingStrategy>
+Cluster<T> ClusterTreeBuilder<T, DirectionComputationStrategy, SplittingStrategy>::create_alternate_tree(const std::vector<T> b, const std::vector<T> bperp) {
+
+    // default values
+    std::vector<T> default_radii{};
+    std::vector<T> default_weights{};
+    if (m_radii == nullptr) {
+        default_radii.resize(m_number_of_points, 0);
+        m_radii = default_radii.data();
+    }
+    if (m_weights == nullptr) {
+        default_weights.resize(m_number_of_points, 1);
+        m_weights = default_weights.data();
+    }
+
+    // Intialization of root
+    std::vector<T> center = compute_center(0, m_number_of_points);
+    T radius              = compute_radius(center, 0, m_number_of_points);
+    Cluster<T> root_cluster(radius, center, -1, 0, m_number_of_points);
+    std::vector<int> &permutation = root_cluster.get_permutation();
+    // Taking care of partition initialisation
+    std::stack<Cluster<T> *> cluster_stack(std::deque<Cluster<T> *>{&root_cluster});
+
+    if (m_partition_type == Given) {
+        cluster_stack.pop();
+        bool is_child_on_partition = true;
+        root_cluster.set_is_permutation_local(true);
+        for (int p = 0; p < m_partition.size(); p++) {
+            center                           = compute_center(m_partition[p].first, m_partition[p].second, permutation.data());
+            radius                           = compute_radius(center, m_partition[p].first, m_partition[p].second, permutation.data());
+            Cluster<T> *cluster_on_partition = root_cluster.add_child(radius, center, p, m_partition[p].first, m_partition[p].second, p, is_child_on_partition);
+            cluster_stack.push(cluster_on_partition);
+        }
+    }
+
+    // Recursive build
+    std::vector<std::pair<int, int>> current_splitting(m_number_of_children);
+
+    while (!cluster_stack.empty()) {
+        Cluster<T> *current_cluster = cluster_stack.top();
+        cluster_stack.pop();
+        auto current_offset            = current_cluster->get_offset();
+        auto current_size              = current_cluster->get_size();
+        int current_number_of_children = ((current_cluster->get_depth() == 0) && (m_partition_type == Simple)) ? m_size_partition : m_number_of_children;
+        int ref                        = std::pow(-1, current_cluster->get_depth());
+        std::vector<T> direction(3); // Direction of largest extent
+        if (ref < 0) {
+            direction = bperp;
+        } else {
+            direction = b;
+        }
+        // Sort along direction
+        std::sort(permutation.begin() + current_offset, permutation.begin() + current_offset + current_size, [&](int a, int b) {
+            T c = std::inner_product(m_coordinates + m_spatial_dimension * a, m_coordinates + m_spatial_dimension * (1 + a), direction.data(), T(0));
+            T d = std::inner_product(m_coordinates + m_spatial_dimension * b, m_coordinates + m_spatial_dimension * (1 + b), direction.data(), T(0));
+            return c < d;
+        });
+
+        // Compute numbering
+        m_splitting_strategy.splitting(current_cluster, permutation, m_spatial_dimension, m_coordinates, current_number_of_children, m_minclustersize, direction, current_splitting);
+        std::vector<Cluster<T> *> children;
+
+        if (current_splitting.size() > 0) {
+            bool is_child_on_partition = false;
+            for (int p = 0; p < current_splitting.size(); p++) {
+                center = compute_center(current_splitting[p].first, current_splitting[p].second, permutation.data());
+                radius = compute_radius(center, current_splitting[p].first, current_splitting[p].second, permutation.data());
+
+                int rank_of_child = current_cluster->get_rank();
+                if ((current_cluster->get_depth() == 0) && (m_partition_type == Simple)) {
+                    rank_of_child         = p;
+                    is_child_on_partition = true;
+                }
+                children.emplace_back(current_cluster->add_child(radius, center, rank_of_child, current_splitting[p].first, current_splitting[p].second, current_cluster->get_counter() * current_number_of_children + p, is_child_on_partition));
+            }
+
+            // Recursivity
+            for (auto &child : children) {
+                cluster_stack.push(child);
+            }
+        } else if (current_cluster->get_rank() < 0) {
+            htool::Logger::get_instance().log(Logger::LogLevel::ERROR, "Cluster tree reached maximal depth, but not enough children to define a partition"); // LCOV_EXCL_LINE
+        } else {
+            current_cluster->set_maximal_depth(std::max(current_cluster->get_maximal_depth(), current_cluster->get_depth()));
+            current_cluster->set_minimal_depth(std::min(current_cluster->get_minimal_depth(), current_cluster->get_depth()));
+        }
+
+        if (m_partition_type == PartitionType::Simple && current_cluster->get_depth() == 0) {
+            for (const auto &child : children)
+                m_partition.emplace_back(child->get_offset(), child->get_size());
+        }
+    }
+
+    return root_cluster;
+}
+/////////////////////////////////
+/// JE RAJOUTE CA PACE QU ON PEU PAS UTILISER DE CONSTRUCTEUR DE DIRECTION STRATEGY DANS LES ARGUMENTS
+//////////////////////////////////////////////////////
+
+// template <typename T, class DirectionComputationStrategy, class SplittingStrategy>
+// Cluster<T> ClusterTreeBuilder<T, DirectionComputationStrategy, SplittingStrategy>::create_trois_cluster_tree(const std::vector<T> direction) {
+//     // default values
+//     std::vector<T> default_radii{};
+//     std::vector<T> default_weights{};
+//     if (m_radii == nullptr) {
+//         default_radii.resize(m_number_of_points, 0);
+//         m_radii = default_radii.data();
+//     }
+//     if (m_weights == nullptr) {
+//         default_weights.resize(m_number_of_points, 1);
+//         m_weights = default_weights.data();
+//     }
+
+//     // Intialization of root
+//     std::vector<T> center = compute_center(0, m_number_of_points);
+//     T radius              = compute_radius(center, 0, m_number_of_points);
+//     Cluster<T> root_cluster(radius, center, -1, 0, m_number_of_points);
+//     std::vector<int> &permutation = root_cluster.get_permutation();
+//     // Taking care of partition initialisation
+//     std::stack<Cluster<T> *> cluster_stack(std::deque<Cluster<T> *>{&root_cluster});
+//     if (m_partition_type == Given) {
+//         cluster_stack.pop();
+//         bool is_child_on_partition = true;
+//         root_cluster.set_is_permutation_local(true);
+//         for (int p = 0; p < m_partition.size(); p++) {
+//             center                           = compute_center(m_partition[p].first, m_partition[p].second, permutation.data());
+//             radius                           = compute_radius(center, m_partition[p].first, m_partition[p].second, permutation.data());
+//             Cluster<T> *cluster_on_partition = root_cluster.add_child(radius, center, p, m_partition[p].first, m_partition[p].second, p, is_child_on_partition);
+//             cluster_stack.push(cluster_on_partition);
+//         }
+//     }
+//     // Recursive build
+//     std::vector<std::pair<int, int>> current_splitting(m_number_of_children);
+//     while (!cluster_stack.empty()) {
+//         Cluster<T> *current_cluster = cluster_stack.top();
+//         cluster_stack.pop();
+//         auto current_offset            = current_cluster->get_offset();
+//         auto current_size              = current_cluster->get_size();
+//         int current_number_of_children = ((current_cluster->get_depth() == 0) && (m_partition_type == Simple)) ? m_size_partition : m_number_of_children;
+//         // Sort along direction
+//         std::sort(permutation.begin() + current_offset, permutation.begin() + current_offset + current_size, [&](int a, int b) {
+//             T c = std::inner_product(m_coordinates + m_spatial_dimension * a, m_coordinates + m_spatial_dimension * (1 + a), direction.data(), T(0));
+//             T d = std::inner_product(m_coordinates + m_spatial_dimension * b, m_coordinates + m_spatial_dimension * (1 + b), direction.data(), T(0));
+//             return c < d;
+//         });
+//         // Compute numbering
+//         // std::cout << "ca va split" << std::endl;
+//         m_splitting_strategy.splitting(current_cluster, permutation, m_spatial_dimension, m_coordinates, current_number_of_children, m_minclustersize, direction, current_splitting);
+//         // std::cout << "current cluster : " << current_cluster->get_size() << ',' << current_cluster->get_offset() << std::endl;
+//         // std::cout << "split size" << current_splitting.size() << std::endl;
+//         std::vector<Cluster<T> *> children;
+//         if (current_splitting.size() > 0) {
+//             // std::cout << "!ç" << std::endl;
+//             bool is_child_on_partition = false;
+//             for (int p = 0; p < current_splitting.size(); p++) {
+//                 center = compute_center(current_splitting[p].first, current_splitting[p].second, permutation.data());
+//                 radius = compute_radius(center, current_splitting[p].first, current_splitting[p].second, permutation.data());
+
+//                 int rank_of_child = current_cluster->get_rank();
+//                 if ((current_cluster->get_depth() == 0) && (m_partition_type == Simple)) {
+//                     rank_of_child         = p;
+//                     is_child_on_partition = true;
+//                 }
+//                 children.emplace_back(current_cluster->add_child(radius, center, rank_of_child, current_splitting[p].first, current_splitting[p].second, current_cluster->get_counter() * current_number_of_children + p, is_child_on_partition));
+//             }
+//             // Recursivity
+//             for (auto &child : children) {
+//                 cluster_stack.push(child);
+//             }
+//             // } else if ((current_cluster->get_size() == current_cluster->get_minclustersize()) and (current_cluster->get_depth() < current_cluster->get_minimal_depth())) {
+//             //     cluster_stack.push(current_cluster);
+//             //     std::cout << "!" << std::endl;
+//         } else if (current_cluster->get_rank() < 0) {
+//             htool::Logger::get_instance().log(Logger::LogLevel::ERROR, "Cluster tree reached maximal depth, but not enough children to define a partition"); // LCOV_EXCL_LINE
+//         } else {
+//             current_cluster->set_maximal_depth(std::max(current_cluster->get_maximal_depth(), current_cluster->get_depth()));
+//             current_cluster->set_minimal_depth(std::min(current_cluster->get_minimal_depth(), current_cluster->get_depth()));
+//         }
+//         if (m_partition_type == PartitionType::Simple && current_cluster->get_depth() == 0) {
+//             for (const auto &child : children)
+//                 m_partition.emplace_back(child->get_offset(), child->get_size());
+//         }
+//     }
+//     return root_cluster;
+// }
+// ///////////////////////////////////////////////////////
+// template <typename T, class DirectionComputationStrategy, class SplittingStrategy>
+// Cluster<T> ClusterTreeBuilder<T, DirectionComputationStrategy, SplittingStrategy>::create_directional_tree(const std::vector<T> mydir) {
+//     // default values
+//     std::vector<T> default_radii{};
+//     std::vector<T> default_weights{};
+//     if (m_radii == nullptr) {
+//         default_radii.resize(m_number_of_points, 0);
+//         m_radii = default_radii.data();
+//     }
+//     if (m_weights == nullptr) {
+//         default_weights.resize(m_number_of_points, 1);
+//         m_weights = default_weights.data();
+//     }
+
+//     // Intialization of root
+//     std::vector<T> center = compute_center(0, m_number_of_points);
+//     T radius              = compute_radius(center, 0, m_number_of_points);
+//     // ClusterTree<T> cluster_tree(m_minclustersize);
+//     // Cluster<T> *root_cluster = cluster_tree.add_root(radius, center, -1, 0, m_number_of_points, 0);
+//     Cluster<T> root_cluster(radius, center, -1, 0, m_number_of_points);
+//     // Cluster<T> root(radius, center, -1, 0, m_number_of_points, 0);
+//     // root.set_minclustersize(m_minclustersize);
+//     // std::shared_ptr<std::vector<int>> permutation_ptr = std::make_shared<std::vector<int>>(m_number_of_points, 0);
+//     // std::vector<int> &permutation = cluster_tree.get_permutation();
+//     std::vector<int> &permutation = root_cluster.get_permutation();
+//     // std::iota(permutation.begin(), permutation.end(), int(0));
+//     // root.set_permutation(permutation_ptr);
+
+//     // Taking care of partition initialisation
+//     std::stack<Cluster<T> *> cluster_stack(std::deque<Cluster<T> *>{&root_cluster});
+
+//     if (m_partition_type == Given) {
+//         cluster_stack.pop();
+//         bool is_child_on_partition = true;
+//         root_cluster.set_is_permutation_local(true);
+//         for (int p = 0; p < m_partition.size(); p++) {
+//             center                           = compute_center(m_partition[p].first, m_partition[p].second, permutation.data());
+//             radius                           = compute_radius(center, m_partition[p].first, m_partition[p].second, permutation.data());
+//             Cluster<T> *cluster_on_partition = root_cluster.add_child(radius, center, p, m_partition[p].first, m_partition[p].second, p, is_child_on_partition);
+//             cluster_stack.push(cluster_on_partition);
+//         }
+//     }
+//     // Recursive build
+//     std::vector<std::pair<int, int>> current_splitting(m_number_of_children);
+
+//     while (!cluster_stack.empty()) {
+//         Cluster<T> *current_cluster = cluster_stack.top();
+//         cluster_stack.pop();
+//         auto current_offset            = current_cluster->get_offset();
+//         auto current_size              = current_cluster->get_size();
+//         int current_number_of_children = ((current_cluster->get_depth() == 0) && (m_partition_type == Simple)) ? m_size_partition : m_number_of_children;
+
+//         // Direction of largest extent
+//         std::vector<T> direction(3);
+//         direction[1] = 1;
+//         // Sort along direction
+//         std::sort(permutation.begin() + current_offset, permutation.begin() + current_offset + current_size, [&](int a, int b) {
+//             T c = std::inner_product(m_coordinates + m_spatial_dimension * a, m_coordinates + m_spatial_dimension * (1 + a), direction.data(), T(0));
+//             T d = std::inner_product(m_coordinates + m_spatial_dimension * b, m_coordinates + m_spatial_dimension * (1 + b), direction.data(), T(0));
+//             return c < d;
+//         });
+
+//         // Compute numbering
+//         m_splitting_strategy.splitting(current_cluster, permutation, m_spatial_dimension, m_coordinates, current_number_of_children, m_minclustersize, direction, current_splitting);
+//         std::vector<Cluster<T> *> children;
+
+//         if (current_splitting.size() > 0) {
+//             bool is_child_on_partition = false;
+//             for (int p = 0; p < current_splitting.size(); p++) {
+//                 center = compute_center(current_splitting[p].first, current_splitting[p].second, permutation.data());
+//                 radius = compute_radius(center, current_splitting[p].first, current_splitting[p].second, permutation.data());
+
+//                 int rank_of_child = current_cluster->get_rank();
+//                 if ((current_cluster->get_depth() == 0) && (m_partition_type == Simple)) {
+//                     rank_of_child         = p;
+//                     is_child_on_partition = true;
+//                 }
+//                 // else if ((current_cluster->get_depth() == depth_of_partition - 1) && (m_partition_type == PowerOfNumberOfChildren)) {
+//                 //     rank_of_child = current_cluster->get_counter() * current_number_of_children + p;
+//                 // }
+//                 children.emplace_back(current_cluster->add_child(radius, center, rank_of_child, current_splitting[p].first, current_splitting[p].second, current_cluster->get_counter() * current_number_of_children + p, is_child_on_partition));
+//             }
+
+//             // Recursivity
+//             for (auto &child : children) {
+//                 cluster_stack.push(child);
+//             }
+//         } else if (current_cluster->get_rank() < 0) {
+//             htool::Logger::get_instance().log(Logger::LogLevel::ERROR, "Cluster tree reached maximal depth, but not enough children to define a partition"); // LCOV_EXCL_LINE
+//         } else {
+//             current_cluster->set_maximal_depth(std::max(current_cluster->get_maximal_depth(), current_cluster->get_depth()));
+//             current_cluster->set_minimal_depth(std::min(current_cluster->get_minimal_depth(), current_cluster->get_depth()));
+//         }
+
+//         if (m_partition_type == PartitionType::Simple && current_cluster->get_depth() == 0) {
+//             for (const auto &child : children)
+//                 m_partition.emplace_back(child->get_offset(), child->get_size());
+//         }
+//     }
+
+//     return root_cluster;
+// }
 
 template <typename T, class DirectionComputationStrategy, class SplittingStrategy>
 std::vector<T> ClusterTreeBuilder<T, DirectionComputationStrategy, SplittingStrategy>::compute_center(int offset, int size, const int *current_permutation) const {
