@@ -102,33 +102,47 @@ std::vector<T> solve_EVP_3(const Matrix<T> &cov) {
         eigs[2] = q + static_cast<T>(2) * p * std::cos(phi + static_cast<T>(2.094395102393195));
         eigs[1] = static_cast<T>(3) * q - eigs[0] - eigs[2]; // since trace(cov) = eig1 + eig2 + eig3
 
-        // clean up near zero values to zeros (needed when cov has a kernel)
-        if (std::abs(eigs[1]) < std::numeric_limits<T>::epsilon())
-            eigs[1] = 0.;
-        if (std::abs(eigs[2]) < std::numeric_limits<T>::epsilon())
-            eigs[2] = 0.;
-
         if (std::abs(eigs[0]) < std::numeric_limits<T>::epsilon())
             dir *= static_cast<T>(0.);
         else {
-            prod      = (cov - eigs[1] * I) * (cov - eigs[2] * I);
-            int ind   = 0;
-            T dirnorm = 0;
-            do {
-                dir[0]  = prod(0, ind);
-                dir[1]  = prod(1, ind);
-                dir[2]  = prod(2, ind);
-                dirnorm = std::sqrt(dir[0] * dir[0] + dir[1] * dir[1] + dir[2] * dir[2]);
-                ind++;
-            } while ((dirnorm < std::numeric_limits<T>::epsilon()) && (ind < 3));
-            if (dirnorm < std::numeric_limits<T>::epsilon()) {
-                dir[0] = 1;
-                dir[1] = 0;
-                dir[2] = 0;
+            prod = (cov - eigs[0] * I);
+            prod.print(std::cout, ",");
+
+            const T *col0 = prod.data();
+            const T *col1 = prod.data() + 3;
+            const T *col2 = prod.data() + 6;
+
+            std::vector<T> c0xc1{col0[1] * col1[2] - col0[2] * col1[1],
+                                 col0[2] * col1[0] - col0[0] * col1[2],
+                                 col0[0] * col1[1] - col0[1] * col1[0]};
+
+            std::vector<T> c0xc2 = {col0[1] * col2[2] - col0[2] * col2[1],
+                                    col0[2] * col2[0] - col0[0] * col2[2],
+                                    col0[0] * col2[1] - col0[1] * col2[0]};
+
+            std::vector<T> c1xc2 = {col1[1] * col2[2] - col1[2] * col2[1],
+                                    col1[2] * col2[0] - col1[0] * col2[2],
+                                    col1[0] * col2[1] - col1[1] * col2[0]};
+
+            T d0     = dprod(c0xc1, c0xc1);
+            T d1     = dprod(c0xc2, c0xc2);
+            T d2     = dprod(c1xc2, c1xc2);
+            T dmax   = d0;
+            int imax = 0;
+            if (d1 > dmax) {
+                dmax = d1;
+                imax = 1;
+            }
+            if (d2 > dmax) {
+                imax = 2;
+            }
+
+            if (imax == 0) {
+                dir = c0xc1 / std::sqrt(d0);
+            } else if (imax == 1) {
+                dir = c0xc2 / std::sqrt(d1);
             } else {
-                dir[0] /= dirnorm;
-                dir[1] /= dirnorm;
-                dir[2] /= dirnorm;
+                dir = c1xc2 / std::sqrt(d2);
             }
         }
     }
