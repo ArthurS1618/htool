@@ -106,7 +106,6 @@ std::vector<T> solve_EVP_3(const Matrix<T> &cov) {
             dir *= static_cast<T>(0.);
         else {
             prod = (cov - eigs[0] * I);
-            prod.print(std::cout, ",");
 
             const T *col0 = prod.data();
             const T *col1 = prod.data() + 3;

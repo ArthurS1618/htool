@@ -95,14 +95,11 @@ class GeometricSplitting final : public VirtualSplittingStrategy<T> {
 template <typename T>
 class GeometricSplittingTest {
     RegularSplitting<T> regular_splitting;
-    int m_test = 0;
 
   public:
     GeometricSplittingTest() {}
-    GeometricSplittingTest(int test) : m_test(test) {}
 
     void splitting(Cluster<T> *curr_cluster, const std::vector<int> &permutation, int spatial_dimension, const T *x, int current_number_of_children, int minclustersize, const std::vector<T> &dir, std::vector<std::pair<int, int>> &current_partition) {
-        std::cout << m_test << "\n";
 
         // Geometry of current cluster
         int offset = curr_cluster->get_offset();
