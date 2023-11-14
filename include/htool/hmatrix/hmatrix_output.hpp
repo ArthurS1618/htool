@@ -3,6 +3,7 @@
 
 #include <array>
 #include <iostream>
+#include <map>
 #if defined(_OPENMP)
 #    include <omp.h>
 #endif
@@ -77,23 +78,31 @@ void save_levels(const HMatrix<CoefficientPrecision, CoordinatePrecision> &hmatr
 }
 
 template <typename CoefficientPrecision, typename CoordinatePrecision>
-void print_tree_parameters(const HMatrix<CoefficientPrecision, CoordinatePrecision> &hmatrix, std::ostream &os) {
+std::map<std::string, std::string> get_tree_parameters(const HMatrix<CoefficientPrecision, CoordinatePrecision> &hmatrix) {
     const HMatrixTreeData<CoefficientPrecision, CoordinatePrecision> *hmatrix_tree_data = hmatrix.get_hmatrix_tree_data();
+    std::map<std::string, std::string> tree_parameters;
+    tree_parameters["Eta"]                   = std::to_string(hmatrix_tree_data->m_eta);
+    tree_parameters["Epsilon"]               = std::to_string(hmatrix_tree_data->m_epsilon);
+    tree_parameters["MaxBlockSize"]          = std::to_string(hmatrix_tree_data->m_maxblocksize);
+    tree_parameters["MinTargetDepth"]        = std::to_string(hmatrix_tree_data->m_minimal_target_depth);
+    tree_parameters["MinClusterSizeTarget"]  = std::to_string(hmatrix.get_target_cluster().get_minclustersize());
+    tree_parameters["MaxClusterDepthTarget"] = std::to_string(hmatrix.get_target_cluster().get_maximal_depth());
+    tree_parameters["MinClusterDepthTarget"] = std::to_string(hmatrix.get_target_cluster().get_minimal_depth());
+    tree_parameters["MinSourceDepth"]        = std::to_string(hmatrix_tree_data->m_minimal_source_depth);
+    tree_parameters["MinClusterSizeSource"]  = std::to_string(hmatrix.get_source_cluster().get_minclustersize());
+    tree_parameters["MaxClusterDepthSource"] = std::to_string(hmatrix.get_source_cluster().get_maximal_depth());
+    tree_parameters["MinClusterDepthSource"] = std::to_string(hmatrix.get_source_cluster().get_minimal_depth());
+    return tree_parameters;
+}
 
-    int output_size = 23;
+template <typename CoefficientPrecision, typename CoordinatePrecision>
+void print_tree_parameters(const HMatrix<CoefficientPrecision, CoordinatePrecision> &hmatrix, std::ostream &os) {
+    auto tree_parameters = get_tree_parameters(hmatrix);
+    int output_size      = 23;
     os << std::setfill('_') << std::left;
     os << "Block tree parameters\n";
-    os << std::setw(output_size) << "Eta" << hmatrix_tree_data->m_eta << "\n";
-    os << std::setw(output_size) << "Epsilon" << hmatrix_tree_data->m_epsilon << "\n";
-    os << std::setw(output_size) << "MaxBlockSize" << hmatrix_tree_data->m_maxblocksize << "\n";
-    os << std::setw(output_size) << "MinTargetDepth" << hmatrix_tree_data->m_minimal_target_depth << "\n";
-    os << std::setw(output_size) << "MinClusterSizeTarget" << hmatrix.get_target_cluster().get_minclustersize() << "\n";
-    os << std::setw(output_size) << "MaxClusterDepthTarget" << hmatrix.get_target_cluster().get_maximal_depth() << "\n";
-    os << std::setw(output_size) << "MinClusterDepthTarget" << hmatrix.get_target_cluster().get_minimal_depth() << "\n";
-    os << std::setw(output_size) << "MinSourceDepth" << hmatrix_tree_data->m_minimal_source_depth << "\n";
-    os << std::setw(output_size) << "MinClusterSizeSource" << hmatrix.get_source_cluster().get_minclustersize() << "\n";
-    os << std::setw(output_size) << "MaxClusterDepthSource" << hmatrix.get_source_cluster().get_maximal_depth() << "\n";
-    os << std::setw(output_size) << "MinClusterDepthSource" << hmatrix.get_source_cluster().get_minimal_depth() << "\n";
+    for (const auto &tree_parameter : tree_parameters)
+        os << std::setw(output_size) << tree_parameter.first << tree_parameter.second << "\n";
     os << "\n";
 }
 
@@ -111,8 +120,10 @@ void get_leaves(const HMatrix<CoefficientPrecision, CoordinatePrecision> &hmatri
 }
 
 template <typename CoefficientPrecision, typename CoordinatePrecision>
-void print_hmatrix_information(const HMatrix<CoefficientPrecision, CoordinatePrecision> &hmatrix, std::ostream &os) {
+std::map<std::string, std::string> get_hmatrix_information(const HMatrix<CoefficientPrecision, CoordinatePrecision> &hmatrix) {
     const HMatrixTreeData<CoefficientPrecision, CoordinatePrecision> *hmatrix_tree_data = hmatrix.get_hmatrix_tree_data();
+
+    std::map<std::string, std::string> hmatrix_information;
 
     unsigned int nb_rows = hmatrix.get_target_cluster().get_size();
     unsigned int nb_cols = hmatrix.get_source_cluster().get_size();
@@ -163,42 +174,52 @@ void print_hmatrix_information(const HMatrix<CoefficientPrecision, CoordinatePre
     mininfos[1]  = (low_rank_blocks.size() == 0 ? 0 : mininfos[1]);
     mininfos[2]  = (low_rank_blocks.size() == 0 ? 0 : mininfos[2]);
 
-    // Print parameters
-    std::size_t output_size = 25;
-    output_size             = std::max(output_size, 2 + std::max_element(std::begin(hmatrix_tree_data->m_information), std::end(hmatrix_tree_data->m_information), [](const auto &a, const auto &b) { return a.first.size() < b.first.size(); })->first.size());
-    output_size             = std::max(output_size, 2 + std::max_element(std::begin(hmatrix_tree_data->m_timings), std::end(hmatrix_tree_data->m_timings), [](const auto &a, const auto &b) { return a.first.size() < b.first.size(); })->first.size());
+    // // Print parameters
+    // std::size_t output_size = 25;
+    // output_size             = std::max(output_size, 2 + std::max_element(std::begin(hmatrix_tree_data->m_information), std::end(hmatrix_tree_data->m_information), [](const auto &a, const auto &b) { return a.first.size() < b.first.size(); })->first.size());
+    // output_size             = std::max(output_size, 2 + std::max_element(std::begin(hmatrix_tree_data->m_timings), std::end(hmatrix_tree_data->m_timings), [](const auto &a, const auto &b) { return a.first.size() < b.first.size(); })->first.size());
 
     // Print
-    std::ostringstream output;
-    output << std::setfill('_') << std::left;
-    output << "Hmatrix information\n";
-    output << std::setw(output_size) << "Target_size" << nb_rows << "\n";
-    output << std::setw(output_size) << "Source_size" << nb_cols << "\n";
-    output << std::setw(output_size) << "Dense_block_size_max" << maxinfos[0] << "\n";
-    output << std::setw(output_size) << "Dense_block_size_mean" << meaninfos[0] << "\n";
-    output << std::setw(output_size) << "Dense_block_size_min" << mininfos[0] << "\n";
-    output << std::setw(output_size) << "Low_rank_block_size_max" << maxinfos[1] << "\n";
-    output << std::setw(output_size) << "Low_rank_block_size_mean" << meaninfos[1] << "\n";
-    output << std::setw(output_size) << "Low_rank_block_size_min" << mininfos[1] << "\n";
-    output << std::setw(output_size) << "Rank_max" << maxinfos[2] << "\n";
-    output << std::setw(output_size) << "Rank_mean" << meaninfos[2] << "\n";
-    output << std::setw(output_size) << "Rank_min" << mininfos[2] << "\n";
-    output << std::setw(output_size) << "Number_of_low_rank_blocks" << low_rank_blocks.size() << "\n";
-    output << std::setw(output_size) << "Number_of_dense_blocks" << dense_blocks.size() << "\n";
-    output << std::setw(output_size) << "Compression_ratio" << (nb_rows * nb_cols) / number_of_generated_coefficient << "\n";
-    output << std::setw(output_size) << "Space_saving" << 1 - number_of_generated_coefficient / (nb_rows * nb_cols) << "\n";
+
+    hmatrix_information["Target_size"]               = std::to_string(nb_rows);
+    hmatrix_information["Source_size"]               = std::to_string(nb_cols);
+    hmatrix_information["Dense_block_size_max"]      = std::to_string(maxinfos[0]);
+    hmatrix_information["Dense_block_size_mean"]     = std::to_string(meaninfos[0]);
+    hmatrix_information["Dense_block_size_min"]      = std::to_string(mininfos[0]);
+    hmatrix_information["Low_rank_block_size_max"]   = std::to_string(maxinfos[1]);
+    hmatrix_information["Low_rank_block_size_mean"]  = std::to_string(meaninfos[1]);
+    hmatrix_information["Low_rank_block_size_min"]   = std::to_string(mininfos[1]);
+    hmatrix_information["Rank_max"]                  = std::to_string(maxinfos[2]);
+    hmatrix_information["Rank_mean"]                 = std::to_string(meaninfos[2]);
+    hmatrix_information["Rank_min"]                  = std::to_string(mininfos[2]);
+    hmatrix_information["Number_of_low_rank_blocks"] = std::to_string(low_rank_blocks.size());
+    hmatrix_information["Number_of_dense_blocks"]    = std::to_string(dense_blocks.size());
+    hmatrix_information["Compression_ratio"]         = std::to_string((nb_rows * nb_cols) / number_of_generated_coefficient);
+    hmatrix_information["Space_saving"]              = std::to_string(1 - number_of_generated_coefficient / (nb_rows * nb_cols));
 #if defined(_OPENMP)
-    output << std::setw(output_size) << "Number_of_threads" << omp_get_max_threads() << "\n";
+    hmatrix_information["Number_of_threads"] = std::to_string(omp_get_max_threads());
 #endif
     for (const auto &elt : hmatrix_tree_data->m_information) {
-        output << std::setw(output_size) << elt.first << elt.second << "\n";
+        hmatrix_information[elt.first] = elt.second;
     }
     for (const auto &elt : hmatrix_tree_data->m_timings) {
-        output << std::setw(output_size) << elt.first << elt.second.count() << " second(s)\n";
+        hmatrix_information[elt.first] = std::to_string(elt.second.count()) + " second(s)";
     }
-    os << output.str();
+    return hmatrix_information;
 }
 
+template <typename CoefficientPrecision, typename CoordinatePrecision>
+void print_hmatrix_information(const HMatrix<CoefficientPrecision, CoordinatePrecision> &hmatrix, std::ostream &os) {
+
+    auto hmatrix_information = get_hmatrix_information(hmatrix);
+    std::size_t output_size  = 2 + std::max_element(std::begin(hmatrix_information), std::end(hmatrix_information), [](const auto &a, const auto &b) { return a.first.size() < b.first.size(); })->first.size();
+
+    os << std::setfill('_') << std::left;
+    os << "Hmatrix information\n";
+    for (const auto &information : hmatrix_information) {
+        os << std::setw(output_size) << information.first << information.second << "\n";
+    }
+}
 } // namespace htool
 
 #endif

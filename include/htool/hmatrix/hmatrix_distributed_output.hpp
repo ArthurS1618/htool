@@ -24,7 +24,8 @@ bool is_positive_integer(const std::string &s) {
 }
 
 template <typename CoefficientPrecision, typename CoordinatePrecision>
-void print_distributed_hmatrix_information(const HMatrix<CoefficientPrecision, CoordinatePrecision> &hmatrix, std::ostream &os, MPI_Comm comm) {
+std::map<std::string, std::string> get_distributed_hmatrix_information(const HMatrix<CoefficientPrecision, CoordinatePrecision> &hmatrix, MPI_Comm comm) {
+    std::map<std::string, std::string> distributed_information;
     int sizeWorld, rankWorld;
     MPI_Comm_rank(comm, &rankWorld);
     MPI_Comm_size(comm, &sizeWorld);
@@ -106,41 +107,33 @@ void print_distributed_hmatrix_information(const HMatrix<CoefficientPrecision, C
     meaninfos[3] = meaninfos[3] / sizeWorld;
     meaninfos[4] = meaninfos[4] / sizeWorld;
 
-    // Print parameters
-    std::size_t output_size = 25;
-    output_size             = std::max(output_size, 7 + std::max_element(std::begin(hmatrix_tree_data->m_information), std::end(hmatrix_tree_data->m_information), [](const auto &a, const auto &b) { return a.first.size() < b.first.size(); })->first.size());
-    output_size             = std::max(output_size, 7 + std::max_element(std::begin(hmatrix_tree_data->m_timings), std::end(hmatrix_tree_data->m_timings), [](const auto &a, const auto &b) { return a.first.size() < b.first.size(); })->first.size());
-
     // Print
-    std::ostringstream output;
-    output << std::setfill('_') << std::left;
     if (rankWorld == 0) {
-        output << "Distributed Hmatrix information\n";
-        output << std::setw(output_size) << "Target_size_max" << maxinfos[3] << "\n";
-        output << std::setw(output_size) << "Target_size_mean" << meaninfos[3] << "\n";
-        output << std::setw(output_size) << "Target_size_min" << mininfos[3] << "\n";
-        output << std::setw(output_size) << "Source_size_max" << maxinfos[4] << "\n";
-        output << std::setw(output_size) << "Source_size_mean" << meaninfos[4] << "\n";
-        output << std::setw(output_size) << "Source_size_min" << mininfos[4] << "\n";
-        output << std::setw(output_size) << "Dense_block_size_max" << maxinfos[0] << "\n";
-        output << std::setw(output_size) << "Dense_block_size_mean" << meaninfos[0] << "\n";
-        output << std::setw(output_size) << "Dense_block_size_min" << mininfos[0] << "\n";
-        output << std::setw(output_size) << "Low_rank_block_size_max" << maxinfos[1] << "\n";
-        output << std::setw(output_size) << "Low_rank_block_size_mean" << meaninfos[1] << "\n";
-        output << std::setw(output_size) << "Low_rank_block_size_min" << mininfos[1] << "\n";
-        output << std::setw(output_size) << "Rank_max" << maxinfos[2] << "\n";
-        output << std::setw(output_size) << "Rank_mean" << meaninfos[2] << "\n";
-        output << std::setw(output_size) << "Rank_min" << mininfos[2] << "\n";
-        output << std::setw(output_size) << "Number_of_low_rank_blocks" << nb_low_rank_blocks << "\n";
-        output << std::setw(output_size) << "Number_of_dense_blocks" << nb_dense_blocks << "\n";
-        output << std::setw(output_size) << "Compression_ratio" << (total_size) / static_cast<double>(total_number_of_generated_coefficients) << "\n";
-        output << std::setw(output_size) << "Space_saving" << 1 - static_cast<double>(total_number_of_generated_coefficients) / (total_size) << "\n";
-        output << std::setw(output_size) << "Number_of_MPI_tasks" << sizeWorld << "\n";
+        distributed_information["Target_size_max"]           = std::to_string(maxinfos[3]);
+        distributed_information["Target_size_mean"]          = std::to_string(meaninfos[3]);
+        distributed_information["Target_size_min"]           = std::to_string(mininfos[3]);
+        distributed_information["Source_size_max"]           = std::to_string(maxinfos[4]);
+        distributed_information["Source_size_mean"]          = std::to_string(meaninfos[4]);
+        distributed_information["Source_size_min"]           = std::to_string(mininfos[4]);
+        distributed_information["Dense_block_size_max"]      = std::to_string(maxinfos[0]);
+        distributed_information["Dense_block_size_mean"]     = std::to_string(meaninfos[0]);
+        distributed_information["Dense_block_size_min"]      = std::to_string(mininfos[0]);
+        distributed_information["Low_rank_block_size_max"]   = std::to_string(maxinfos[1]);
+        distributed_information["Low_rank_block_size_mean"]  = std::to_string(meaninfos[1]);
+        distributed_information["Low_rank_block_size_min"]   = std::to_string(mininfos[1]);
+        distributed_information["Rank_max"]                  = std::to_string(maxinfos[2]);
+        distributed_information["Rank_mean"]                 = std::to_string(meaninfos[2]);
+        distributed_information["Rank_min"]                  = std::to_string(mininfos[2]);
+        distributed_information["Number_of_low_rank_blocks"] = std::to_string(nb_low_rank_blocks);
+        distributed_information["Number_of_dense_blocks"]    = std::to_string(nb_dense_blocks);
+        distributed_information["Compression_ratio"]         = std::to_string((total_size) / static_cast<double>(total_number_of_generated_coefficients));
+        distributed_information["Space_saving"]              = std::to_string(1 - static_cast<double>(total_number_of_generated_coefficients) / (total_size));
+        distributed_information["Number_of_MPI_tasks"]       = std::to_string(sizeWorld);
 #if defined(_OPENMP)
-        output << std::setw(output_size) << "Number_of_threads_per_tasks" << omp_get_max_threads() << "\n";
-        output << std::setw(output_size) << "Number_of_procs" << sizeWorld * omp_get_max_threads() << "\n";
+        distributed_information["Number_of_threads_per_tasks"] = std::to_string(omp_get_max_threads());
+        distributed_information["Number_of_procs"]             = std::to_string(sizeWorld * omp_get_max_threads());
 #else
-        output << std::setw(output_size) << "Number_of_procs" << sizeWorld << "\n";
+        distributed_information["Number_of_procs"] = std::to_string(sizeWorld);
 #endif
     }
 
@@ -162,7 +155,7 @@ void print_distributed_hmatrix_information(const HMatrix<CoefficientPrecision, C
 
     if (rankWorld == 0) {
         for (std::size_t i = 0; i < information_name.size(); i++) {
-            output << std::setw(output_size) << information_name[i] << information_value[i] << "\n";
+            distributed_information[information_name[i]] = std::to_string(information_value[i]);
         }
     }
 
@@ -193,13 +186,30 @@ void print_distributed_hmatrix_information(const HMatrix<CoefficientPrecision, C
             elt /= sizeWorld;
         }
         for (int i = 0; i < max_timings.size(); i++) {
-            output << std::setw(output_size) << timing_names[i] + "_max" << max_timings[i] << " second(s)\n";
-            output << std::setw(output_size) << timing_names[i] + "_mean" << mean_timings[i] << " second(s)\n";
-            output << std::setw(output_size) << timing_names[i] + "_min" << min_timings[i] << " second(s)\n";
+            distributed_information[timing_names[i] + "_max"]  = std::to_string(max_timings[i]) + " second(s)";
+            distributed_information[timing_names[i] + "_mean"] = std::to_string(mean_timings[i]) + " second(s)";
+            distributed_information[timing_names[i] + "_min"]  = std::to_string(min_timings[i]) + " second(s)";
         }
     }
 
-    os << output.str();
+    return distributed_information;
+}
+
+template <typename CoefficientPrecision, typename CoordinatePrecision>
+void print_distributed_hmatrix_information(const HMatrix<CoefficientPrecision, CoordinatePrecision> &hmatrix, std::ostream &os, MPI_Comm comm) {
+    auto distributed_information = get_distributed_hmatrix_information(hmatrix, comm);
+    int rankWorld;
+    MPI_Comm_rank(comm, &rankWorld);
+    if (rankWorld == 0) {
+        std::size_t output_size = 2 + std::max_element(std::begin(distributed_information), std::end(distributed_information), [](const auto &a, const auto &b) { return a.first.size() < b.first.size(); })->first.size();
+
+        os << std::setfill('_') << std::left;
+        os << "Distributed Hmatrix information\n";
+
+        for (const auto &information : distributed_information) {
+            os << std::setw(output_size) << information.first << information.second << "\n";
+        }
+    }
 }
 } // namespace htool
 
