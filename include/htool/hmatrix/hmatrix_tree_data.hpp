@@ -23,9 +23,6 @@ struct HMatrixTreeData {
     bool m_delay_dense_computation{false};
     int m_reqrank{-1};
 
-    // Views
-    const HMatrix<CoefficientPrecision, CoordinatePrecision> *m_block_diagonal_hmatrix{nullptr};
-
     // Information
     mutable std::map<std::string, std::string> m_information;
     mutable std::map<std::string, std::chrono::duration<double>> m_timings;

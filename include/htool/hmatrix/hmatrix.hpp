@@ -4,7 +4,6 @@
 #if defined(_OPENMP)
 #    include <omp.h>
 #endif
-
 #include "../basic_types/tree.hpp"
 #include "../clustering/cluster_node.hpp"
 #include "../misc/logger.hpp"
@@ -13,6 +12,7 @@
 #include "interfaces/virtual_dense_blocks_generator.hpp"
 #include "interfaces/virtual_generator.hpp"
 #include "lrmat/lrmat.hpp"
+#include <queue>
 
 #include <mpi.h>
 namespace htool {
@@ -117,6 +117,25 @@ class HMatrix : public TreeNode<HMatrix<CoefficientPrecision, CoordinatePrecisio
     char get_symmetry() const { return m_symmetry; }
     char get_UPLO() const { return m_UPLO; }
     const HMatrixTreeData<CoefficientPrecision, CoordinatePrecision> *get_hmatrix_tree_data() const { return this->m_tree_data.get(); }
+    const HMatrix<CoefficientPrecision> *get_sub_hmatrix(const Cluster<CoordinatePrecision> &target_cluster, const Cluster<CoordinatePrecision> &source_cluster) const {
+        std::queue<const HMatrix<CoefficientPrecision> *> hmatrix_queue;
+        hmatrix_queue.push(this);
+
+        while (!hmatrix_queue.empty()) {
+            const HMatrix<CoefficientPrecision> *current_hmatrix = hmatrix_queue.front();
+            hmatrix_queue.pop();
+
+            if (target_cluster == current_hmatrix->get_target_cluster() && source_cluster == current_hmatrix->get_source_cluster()) {
+                return current_hmatrix;
+            }
+
+            const auto &children = current_hmatrix->get_children();
+            for (auto &child : children) {
+                hmatrix_queue.push(child.get());
+            }
+        }
+        return nullptr;
+    }
 
     // HMatrix node setters
     void set_symmetry(char symmetry) { m_symmetry = symmetry; }
@@ -133,12 +152,10 @@ class HMatrix : public TreeNode<HMatrix<CoefficientPrecision, CoordinatePrecisio
     void set_low_rank_generator(std::shared_ptr<VirtualLowRankGenerator<CoefficientPrecision, CoordinatePrecision>> ptr) { this->m_tree_data->m_low_rank_generator = ptr; }
     void set_admissibility_condition(std::shared_ptr<VirtualAdmissibilityCondition<CoordinatePrecision>> ptr) { this->m_tree_data->m_admissibility_condition = ptr; }
     void set_maximal_block_size(int maxblock_size) { this->m_tree_data->m_maxblocksize = maxblock_size; }
-    void set_diagonal_hmatrix(const HMatrix<CoefficientPrecision, CoordinatePrecision> *diagonal_hmatrix) { this->m_tree_data->m_block_diagonal_hmatrix = diagonal_hmatrix; }
     void set_minimal_target_depth(unsigned int minimal_target_depth) { this->m_tree_data->m_minimal_target_depth = minimal_target_depth; }
     void set_minimal_source_depth(unsigned int minimal_source_depth) { this->m_tree_data->m_minimal_source_depth = minimal_source_depth; }
 
     // HMatrix Tree setters
-    const HMatrix<CoefficientPrecision, CoordinatePrecision> *get_diagonal_hmatrix() const { return this->m_tree_data->m_block_diagonal_hmatrix; }
     char get_symmetry_for_leaves() const { return m_symmetry_type_for_leaves; }
 
     // Infos

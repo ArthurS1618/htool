@@ -193,9 +193,9 @@ bool HMatrixTreeBuilder<CoefficientPrecision, CoordinatePrecision>::build_block_
 
     ///////////////////// Diagonal blocks
     // std::cout << target_cluster.get_offset() << " " << target_cluster.get_size() << " " << source_cluster.get_offset() << " " << source_cluster.get_size() << " " << is_block_diagonal(*current_hmatrix) << " " << is_target_cluster_in_target_partition(target_cluster) << " " << target_cluster.get_rank() << "\n";
-    if (is_block_diagonal(*current_hmatrix)) {
-        current_hmatrix->set_diagonal_hmatrix(current_hmatrix);
-    }
+    // if (is_block_diagonal(*current_hmatrix)) {
+    //     current_hmatrix->set_diagonal_hmatrix(current_hmatrix);
+    // }
 
     ///////////////////// Recursion
     const auto &target_children = target_cluster.get_children();
@@ -229,8 +229,9 @@ bool HMatrixTreeBuilder<CoefficientPrecision, CoordinatePrecision>::build_block_
                 && is_target_cluster_in_target_partition(target_cluster)
                 && target_cluster.get_depth() >= m_mintargetdepth
                 && source_cluster.get_depth() >= m_minsourcedepth
-                && std::all_of(child_blocks.begin(), child_blocks.end(), [](HMatrixType *block) {
-                       return (block != block->get_diagonal_hmatrix());
+                && std::all_of(child_blocks.begin(), child_blocks.end(), [this](HMatrixType *block) {
+                       //    return (block != block->get_diagonal_hmatrix());
+                       return !is_block_diagonal(*block);
                    })) {
                 child_blocks.clear();
                 current_hmatrix->delete_children();
@@ -263,8 +264,9 @@ bool HMatrixTreeBuilder<CoefficientPrecision, CoordinatePrecision>::build_block_
                 && is_target_cluster_in_target_partition(target_cluster)
                 && target_cluster.get_depth() >= m_mintargetdepth
                 && source_cluster.get_depth() >= m_minsourcedepth
-                && std::all_of(child_blocks.begin(), child_blocks.end(), [](HMatrixType *block) {
-                       return (block != block->get_diagonal_hmatrix());
+                && std::all_of(child_blocks.begin(), child_blocks.end(), [this](HMatrixType *block) {
+                       //    return (block != block->get_diagonal_hmatrix());
+                       return !is_block_diagonal(*block);
                    })) {
                 child_blocks.clear();
                 current_hmatrix->delete_children();
@@ -294,8 +296,9 @@ bool HMatrixTreeBuilder<CoefficientPrecision, CoordinatePrecision>::build_block_
                     && is_target_cluster_in_target_partition(target_cluster)
                     && target_cluster.get_depth() >= m_mintargetdepth
                     && source_cluster.get_depth() >= m_minsourcedepth
-                    && std::all_of(child_blocks.begin(), child_blocks.end(), [](HMatrixType *block) {
-                           return (block != block->get_diagonal_hmatrix());
+                    && std::all_of(child_blocks.begin(), child_blocks.end(), [this](HMatrixType *block) {
+                           //    return (block != block->get_diagonal_hmatrix());
+                           return !is_block_diagonal(*block);
                        })) {
                     child_blocks.clear();
                     current_hmatrix->delete_children();
@@ -324,8 +327,9 @@ bool HMatrixTreeBuilder<CoefficientPrecision, CoordinatePrecision>::build_block_
                     && is_target_cluster_in_target_partition(target_cluster)
                     && target_cluster.get_depth() >= m_mintargetdepth
                     && source_cluster.get_depth() >= m_minsourcedepth
-                    && std::all_of(child_blocks.begin(), child_blocks.end(), [](HMatrixType *block) {
-                           return (block != block->get_diagonal_hmatrix());
+                    && std::all_of(child_blocks.begin(), child_blocks.end(), [this](HMatrixType *block) {
+                           //    return (block != block->get_diagonal_hmatrix());
+                           return !is_block_diagonal(*block);
                        })) {
                     child_blocks.clear();
                     current_hmatrix->delete_children();
@@ -356,8 +360,9 @@ bool HMatrixTreeBuilder<CoefficientPrecision, CoordinatePrecision>::build_block_
                     && is_target_cluster_in_target_partition(target_cluster)
                     && target_cluster.get_depth() >= m_mintargetdepth
                     && source_cluster.get_depth() >= m_minsourcedepth
-                    && std::all_of(child_blocks.begin(), child_blocks.end(), [](HMatrixType *block) {
-                           return (block != block->get_diagonal_hmatrix());
+                    && std::all_of(child_blocks.begin(), child_blocks.end(), [this](HMatrixType *block) {
+                           //    return (block != block->get_diagonal_hmatrix());
+                           return !is_block_diagonal(*block);
                        })) {
                     child_blocks.clear();
                     current_hmatrix->delete_children();

@@ -121,7 +121,7 @@ bool test_hmatrix_build(int nr, int nc, bool use_local_cluster, char Symmetry, c
     }
 
     // Check integrity of diagonal block
-    const auto &diagonal_hmatrix = root_hmatrix.get_diagonal_hmatrix();
+    const auto &diagonal_hmatrix = root_hmatrix.get_sub_hmatrix(*target_root_cluster->get_clusters_on_partition()[rankWorld], *source_root_cluster->get_clusters_on_partition()[rankWorld]);
     if (diagonal_hmatrix == nullptr) {
         // test = test || !(Symmetry == 'N' && nr != nc);
         std::cout << "No diagonal hmatrix\n";
@@ -166,15 +166,15 @@ bool test_hmatrix_build(int nr, int nc, bool use_local_cluster, char Symmetry, c
 
     // Check get diagonal conversion
     if (Symmetry != 'N' || nr == nc) {
-        int local_size   = root_hmatrix.get_diagonal_hmatrix()->get_target_cluster().get_size();
-        int local_offset = root_hmatrix.get_diagonal_hmatrix()->get_target_cluster().get_offset();
+        int local_size   = diagonal_hmatrix->get_target_cluster().get_size();
+        int local_offset = diagonal_hmatrix->get_target_cluster().get_offset();
         // const auto &permutation = root_hmatrix.get_target_cluster().get_permutation();
         vector<T> dense_diagonal(local_size);
         for (int i = 0; i < dense_matrix.nb_rows(); i++) {
             dense_diagonal[i] = generator.get_coef(i + local_offset, i + local_offset);
         }
         vector<T> hmatrix_diagonal_to_dense(local_size);
-        copy_diagonal(*root_hmatrix.get_diagonal_hmatrix(), hmatrix_diagonal_to_dense.data());
+        copy_diagonal(*diagonal_hmatrix, hmatrix_diagonal_to_dense.data());
         htool::underlying_type<T> error_on_diagonal = norm2(hmatrix_diagonal_to_dense - dense_diagonal) / norm2(dense_diagonal);
 
         is_error = is_error || !(error_on_diagonal < epsilon);
