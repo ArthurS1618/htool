@@ -28,7 +28,6 @@ class HMatrixTreeBuilder {
     int m_maxblocksize{1000000};
     int m_minsourcedepth{0};
     int m_mintargetdepth{0};
-    bool m_delay_dense_computation{false};
     int m_reqrank{-1};
     int m_target_partition_number{-1};
 
@@ -129,7 +128,6 @@ class HMatrixTreeBuilder {
     void set_maximal_block_size(int maxblock_size) { m_maxblocksize = maxblock_size; }
     void set_minimal_source_depth(int minimal_source_depth) { m_minsourcedepth = minimal_source_depth; }
     void set_minimal_target_depth(int minimal_target_depth) { m_mintargetdepth = minimal_target_depth; }
-    void set_delay_dense_computation(bool delay_dense_computation) { m_delay_dense_computation = delay_dense_computation; }
     void set_dense_blocks_generator(std::shared_ptr<VirtualDenseBlocksGenerator<CoefficientPrecision>> dense_blocks_generator) { m_dense_blocks_generator = dense_blocks_generator; }
 };
 

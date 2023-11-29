@@ -7,6 +7,37 @@
 
 namespace htool {
 
+class LocalNumberingBuilder {
+  public:
+    std::vector<int> local_to_global_numbering;
+    std::vector<std::vector<int>> intersections;
+    LocalNumberingBuilder(const std::vector<int> &ovr_subdomain_to_global, const std::vector<int> &cluster_to_ovr_subdomain, const std::vector<std::vector<int>> &input_intersections) : local_to_global_numbering(ovr_subdomain_to_global.size()), intersections(input_intersections.size()) {
+
+        // Renumbering for the overlap
+        int local_size_with_overlap = ovr_subdomain_to_global.size();
+        std::vector<int> renum(local_size_with_overlap, -1);
+
+        for (int i = 0; i < cluster_to_ovr_subdomain.size(); i++) {
+            renum[cluster_to_ovr_subdomain[i]] = i;
+            local_to_global_numbering[i]       = ovr_subdomain_to_global[cluster_to_ovr_subdomain[i]];
+        }
+        int count = cluster_to_ovr_subdomain.size();
+        for (int i = 0; i < local_size_with_overlap; i++) {
+            if (renum[i] == -1) {
+                renum[i]                           = count;
+                local_to_global_numbering[count++] = ovr_subdomain_to_global[i];
+            }
+        }
+
+        for (int i = 0; i < input_intersections.size(); i++) {
+            intersections[i].resize(input_intersections[i].size());
+            for (int j = 0; j < intersections[i].size(); j++) {
+                intersections[i][j] = renum[input_intersections[i][j]];
+            }
+        }
+    }
+};
+
 template <typename CoefficientPrecision, typename CoordinatePrecision>
 class DefaultSolverBuilder {
   private:
@@ -25,40 +56,21 @@ class DefaultSolverBuilder {
 };
 
 template <typename CoefficientPrecision, typename CoordinatePrecision>
-class DefaultDDMSolverBuilder {
+class DefaultDDMSolverBuilderAddingOverlap {
   private:
-    std::function<Matrix<CoefficientPrecision>(DistributedOperator<CoefficientPrecision> &, const HMatrix<CoefficientPrecision, CoordinatePrecision> *, const VirtualGeneratorWithPermutation<CoefficientPrecision> &, const std::vector<int> &, const std::vector<int> &, const std::vector<int> &, const std::vector<std::vector<int>> &)> initialize_diagonal_block = [this](DistributedOperator<CoefficientPrecision> &distributed_operator0, const HMatrix<CoefficientPrecision, CoordinatePrecision> *block_diagonal_hmatrix0, const VirtualGeneratorWithPermutation<CoefficientPrecision> &generator0, const std::vector<int> &ovr_subdomain_to_global0, const std::vector<int> &cluster_to_ovr_subdomain0, const std::vector<int> &neighbors0, const std::vector<std::vector<int>> &input_intersections0) {
-        int local_size_with_overlap    = ovr_subdomain_to_global0.size();
+    LocalNumberingBuilder m_local_numbering;
+
+  public:
+    const std::vector<int> &local_to_global_numbering;
+
+  private:
+    std::function<Matrix<CoefficientPrecision>(DistributedOperator<CoefficientPrecision> &, const HMatrix<CoefficientPrecision, CoordinatePrecision> *, const VirtualGeneratorWithPermutation<CoefficientPrecision> &)> initialize_diagonal_block = [this](DistributedOperator<CoefficientPrecision> &distributed_operator0, const HMatrix<CoefficientPrecision, CoordinatePrecision> *block_diagonal_hmatrix0, const VirtualGeneratorWithPermutation<CoefficientPrecision> &generator0) {
+        int local_size_with_overlap    = local_to_global_numbering.size();
         int local_size_without_overlap = block_diagonal_hmatrix0->get_target_cluster().get_size();
         Matrix<CoefficientPrecision> block_diagonal_dense_matrix_with_overlap(local_size_with_overlap, local_size_with_overlap), block_diagonal_dense_matrix_without_overlap(local_size_without_overlap, local_size_without_overlap);
 
         // Diagonal block without overlap
         copy_to_dense(*block_diagonal_hmatrix0, block_diagonal_dense_matrix_without_overlap.data());
-
-        // Renumbering for the overlap
-        std::vector<int> renum(local_size_with_overlap, -1);
-        local_to_global_numbering.resize(local_size_with_overlap);
-
-        for (int i = 0; i < cluster_to_ovr_subdomain0.size(); i++) {
-            renum[cluster_to_ovr_subdomain0[i]] = i;
-            local_to_global_numbering[i]        = ovr_subdomain_to_global0[cluster_to_ovr_subdomain0[i]];
-        }
-        int count = cluster_to_ovr_subdomain0.size();
-        // std::cout << count << std::endl;
-        for (int i = 0; i < local_size_with_overlap; i++) {
-            if (renum[i] == -1) {
-                renum[i]                           = count;
-                local_to_global_numbering[count++] = ovr_subdomain_to_global0[i];
-            }
-        }
-
-        m_intersections.resize(neighbors0.size());
-        for (int i = 0; i < neighbors0.size(); i++) {
-            m_intersections[i].resize(input_intersections0[i].size());
-            for (int j = 0; j < m_intersections[i].size(); j++) {
-                m_intersections[i][j] = renum[input_intersections0[i][j]];
-            }
-        }
 
         // Assemble block diagonal dense matrix with overlap
         for (int j = 0; j < local_size_without_overlap; j++) {
@@ -93,8 +105,54 @@ class DefaultDDMSolverBuilder {
     };
     std::vector<std::vector<int>> m_intersections;
 
+  private:
+    Matrix<CoefficientPrecision> m_block_diagonal_dense_matrix;
+
   public:
-    std::vector<int> local_to_global_numbering;
+    DDM<CoefficientPrecision> solver;
+
+    DefaultDDMSolverBuilderAddingOverlap(DistributedOperator<CoefficientPrecision> &distributed_operator, const HMatrix<CoefficientPrecision, CoordinatePrecision> *block_diagonal_hmatrix, const VirtualGeneratorWithPermutation<CoefficientPrecision> &generator, const std::vector<int> &ovr_subdomain_to_global, const std::vector<int> &cluster_to_ovr_subdomain, const std::vector<int> &neighbors, const std::vector<std::vector<int>> &intersections) : m_local_numbering(ovr_subdomain_to_global, cluster_to_ovr_subdomain, intersections), local_to_global_numbering(m_local_numbering.local_to_global_numbering), m_block_diagonal_dense_matrix(initialize_diagonal_block(distributed_operator, block_diagonal_hmatrix, generator)), solver(distributed_operator, m_block_diagonal_dense_matrix, neighbors, m_local_numbering.intersections) {}
+};
+
+template <typename CoefficientPrecision, typename CoordinatePrecision>
+class DefaultDDMSolverBuilder {
+  private:
+    std::function<Matrix<CoefficientPrecision>(const HMatrix<CoefficientPrecision, CoordinatePrecision> &)> initialize_diagonal_block = [](const HMatrix<CoefficientPrecision, CoordinatePrecision> &block_diagonal_hmatrix0) {
+        int local_size_with_overlap = block_diagonal_hmatrix0.get_target_cluster().get_size();
+        Matrix<CoefficientPrecision> block_diagonal_dense_matrix_with_overlap(local_size_with_overlap, local_size_with_overlap);
+        Matrix<CoefficientPrecision> permuted_block_diagonal_dense_matrix_with_overlap(local_size_with_overlap, local_size_with_overlap);
+        // Diagonal block without overlap
+        copy_to_dense(block_diagonal_hmatrix0, block_diagonal_dense_matrix_with_overlap.data());
+
+        int nr                   = block_diagonal_hmatrix0.get_target_cluster().get_size();
+        int nc                   = block_diagonal_hmatrix0.get_source_cluster().get_size();
+        auto &target_permutation = block_diagonal_hmatrix0.get_target_cluster().get_permutation();
+
+        if (block_diagonal_hmatrix0.get_symmetry() == 'N') {
+            for (int i = 0; i < nr; i++) {
+                for (int j = 0; j < nc; j++) {
+
+                    permuted_block_diagonal_dense_matrix_with_overlap(target_permutation[i], target_permutation[j]) = block_diagonal_dense_matrix_with_overlap(i, j);
+                }
+            }
+        } else {
+            int index_i, index_j;
+            for (int i = 0; i < nr; i++) {
+                for (int j = 0; j <= i; j++) {
+                    if (target_permutation[i] < target_permutation[j]) {
+                        index_i = target_permutation[j];
+                        index_j = target_permutation[i];
+                    } else {
+                        index_i = target_permutation[i];
+                        index_j = target_permutation[j];
+                    }
+                    permuted_block_diagonal_dense_matrix_with_overlap(index_i, index_j) = block_diagonal_dense_matrix_with_overlap(i, j);
+                }
+            }
+        }
+
+        return permuted_block_diagonal_dense_matrix_with_overlap;
+    };
 
   private:
     Matrix<CoefficientPrecision> m_block_diagonal_dense_matrix;
@@ -102,7 +160,7 @@ class DefaultDDMSolverBuilder {
   public:
     DDM<CoefficientPrecision> solver;
 
-    DefaultDDMSolverBuilder(DistributedOperator<CoefficientPrecision> &distributed_operator, const HMatrix<CoefficientPrecision, CoordinatePrecision> *block_diagonal_hmatrix, const VirtualGeneratorWithPermutation<CoefficientPrecision> &generator, const std::vector<int> &ovr_subdomain_to_global, const std::vector<int> &cluster_to_ovr_subdomain, const std::vector<int> &neighbors, const std::vector<std::vector<int>> &intersections) : m_intersections(intersections), local_to_global_numbering(ovr_subdomain_to_global.size()), m_block_diagonal_dense_matrix(initialize_diagonal_block(distributed_operator, block_diagonal_hmatrix, generator, ovr_subdomain_to_global, cluster_to_ovr_subdomain, neighbors, intersections)), solver(distributed_operator, m_block_diagonal_dense_matrix, neighbors, m_intersections) {}
+    DefaultDDMSolverBuilder(DistributedOperator<CoefficientPrecision> &distributed_operator, const HMatrix<CoefficientPrecision, CoordinatePrecision> &block_diagonal_hmatrix, const std::vector<int> &neighbors, const std::vector<std::vector<int>> &intersections) : m_block_diagonal_dense_matrix(initialize_diagonal_block(block_diagonal_hmatrix)), solver(distributed_operator, m_block_diagonal_dense_matrix, neighbors, intersections) {}
 };
 
 } // namespace htool

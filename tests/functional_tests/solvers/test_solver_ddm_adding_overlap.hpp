@@ -7,7 +7,7 @@
 using namespace std;
 using namespace htool;
 
-int test_solver_ddm(int argc, char *argv[], int mu, char symmetric, std::string datapath) {
+int test_solver_ddm_adding_overlap(int argc, char *argv[], int mu, char symmetric, std::string datapath) {
 
     // Get the number of processes
     int size;
@@ -42,6 +42,13 @@ int test_solver_ddm(int argc, char *argv[], int mu, char symmetric, std::string 
         std::cout << "Creating cluster tree" << std::endl;
     Cluster<double> target_cluster = read_cluster_tree<double>(datapath + "/cluster_" + NbrToStr(size) + "_cluster_tree_properties.csv", datapath + "/cluster_" + NbrToStr(size) + "_cluster_tree.csv");
 
+    // std::vector<int>tab(n);
+    // std::iota(tab.begin(),tab.end(),int(0));
+    // t->build(p,std::vector<double>(n,0),tab,std::vector<double>(n,1),2);
+    // std::vector<int> permutation_test(n);
+    // bytes_to_vector(permutation_test,datapath+"permutation.bin");
+    // t->save(p,"test_cluster",{0,1,2,3});
+
     // Matrix
     if (rank == 0)
         std::cout << "Creating generators" << std::endl;
@@ -64,9 +71,12 @@ int test_solver_ddm(int argc, char *argv[], int mu, char symmetric, std::string 
     if (rank == 0)
         std::cout << "Creating HMatrix" << std::endl;
 
-    DefaultApproximationBuilder<std::complex<double>, htool::underlying_type<std::complex<double>>> default_build(Generator, target_cluster, target_cluster, epsilon, eta, symmetric, UPLO, MPI_COMM_WORLD);
+    const HMatrix<Cplx> *local_block_diagonal_hmatrix = nullptr;
 
-    DistributedOperator<std::complex<double>> &Operator = default_build.distributed_operator;
+    DefaultApproximationBuilder<Cplx, htool::underlying_type<Cplx>> default_build(Generator, target_cluster, target_cluster, epsilon, eta, symmetric, UPLO, MPI_COMM_WORLD);
+
+    DistributedOperator<Cplx> &Operator = default_build.distributed_operator;
+    local_block_diagonal_hmatrix        = default_build.block_diagonal_hmatrix;
 
     // Global vectors
     Matrix<complex<double>>
@@ -90,35 +100,11 @@ int test_solver_ddm(int argc, char *argv[], int mu, char symmetric, std::string 
         bytes_to_vector(intersections[p], datapath + "/intersections_" + NbrToStr(size) + "_" + NbrToStr(rank) + "_" + NbrToStr(p) + ".bin");
     }
 
-    // Local numbering
-    LocalNumberingBuilder local_numbering_builder(ovr_subdomain_to_global, cluster_to_ovr_subdomain, intersections);
-    auto &renumbered_intersections  = local_numbering_builder.intersections;
-    auto &local_to_global_numbering = local_numbering_builder.local_to_global_numbering;
-
-    std::vector<double> geometry(n), local_geometry(local_to_global_numbering.size() * 3);
-    bytes_to_vector(geometry, datapath + "/geometry.bin");
-    for (int i = 0; i < local_to_global_numbering.size(); i++) {
-        local_geometry[3 * i + 0] = geometry[3 * local_to_global_numbering[i] + 0];
-        local_geometry[3 * i + 1] = geometry[3 * local_to_global_numbering[i] + 1];
-        local_geometry[3 * i + 2] = geometry[3 * local_to_global_numbering[i] + 2];
-    }
-
-    ClusterTreeBuilder<double> recursive_build_strategy;
-    // recursive_build_strategy.set_minclustersize(2);
-    Cluster<double> local_cluster = recursive_build_strategy.create_cluster_tree(local_to_global_numbering.size(), 3, local_geometry.data(), 2, 2, nullptr);
-
-    LocalGeneratorFromMatrix<std::complex<double>> local_generator(A, local_cluster.get_permutation(), local_cluster.get_permutation(), local_to_global_numbering, local_to_global_numbering);
-
-    HMatrixTreeBuilder<std::complex<double>, double> local_hmatrix_builder(local_cluster, local_cluster, epsilon, eta, symmetric, UPLO, -1, -1);
-
-    HMatrix<std::complex<double>, double> local_hmatrix = local_hmatrix_builder.build(local_generator);
-    print_distributed_hmatrix_information(local_hmatrix, std::cout, MPI_COMM_WORLD);
-
     // Errors
     double error2;
 
     // Solve
-    DefaultDDMSolverBuilder<std::complex<double>, double> default_ddm_solver(Operator, local_hmatrix, neighbors, renumbered_intersections);
+    DefaultDDMSolverBuilderAddingOverlap<complex<double>, double> default_ddm_solver(Operator, local_block_diagonal_hmatrix, Generator, ovr_subdomain_to_global, cluster_to_ovr_subdomain, neighbors, intersections);
     DDM<complex<double>> &ddm_with_overlap = default_ddm_solver.solver;
 
     // No precond with overlap
@@ -218,7 +204,7 @@ int test_solver_ddm(int argc, char *argv[], int mu, char symmetric, std::string 
             std::cout << "RAS two level with overlap and threshold:" << std::endl;
         opt.parse("-hpddm_schwarz_method ras -hpddm_schwarz_coarse_correction additive -hpddm_geneo_threshold 100");
         // DDM<complex<double>> ddm_with_overlap_threshold(Generator, &Operator, ovr_subdomain_to_global, cluster_to_ovr_subdomain, neighbors, intersections);
-        DefaultDDMSolverBuilder<complex<double>, double> default_ddm_solver_with_threshold(Operator, local_hmatrix, neighbors, renumbered_intersections);
+        DefaultDDMSolverBuilderAddingOverlap<complex<double>, double> default_ddm_solver_with_threshold(Operator, local_block_diagonal_hmatrix, Generator, ovr_subdomain_to_global, cluster_to_ovr_subdomain, neighbors, intersections);
         DDM<complex<double>> &ddm_with_overlap_threshold = default_ddm_solver_with_threshold.solver; // build_ddm_solver(Operator, local_block_diagonal_hmatrix, Generator, ovr_subdomain_to_global, cluster_to_ovr_subdomain, neighbors, intersections);
         Ki.bytes_to_matrix(datapath + "/Ki_" + NbrToStr(size) + "_" + NbrToStr(rank) + ".bin");
         ddm_with_overlap_threshold.build_coarse_space(Ki);

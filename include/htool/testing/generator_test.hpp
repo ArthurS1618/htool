@@ -196,6 +196,23 @@ class GeneratorFromMatrix : public VirtualGeneratorWithPermutation<T> {
     }
 };
 
+template <typename T>
+class LocalGeneratorFromMatrix : public VirtualGeneratorWithPermutation<T> {
+    const Matrix<T> &m_A;
+    const std::vector<int> &m_target_local_to_global_numbering;
+    const std::vector<int> &m_source_local_to_global_numbering;
+
+  public:
+    explicit LocalGeneratorFromMatrix(const Matrix<T> &A, const std::vector<int> &target_permutation, const std::vector<int> &source_permutation, const std::vector<int> &target_local_to_global_numbering, const std::vector<int> &source_local_to_global_numbering) : VirtualGeneratorWithPermutation<T>(target_permutation.data(), source_permutation.data()), m_A(A), m_target_local_to_global_numbering(target_local_to_global_numbering), m_source_local_to_global_numbering(source_local_to_global_numbering) {}
+
+    void copy_submatrix_from_user_numbering(int M, int N, const int *const rows, const int *const cols, T *ptr) const override {
+        for (int i = 0; i < M; i++) {
+            for (int j = 0; j < N; j++) {
+                ptr[i + M * j] = m_A(m_target_local_to_global_numbering[rows[i]], m_source_local_to_global_numbering[cols[j]]);
+            }
+        }
+    }
+};
 } // namespace htool
 
 #endif
