@@ -4,6 +4,7 @@
 #include "../misc/logger.hpp"
 #include "../misc/misc.hpp"
 #include "../wrappers/wrapper_blas.hpp"
+#include "../wrappers/wrapper_lapack.hpp"
 #include "vector.hpp"
 #include <cassert>
 #include <functional>
@@ -76,6 +77,28 @@ class Matrix {
         if (m_number_of_rows * m_number_of_cols > 0)
             std::fill_n(m_data, m_number_of_rows * m_number_of_cols, z);
     }
+
+    /////////////////////
+    // ARTHUR: formatage matrice row major pour utiliser hmatrice*matrice
+    // question Matrix ou void ? -> est ce qu'on a besoin de la matrice après l'opération ?
+    std::vector<T> to_row_major() const {
+        std::vector<T> M_row_major(this->nb_rows() * this->nb_cols(), 0.0);
+        for (int k = 0; k < this->nb_rows(); ++k) {
+            for (int l = 0; l < this->nb_cols(); ++l) {
+                M_row_major[k * this->nb_cols() + l] = this->data()[k + this->nb_rows() * l];
+            }
+        }
+        return M_row_major;
+    }
+
+    void to_col_major() {
+        auto temp = this->data();
+        for (int k = 0; k < m_number_of_rows; ++k) {
+            for (int l = 0; l < m_number_of_cols; ++l) {
+                this->data()[l * m_number_of_rows + k] = temp[k * m_number_of_cols + l];
+            }
+        }
+    }
     //! ### Access operator
     /*!
     If _A_ is the instance calling the operator
@@ -128,7 +151,7 @@ class Matrix {
     */
     //// TRansposé
 
-    Matrix transp(const Matrix &M) {
+    Matrix transp(const Matrix &M) const {
         Matrix res(M.nb_cols(), M.nb_rows());
         for (int k = 0; k < M.nb_rows(); ++k) {
             for (int l = 0; l < M.nb_cols(); ++l) {
@@ -711,6 +734,34 @@ class Matrix {
     // }
 };
 
+//////////////////// ARTHUR : A = PLU avec LAPACK
+template <typename T>
+void get_lu_factorisation(const Matrix<T> &M, Matrix<T> &L, Matrix<T> &U, std::vector<int> &P) {
+    auto A   = M;
+    int size = A.nb_rows();
+    std::vector<int> ipiv(size, 0.0);
+    int info = -1;
+    Lapack<T>::getrf(&size, &size, A.data(), &size, ipiv.data(), &info);
+    for (int i = 0; i < size; ++i) {
+        L(i, i) = 1;
+        U(i, i) = A(i, i);
+
+        for (int j = 0; j < i; ++j) {
+            L(i, j) = A(i, j);
+            U(j, i) = A(j, i);
+        }
+    }
+    for (int k = 1; k < size + 1; ++k) {
+        P[k - 1] = k;
+    }
+    for (int k = 0; k < size; ++k) {
+        if (ipiv[k] - 1 != k) {
+            int temp       = P[k];
+            P[k]           = P[ipiv[k] - 1];
+            P[ipiv[k] - 1] = temp;
+        }
+    }
+}
 //! ### Computation of the Frobenius norm
 /*!
 Computes the Frobenius norm of the input matrix _A_.

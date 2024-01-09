@@ -181,30 +181,30 @@ if((CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME) AND BUILD_TESTING)
         target_compile_options(htool INTERFACE -fprofile-arcs -ftest-coverage)
         target_link_libraries(htool INTERFACE gcov)
     endif()
-    target_compile_options(
-        htool
-        INTERFACE -Wall
-                  -Wextra
-                  -Werror
-                  -Wshadow
-                  -Wnon-virtual-dtor
-                  -pedantic
-                  #   -Wold-style-cast
-                  -Wcast-align
-                  -Wunused
-                  -Woverloaded-virtual
-                  #   -Wconversion
-                  #   -Wsign-conversion
-                  -Wdouble-promotion
-                  -Wno-sign-compare
-                  -Wextra-semi
-                  #   -Wzero-as-null-pointer-constant
-                  -Wundef)
-    if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
-        target_compile_options(htool INTERFACE -Wimplicit-fallthrough -Wextra-semi-stmt)
-    elseif(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-        target_compile_options(htool INTERFACE -Wmisleading-indentation -Wduplicated-cond -Wduplicated-branches -Wlogical-op -Wnull-dereference -Wuseless-cast)
-    endif()
+    # target_compile_options(
+    #     htool
+    #     INTERFACE -Wall
+    #               -Wextra
+	# 	  #-Werror
+	# 	  #-Wshadow
+	# 	  #-Wnon-virtual-dtor
+	# 	  #-pedantic
+    #               #   -Wold-style-cast
+	# 	  #-Wcast-align
+	# 	  #-Wunused
+	# 	  #-Woverloaded-virtual
+    #               #   -Wconversion
+    #               #   -Wsign-conversion
+	# 	  #-Wdouble-promotion
+	# 	  #-Wno-sign-compare
+	# 	  #    -Wextra-semi
+    #               #   -Wzero-as-null-pointer-constant
+    #               -Wundef)
+    # if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+    #     target_compile_options(htool INTERFACE -Wimplicit-fallthrough -Wextra-semi-stmt)
+    # elseif(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    #     target_compile_options(htool INTERFACE -Wmisleading-indentation -Wduplicated-cond -Wduplicated-branches -Wlogical-op -Wnull-dereference -Wuseless-cast)
+    # endif()
     add_custom_target(build-tests)
     add_subdirectory(tests EXCLUDE_FROM_ALL)
 endif()

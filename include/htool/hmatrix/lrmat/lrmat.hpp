@@ -33,7 +33,7 @@ class LowRankMatrix {
         } else {
             LRGenerator.copy_low_rank_approximation(A, target_cluster, source_cluster, epsilon, m_rank, m_U, m_V);
         }
-    };
+    }
     // Je rajoute ce constructeur ppour moi -> on lui donne la décomposition UV
     LowRankMatrix(const Matrix<CoefficientPrecision> &U, const Matrix<CoefficientPrecision> &V) : m_rank(U.nb_cols()), m_number_of_rows(U.nb_rows()), m_number_of_columns(V.nb_cols()), m_U(U), m_V(V) {}
     // Getters

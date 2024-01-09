@@ -163,8 +163,6 @@ bool test_hmatrix_hmatrix_product(int size_1, int size_2, int size_3, htool::und
     // HMatrix
     double eta = 10;
 
-    // HMatrixTreeBuilder<T, htool::underlying_type<T>> hmatrix_tree_builder_21(root_cluster_2, root_cluster_1, epsilon, eta, 'N', 'N');
-    // HMatrixTreeBuilder<T, htool::underlying_type<T>> hmatrix_tree_builder_32(root_cluster_3, root_cluster_2, epsilon, eta, 'N', 'N');
     HMatrixTreeBuilder<T, htool::underlying_type<T>> hmatrix_tree_builder_21(root_cluster_1, root_cluster_1, epsilon, eta, 'N', 'N');
     HMatrixTreeBuilder<T, htool::underlying_type<T>> hmatrix_tree_builder_32(root_cluster_1, root_cluster_1, epsilon, eta, 'N', 'N');
 
@@ -172,69 +170,42 @@ bool test_hmatrix_hmatrix_product(int size_1, int size_2, int size_3, htool::und
     auto root_hmatrix_21 = hmatrix_tree_builder_21.build(generator_21);
     auto root_hmatrix_32 = hmatrix_tree_builder_32.build(generator_32);
     std::cout << "hmat build ok " << std::endl;
-    // // auto leaf            = root_hmatrix_21.get_leaves();
-    // // std::vector<const HMatrix<T, htool::underlying_type<T>> *> lowrank;
-    // // std::vector<const HMatrix<T, htool::underlying_type<T>> *> hmat;
-    // // std::vector<const LowRankMatrix<T, htool::underlying_type<T>> *> vect_lr;
-    // // std::cout << leaf.size() << std::endl;
-    // // for (int k = 0; k < leaf.size(); ++k) {
-    // //     auto &l = leaf[k];
-    // //     if (l->is_low_rank()) {
-    // //         lowrank.push_back(l);
-    // //         auto lr = l->get_low_rank_data();
-    // //         vect_lr.push_back(lr);
-    // //     } else {
-    // //         hmat.push_back(l);
-    // //     }
-    // // }
 
-    // // auto &H_children = root_hmatrix_21.get_children();
-    // // for (int k = 0; k < H_children.size(); ++k) {
-    // //     auto &Hk = H_children[k];
-    // //     std::cout << Hk->get_target_cluster().get_size() << ',' << Hk->get_source_cluster().get_size() << std::endl;
-    // // }
-    // // SumExpression<T, htool::underlying_type<T>> sumexpr(&root_hmatrix_21, &root_hmatrix_21);
-    // // auto srestr = sumexpr.Restrict(100, 0, 100, 0);
-    // // std::cout << srestr.get_sh().size() << ',' << srestr.get_sr().size() << std::endl;
-    // // auto srestr1 = srestr.Restrict(50, 0, 50, 0);
-    // // std::cout << srestr1.get_sh().size() << ',' << srestr1.get_sr().size() << std::endl;
-    // // auto ssr = srestr1.get_sr();
-    // // auto lr  = ssr[0];
-    // // std::cout << lr->nb_rows() << ',' << lr->nb_cols() << ',' << lr->rank_of() << std::endl;
-    // // auto srestr2 = srestr1.Restrict(25, 0, 25, 0);
-    // // std::cout << srestr2.get_sh().size() << ',' << srestr2.get_sr().size() << std::endl;
-    // // auto sssr = srestr2.get_sr();
-    // // for (int k = 0; k < sssr.size(); ++k) {
-    // //     auto lllr = sssr[k];
-    // //     std::cout << lllr->nb_rows() << ',' << lllr->nb_cols() << ',' << lllr->rank_of() << std::endl;
-    // // }
+    /////////////////////////////////
+    /// test hmatrice matrice
 
-    // // SumExpression<T, htool::underlying_type<T>> stest(&root_hmatrix_32, &root_hmatrix_21);
-    // // std::cout << stest.get_coeff(3, 8) << ',' << reference_dense_matrix(3, 8) << std::endl;
-    // // std::cout << stest.get_coeff(3, 8) << std::endl;
-    // // // //////////////////////////////////////
+    std::cout << "test hmatrice x matrice " << std::endl;
 
-    // // clock_t start_time   = std::clock(); // temps de départ
-    // // auto root_hmatrix_31 = root_hmatrix_32.hmatrix_product(root_hmatrix_21);
-    // // clock_t end_time     = clock(); // temps de fin
-    // // double time_taken0   = double(end_time - start_time) / CLOCKS_PER_SEC;
-    // // std::cout << "duration multiplication:" << time_taken0 << std::endl;
+    Matrix<double> ref_prod = dense_matrix_32 * dense_matrix_21;
+    auto test_hm            = root_hmatrix_32.hmat_mat(dense_matrix_21);
+    std::cout << "ereur hmat mat :" << normFrob(test_hm - ref_prod) / normFrob(ref_prod) << std::endl;
+    std::cout << "test matrice hmatrice " << std::endl;
+    auto test_mh = root_hmatrix_21.mat_hmat(dense_matrix_32);
+    std::cout << "erreur mat hmat :" << normFrob(ref_prod - test_mh) / normFrob(test_mh) << std::endl;
 
-    // // start_time = std::clock(); // temps de départ
-    // // for (int i = 0; i < root_hmatrix_31.get_target_cluster().get_size(); ++i) {
-    // //     for (int j = 0; j < root_hmatrix_31.get_source_cluster().get_size(); ++j) {
-    // //         for (int k = 0; k < root_hmatrix_31.get_source_cluster().get_size(); ++k) {
-    // //         }
-    // //     }
-    // // }
-    // // end_time          = clock(); // temps de fin
-    // // double time_taken = double(end_time - start_time) / CLOCKS_PER_SEC;
-    // // std::cout << "temps mult :" << time_taken << std::endl;
+    clock_t start_time   = std::clock(); // temps de départ
+    auto root_hmatrix_31 = root_hmatrix_32.hmatrix_product(root_hmatrix_21);
+    clock_t end_time     = clock(); // temps de fin
+    double time_taken0   = double(end_time - start_time) / CLOCKS_PER_SEC;
+    std::cout << "duration multiplication:" << time_taken0 << std::endl;
 
-    // // Matrix<T> hmatrix_to_dense_31(root_hmatrix_31.get_target_cluster().get_size(), root_hmatrix_31.get_source_cluster().get_size());
-    // // copy_to_dense(root_hmatrix_31, hmatrix_to_dense_31.data());
-    // // // std::cout << "?????" << std::endl;
-    // // std::cout << "erreur multiplication" << normFrob(reference_dense_matrix - hmatrix_to_dense_31) / normFrob(reference_dense_matrix) << "\n";
+    // start_time = std::clock(); // temps de départ
+    // for (int i = 0; i < root_hmatrix_31.get_target_cluster().get_size(); ++i) {
+    //     for (int j = 0; j < root_hmatrix_31.get_source_cluster().get_size(); ++j) {
+    //         for (int k = 0; k < root_hmatrix_31.get_source_cluster().get_size(); ++k) {
+    //         }
+    //     }
+    // }
+    // end_time          = clock(); // temps de fin
+    // double time_taken = double(end_time - start_time) / CLOCKS_PER_SEC;
+    // std::cout << "temps mult :" << time_taken << std::endl;
+
+    Matrix<T> hmatrix_to_dense_31(root_hmatrix_31.get_target_cluster().get_size(), root_hmatrix_31.get_source_cluster().get_size());
+    copy_to_dense(root_hmatrix_31, hmatrix_to_dense_31.data());
+    // std::cout << "?????" << std::endl;
+    std::cout << "erreur multiplication" << normFrob(ref_prod - hmatrix_to_dense_31) / normFrob(ref_prod) << "\n";
+    std::cout << "proportion low rank :" << root_hmatrix_31.get_compression() << std::endl;
+
     // //////////////////////////////////////////
     // //// TEST MULT HACKBUSH
     // ////////////////////////////////////////
@@ -247,40 +218,6 @@ bool test_hmatrix_hmatrix_product(int size_1, int size_2, int size_3, htool::und
     // build
 
     // auto root_hmatrix_31 = hmatrix_tree_builder_31.build(Z);
-
-    clock_t start_time = std::clock(); // temps de départ
-    auto test31        = dense_matrix_32 * dense_matrix_21;
-    clock_t end_time   = clock(); // temps de fin
-    double time_takena = double(end_time - start_time) / CLOCKS_PER_SEC;
-    std::cout << "temps vrai mult :" << time_takena << std::endl;
-
-    // auto test22 = dense_matrix_21 * dense_matrix_32;
-    std::cout << "test22 ok" << std::endl;
-    start_time        = std::clock(); // temps de départ
-    auto testm        = root_hmatrix_32.hmat_lr(dense_matrix_21);
-    end_time          = clock(); // temps de fin
-    double time_taken = double(end_time - start_time) / CLOCKS_PER_SEC;
-    std::cout << "temps hmat lr :" << time_taken << std::endl;
-    std::cout << "ca va peter " << std::endl;
-    std::cout << "testm " << testm.nb_rows() << ',' << testm.nb_cols() << std::endl;
-    std::cout << "test31 " << test31.nb_rows() << ',' << test31.nb_cols() << std::endl;
-    std::cout << "erreur hmat lr " << normFrob(testm - test31) / normFrob(test31) << std::endl;
-
-    std::vector<double> xx(root_hmatrix_21.get_target_cluster().get_size(), 1.0);
-    std::vector<double> yy(root_hmatrix_21.get_target_cluster().get_size(), 0.0);
-    start_time = std::clock(); // temps de départ
-
-    root_hmatrix_21.add_vector_product('N', 1.0, xx.data(), 0.0, yy.data());
-    end_time   = clock(); // temps de fin
-    time_taken = double(end_time - start_time) / CLOCKS_PER_SEC;
-    std::cout << "hmat vec " << time_taken << std::endl;
-    std::cout << time_taken * root_hmatrix_21.get_target_cluster().get_size() << std::endl;
-
-    start_time  = std::clock(); // temps de départ
-    auto testtt = dense_matrix_21 * xx;
-    end_time    = clock(); // temps de fin
-    time_taken  = double(end_time - start_time) / CLOCKS_PER_SEC;
-    std::cout << " vrai mat vec " << time_taken << std::endl;
 
     // //////////////////////////////////
     // //// TEST HMAT ANI

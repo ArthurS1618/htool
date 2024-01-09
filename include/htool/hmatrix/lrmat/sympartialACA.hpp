@@ -86,7 +86,6 @@ class sympartialACA final : public VirtualLowRankGenerator<CoefficientPrecision,
         CoefficientPrecision coef;
         int incx(1), incy(1);
         std::vector<CoefficientPrecision> u1(n2), u2(n1);
-
         // Either we have a required rank
         // Or it is negative and we have to check the relative error between two iterations.
         // But to do that we need a least two iterations.

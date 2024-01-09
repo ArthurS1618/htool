@@ -65,7 +65,7 @@ class ClusterTreeBuilder {
 
     void set_minclustersize(int minclustersize) { m_minclustersize = minclustersize; }
     Cluster<T> create_cluster_tree();
-    Cluster<T> create_directional_tree();
+    Cluster<T> create_directional_tree(const std::vector<T>);
     Cluster<T> create_trois_cluster_tree(const std::vector<T>);
     Cluster<T> create_alternate_tree(const std::vector<T>, const std::vector<T>);
 };
@@ -191,9 +191,10 @@ Cluster<T> ClusterTreeBuilder<T, DirectionComputationStrategy, SplittingStrategy
 
     return root_cluster;
 }
-
+//////////////////////////
+///// direction = cpnvection perp
 template <typename T, class DirectionComputationStrategy, class SplittingStrategy>
-Cluster<T> ClusterTreeBuilder<T, DirectionComputationStrategy, SplittingStrategy>::create_directional_tree() {
+Cluster<T> ClusterTreeBuilder<T, DirectionComputationStrategy, SplittingStrategy>::create_directional_tree(const std::vector<T> direction) {
 
     // default values
     std::vector<T> default_radii{};
@@ -238,8 +239,8 @@ Cluster<T> ClusterTreeBuilder<T, DirectionComputationStrategy, SplittingStrategy
         int current_number_of_children = ((current_cluster->get_depth() == 0) && (m_partition_type == Simple)) ? m_size_partition : m_number_of_children;
 
         // Direction of largest extent
-        std::vector<T> direction(m_spatial_dimension, 0);
-        direction[1] = 1;
+        // std::vector<T> direction(m_spatial_dimension, 0);
+        // direction[1] = 1;
         // direction = m_direction_computation_strategy.compute_direction(current_cluster, permutation, m_spatial_dimension, m_coordinates, m_radii, m_weights);
 
         // Sort along direction

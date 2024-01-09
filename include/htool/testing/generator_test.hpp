@@ -198,6 +198,16 @@ class GeneratorFromMatrix : public VirtualGeneratorWithPermutation<T> {
     }
 };
 
+////////////////
+// ARTHUR----> Je rajoute ca pour avoir un générateur su p1xp1 et pas p1xp2
+class GeneratorDouble : public GeneratorTest<double> {
+  public:
+    using GeneratorTest::GeneratorTest;
+    double get_coef(const int &i, const int &j) const override {
+        return 1. / (4 * M_PI * std::sqrt(std::inner_product(p1.begin() + this->space_dim * i, this->p1.begin() + this->space_dim * i + this->space_dim, p2.begin() + this->space_dim * j, double(0), std::plus<double>(), [](double u, double v) { return ((u - v) * (u - v) + 0.0001); })));
+    }
+};
+
 } // namespace htool
 
 #endif

@@ -39,6 +39,24 @@ class VirtualGeneratorWithPermutation : public VirtualGenerator<CoefficientPreci
 };
 
 template <typename CoefficientPrecision>
+class VirtualGeneratorNOPermutation : public VirtualGenerator<CoefficientPrecision> {
+    Matrix<CoefficientPrecision> mat;
+    int offset_target;
+    int offset_source;
+
+  public:
+    VirtualGeneratorNOPermutation(const Matrix<CoefficientPrecision> mat0, const int &of_t, const int &of_s) : mat(mat0), offset_target(of_t), offset_source(of_s) {}
+
+    virtual void copy_submatrix(int M, int N, int row_offset, int col_offset, CoefficientPrecision *ptr) const override {
+        for (int k = 0; k < M; ++k) {
+            for (int l = 0; l < N; ++l) {
+                ptr[k + M * l] = mat(k + row_offset - offset_target, l + col_offset - offset_source);
+            }
+        }
+    }
+};
+
+template <typename CoefficientPrecision>
 class MatGenerator : public VirtualGenerator<CoefficientPrecision> {
     int space_dim;
     CoefficientPrecision *ptr;
@@ -119,6 +137,30 @@ class MatrixGenerator : public VirtualGenerator<CoefficientPrecision> {
     }
 };
 
+//////////////////////////////////
+/// POUR METTRE UN CHAMP DE VECTEUR EN PARAMETRE DU SPLITTING
+template <typename CoordinatePrecision>
+class VirtualFunction {
+
+  public:
+    virtual void func(const CoordinatePrecision *entry, CoordinatePrecision *out) const = 0;
+
+    VirtualFunction() {}
+    VirtualFunction(const VirtualFunction &)            = default;
+    VirtualFunction &operator=(const VirtualFunction &) = default;
+    VirtualFunction(VirtualFunction &&)                 = default;
+    VirtualFunction &operator=(VirtualFunction &&)      = default;
+    virtual ~VirtualFunction() {}
+};
+
+template <typename CoordinatePrecision>
+class myfunc : public VirtualFunction<CoordinatePrecision> {
+  public:
+    void func(const CoordinatePrecision *entry, CoordinatePrecision *out) {
+        out[0] = entry[1] - entry[0];
+        out[1] = entry[0];
+    }
+};
 } // namespace htool
 
 #endif

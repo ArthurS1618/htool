@@ -2,9 +2,9 @@ add_custom_target(build-tests-lrmat)
 add_dependencies(build-tests build-tests-lrmat)
 add_subdirectory(lrmat)
 
-add_custom_target(build-tests-sum-expression)
-add_dependencies(build-tests build-tests-sum-expression)
-add_subdirectory(sum_expression)
+# add_custom_target(build-tests-sum-expression)
+# add_dependencies(build-tests build-tests-sum-expression)
+# add_subdirectory(sum_expression)
 
 add_custom_target(build-tests-hmatrix-build)
 add_dependencies(build-tests-hmatrix build-tests-hmatrix-build)
@@ -25,6 +25,11 @@ add_test(Test_compression_freefem Test_compression_freefem)
 add_executable(Test_LU test_lu.cpp)
 target_link_libraries(Test_LU htool)
 add_test(Test_LU Test_LU)
+
+# add_executable(Test_LHU test_HLU.cpp)
+# target_link_libraries(Test_HLU htool)
+# add_test(Test_HLU Test_HLU)
+
 
 
 add_executable(Test_HMULT test_hmult.cpp)

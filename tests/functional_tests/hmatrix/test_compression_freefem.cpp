@@ -242,28 +242,31 @@ int main() {
     ClusterTreeBuilder<double, ComputeLargestExtent<double>, RegularSplitting<double>> normal_build(points.size() / 3, 3, points.data(), 2, 2);
     std::shared_ptr<Cluster<double>> root_normal = make_shared<Cluster<double>>(normal_build.create_cluster_tree());
 
-    // directional build
-    // ClusterTreeBuilder<double, ComputeLargestExtent<double>, RegularSplitting<double>> directional_build(points.size() / 3, 3, points.data(), 2, 2);
-    // std::shared_ptr<Cluster<double>> root_directional = make_shared<Cluster<double>>(directional_build.create_directional_tree());
-    // save_clustered_geometry(*root_directional, 3, points.data(), "geomerty_bandee_clustering_output", depth);
-
     // alternate build -----------------------------> Cluster pour notre méthode
 
     //////////////////// Méthode alternate
     std::vector<double> bb(3);
     bb[0] = 1;
+    bb[1] = -1;
     std::vector<double> bperp(3);
+    bperp[0] = 1;
     bperp[1] = 1;
     ClusterTreeBuilder<double, ComputeLargestExtent<double>, RegularSplitting<double>> alternate_build(points.size() / 3, 3, points.data(), 2, 2);
     std::shared_ptr<Cluster<double>> root_alternate = make_shared<Cluster<double>>(alternate_build.create_alternate_tree(bb, bperp));
-    // save_clustered_geometry(*root_alternate, 3, points.data(), "geomerty_alternate_clustering_output", depth);
 
     /////////////////// Méthode fixe direction
     // std::vector<double> bperp(3);
     // bperp[1] = 1;
     ClusterTreeBuilder<double, ComputeLargestExtent<double>, RegularSplitting<double>> directional_build(points.size() / 3, 3, points.data(), 2, 2);
-    std::shared_ptr<Cluster<double>> root_directional = make_shared<Cluster<double>>(directional_build.create_directional_tree());
-    // save_clustered_geometry(*root_directional, 3, points.data(), "geomerty_alternate_clustering_output", depth);
+    std::shared_ptr<Cluster<double>> root_directional = make_shared<Cluster<double>>(directional_build.create_directional_tree(bperp));
+
+    ///////////////////
+    /// save cluster
+    ///////////////
+
+    // save_clustered_geometry(*root_normal, 3, points.data(), "b11_geometry_normal_clustering", depth);
+    save_clustered_geometry(*root_alternate, 3, points.data(), "b11_geomerty_alternate_clustering", depth);
+    // save_clustered_geometry(*root_directional, 3, points.data(), "b11_geomerty_directional_clustering", depth);
 
     ///////
     /// RECUPERATION MATRICE
@@ -315,7 +318,7 @@ int main() {
     std::cout << info << "," << normFrob(p - id) / sqrt(size) << std::endl;
 
     // H martrices
-    double epsilon = 0.000001;
+    double epsilon = 0.0000001;
 
     Matgenerator<double, double> mat(LU, *root_normal, *root_normal);
     Matgenerator<double, double> matd(LU, *root_directional, *root_directional);
@@ -346,7 +349,7 @@ int main() {
     std::cout << "directional build ok" << std::endl;
 
     // // Alternate Builder
-    double epsilon2 = 0.000001;
+    double epsilon2 = 0.0000001;
     HMatrixTreeBuilder<double, double> hmatrix_alternate_builder(root_alternate, root_alternate, epsilon0, eta, 'N', 'N');
     std::shared_ptr<Bande<double>> alternate_admissibility = std::make_shared<Bande<double>>(bb, root_alternate->get_permutation());
     hmatrix_alternate_builder.set_admissibility_condition(alternate_admissibility);
@@ -383,10 +386,150 @@ int main() {
     std::cout << "erreur : " << normFrob(ad - LU) / norm << std::endl;
     std::cout << "rank info :" << hmatrix_alternate.get_rank_info() << std::endl;
     std::cout << "_________________________________" << std::endl;
-    // hmatrix_normal.save_plot("hmatrix_eps6_normal_3067");
-    // hmatrix_directional.save_plot("hmatrix_eps6_alternate_3067");
 
-    // save_clustered_geometry(*root_normal, 3, points.data(), "geometry_normal_clustering_output", depth);
+    ///////////////////////
+    ///// save hmat
+    //////////////////////
+    // hmatrix_normal.save_plot("hmatrix7_b11_eps6_normal_3067");
+    // hmatrix_directional.save_plot("hmatrix7_b11_eps6_directional_3067");
+    // hmatrix_alternate.save_plot("hmatrix6_b11_eps1_alternate_3067");
+    std::cout << "save hmatrix done" << std::endl;
+
+    ///////////////////
+    /// save cluster
+    ///////////////
+
+    // save_clustered_geometry(*root_normal, 3, points.data(), "b11_geometry_normal_clustering", depth);
+    // save_clustered_geometry(*root_alternate, 3, points.data(), "b11_geomerty_alternate_clustering", depth);
+    // save_clustered_geometry(*root_directional, 3, points.data(), "b11_geomerty_directional_clustering", depth);
+
+    ////////////////////
+    //// tests svd des blocs extradiagonaux
+
+    // auto perm         = matd.get_perm_mat();
+    // auto &sons        = hmatrix_directional.get_children();
+    // string outputname = "svd_eps2_b11_directional";
+    // int rep           = 0;
+    // for (auto &s : sons) {
+    //     std::cout << "hey" << std::endl;
+    //     int nr = s->get_target_cluster().get_size();
+    //     int nc = s->get_source_cluster().get_size();
+    //     std::cout << nr << ',' << nc << std::endl;
+    //     Matrix<double> matt(nr, nc);
+
+    //     for (int k = 0; k < nr; ++k) {
+    //         for (int l = 0; l < nc; ++l) {
+    //             matt(k, l) = perm(k + s->get_target_cluster().get_offset(), l + s->get_source_cluster().get_offset());
+    //         }
+    //     }
+    //     // copy_to_dense(*s, matt.data());
+    // int lda  = nr;
+    // int ldu  = nr;
+    // int ldvt = nc;
+    // lwork    = -1;
+    // int infooo;
+    // std::vector<double> singular_values(std::min(nr, nc));
+    // Matrix<double> u(nr, nr);
+    // // std::vector<T> vt (n*n);
+    // Matrix<double> vt(nc, nc);
+    // std::vector<double> workk(std::min(nc, nr));
+    // std::vector<double> rwork(5 * std::min(nr, nc));
+    // std::cout << "pour " << rep << " norme du bloc= " << normFrob(matt) << std::endl;
+
+    // Lapack<double>::gesvd("A", "A", &nr, &nc, matt.data(), &lda, singular_values.data(), u.data(), &ldu, vt.data(), &ldvt, workk.data(), &lwork, rwork.data(), &infooo);
+    //     lwork = (int)std::real(work[0]);
+    //     workk.resize(lwork);
+    //     Lapack<double>::gesvd("A", "A", &nr, &nc, matt.data(), &lda, singular_values.data(), u.data(), &ldu, vt.data(), &ldvt, workk.data(), &lwork, rwork.data(), &infooo);
+    //     std::cout << "svd  ________________________________________" << std::endl;
+    //     std::cout << std::endl;
+    //     std::cout << "write svd" << std::endl;
+    //     std::ofstream outputfile((outputname + '_' + std::to_string(rep) + ".csv").c_str());
+
+    //     if (outputfile) {
+    //         for (int k = 0; k < singular_values.size(); ++k)
+    //             outputfile << singular_values[k] << std::endl;
+    //     }
+    //     outputfile.close();
+    //     rep += 1;
+    // }
+    // std::cout << "svd written" << std::endl;
+
+    // ///////////////////////////
+    // /// Test sur la svd du bloc en bas a droite pour expliquer la diff entre tol = e-6 et tol = e-7
+    // ///////////////////////////
+
+    // auto &B1 = hmatrix_directional.get_children()[3]->get_children()[3]->get_children()[3]->get_children()[1];
+    // auto &t1 = B1->get_target_cluster();
+    // auto &s1 = B1->get_source_cluster();
+    // std::cout << "t1 : " << t1.get_size() << ',' << t1.get_offset() << std::endl;
+    // std::cout << "s1:" << s1.get_size() << ',' << s1.get_offset() << std::endl;
+    // Matrix<double> up(t1.get_size(), s1.get_size());
+    // Matrix<double> down(s1.get_size(), t1.get_offset());
+    // for (int k = 0; k < t1.get_size(); ++k) {
+    //     for (int l = 0; l < s1.get_size(); ++l) {
+    //         up(k, l)   = perm(k + t1.get_offset(), l + s1.get_offset());
+    //         down(l, k) = perm(l + s1.get_offset(), k + t1.get_offset());
+    //     }
+    // }
+    // int nr   = t1.get_size();
+    // int nc   = s1.get_size();
+    // int lda  = nr;
+    // int ldu  = nr;
+    // int ldvt = nc;
+    // lwork    = -1;
+    // int infooo;
+    // std::vector<double> singular_values(std::min(nr, nc));
+    // Matrix<double> u(nr, nr);
+    // // std::vector<T> vt (n*n);
+    // Matrix<double> vt(nc, nc);
+    // std::vector<double> workk(std::min(nc, nr));
+    // std::vector<double> rwork(5 * std::min(nr, nc));
+
+    // Lapack<double>::gesvd("A", "A", &nr, &nc, up.data(), &lda, singular_values.data(), u.data(), &ldu, vt.data(), &ldvt, workk.data(), &lwork, rwork.data(), &infooo);
+    // lwork = (int)std::real(work[0]);
+    // workk.resize(lwork);
+    // Lapack<double>::gesvd("A", "A", &nr, &nc, up.data(), &lda, singular_values.data(), u.data(), &ldu, vt.data(), &ldvt, workk.data(), &lwork, rwork.data(), &infooo);
+    // std::cout << "svd  ________________________________________" << std::endl;
+    // std::cout << std::endl;
+    // std::cout << "write svd" << std::endl;
+    // std::ofstream outputfile1("svd_eps3_up.csv");
+
+    // if (outputfile1) {
+    //     for (int k = 0; k < singular_values.size(); ++k)
+    //         outputfile1 << singular_values[k] << std::endl;
+    // }
+    // outputfile1.close();
+    // std::cout << "svd up ok" << std::endl;
+
+    // nr    = s1.get_size();
+    // nc    = t1.get_size();
+    // lda   = nr;
+    // ldu   = nr;
+    // ldvt  = nc;
+    // lwork = -1;
+    // // int infooo;
+    // // std::vector<double> singular_values(std::min(nr, nc));
+    // Matrix<double> ud(nr, nr);
+    // // std::vector<T> vt (n*n);
+    // Matrix<double> vtd(nc, nc);
+    // std::vector<double> workkk(std::min(nc, nr));
+    // std::vector<double> rworkk(5 * std::min(nr, nc));
+
+    // Lapack<double>::gesvd("A", "A", &nr, &nc, down.data(), &lda, singular_values.data(), ud.data(), &ldu, vtd.data(), &ldvt, workkk.data(), &lwork, rworkk.data(), &infooo);
+    // lwork = (int)std::real(work[0]);
+    // workkk.resize(lwork);
+    // Lapack<double>::gesvd("A", "A", &nr, &nc, down.data(), &lda, singular_values.data(), ud.data(), &ldu, vtd.data(), &ldvt, workkk.data(), &lwork, rworkk.data(), &infooo);
+    // std::cout << "svd  ________________________________________" << std::endl;
+    // std::cout << std::endl;
+    // std::cout << "write svd" << std::endl;
+    // std::ofstream outputfile2("svd_eps3_down.csv");
+
+    // if (outputfile2) {
+    //     for (int k = 0; k < singular_values.size(); ++k)
+    //         outputfile2 << singular_values[k] << std::endl;
+    // }
+    // outputfile2.close();
+    // std::cout << "done " << std::endl;
 
     //////////////////foramtage Hmatrix//////////
 

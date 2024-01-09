@@ -2,15 +2,15 @@
 #=========================== Executables =====================================#
 #=============================================================================#
 
-include(FetchContent)
-FetchContent_Declare(
-    data_test_repository
-    GIT_REPOSITORY "https://github.com/PierreMarchand20/htool_generate_data_test"
-    GIT_TAG origin/main)
-FetchContent_GetProperties(data_test_repository)
-if(NOT data_test_repository_POPULATED)
-    FetchContent_Populate(data_test_repository)
-endif()
+# include(FetchContent)
+# FetchContent_Declare(
+#     data_test_repository
+#     GIT_REPOSITORY "https://github.com/PierreMarchand20/htool_generate_data_test"
+#     GIT_TAG origin/main)
+# FetchContent_GetProperties(data_test_repository)
+# if(NOT data_test_repository_POPULATED)
+#     FetchContent_Populate(data_test_repository)
+# endif()
 
 set(Test_solver_non_symmetric_ARGS ${data_test_repository_SOURCE_DIR}/data/output_non_sym/)
 set(Test_solver_symmetric_ARGS ${data_test_repository_SOURCE_DIR}/data/output_sym/)
