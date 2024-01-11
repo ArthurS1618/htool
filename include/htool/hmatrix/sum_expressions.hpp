@@ -476,6 +476,9 @@ class SumExpression : public VirtualGenerator<CoefficientPrecision> {
             auto &K          = Sh[2 * rep + 1];
             auto &H_children = H->get_children();
             auto &K_children = K->get_children();
+            ////////////////////////////
+            // Je rajoute ca au cas ou il y a un grand bloc de zero , si un des deux est nul le produit est nul et ca sert a rien de garder les vrai blocs
+            ///////////////////////////
 
             if ((H_children.size() > 0) and (K_children.size() > 0)) {
                 for (auto &H_child : H_children) {

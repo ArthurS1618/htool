@@ -157,12 +157,13 @@ HMatrix<CoefficientPrecision, CoordinatePrecision> HMatrixTreeBuilder<Coefficien
         bool is_root_admissible = m_admissibility_condition->ComputeAdmissibility(root_hmatrix.get_target_cluster(), root_hmatrix.get_source_cluster(), m_eta);
         if (is_root_admissible) {
             m_admissible_tasks.emplace_back(&root_hmatrix);
-        } else {
-            /////////////////////////
-            /// Je rajoute le if pas avoir des énormes blocs admissibles dense------------------> ARTHUR
-            ////////////////////////////
-            m_dense_tasks.emplace_back(&root_hmatrix);
         }
+        //  else {
+        //     /////////////////////////
+        //     /// Je rajoute le if pas avoir des énormes blocs admissibles dense------------------> ARTHUR
+        //     ////////////////////////////
+        //     m_dense_tasks.emplace_back(&root_hmatrix);
+        // }
     }
     reset_root_of_block_tree(root_hmatrix);
 

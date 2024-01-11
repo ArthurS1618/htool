@@ -106,8 +106,8 @@ int main() {
 
     std::cout << "_________________________________________" << std::endl;
     std::cout << "HMATRIX" << std::endl;
-    double epsilon = 1e-6;
-    double eta     = 10;
+    double epsilon = 1e-8;
+    double eta     = 1;
 
     ////// GENERATION MAILLAGE
     std::vector<double> p1(3 * size);
@@ -140,7 +140,10 @@ int main() {
 
     Matrix<double> lu(size, size);
     copy_to_dense(root_hmatrix_LU, lu.data());
-
+    auto ct = root_hmatrix_LU.get_block(32, 32, 320, 64);
+    std::cout << "dense ? " << ct->is_dense() << "low rank ? " << ct->is_low_rank() << "nb child : " << ct->get_children().size() << std::endl;
+    // root_hmatrix_LU.save_plot("root_LU");
+    // ct->save_plot("block.csv");
     std::cout << "erreur d'approximation Hmatrices " << normFrob(reference_num_htool - lu) / normFrob(reference_num_htool) << std::endl;
 
     std::cout << "________________________" << std::endl;
@@ -163,9 +166,9 @@ int main() {
     Uh.set_admissibility_condition(root_hmatrix_LU.get_admissibility_condition());
     Uh.set_epsilon(epsilon);
     Uh.set_low_rank_generator(root_hmatrix_LU.get_low_rank_generator());
-    // Uh.save_plot("uh_LU_test0");
-    // Lh.save_plot("lh_LU_test0");
-    // root_hmatrix_LU.save_plot("mat_LU_test0");
+    // Uh.save_plot("uh_LU_test1");
+    // Lh.save_plot("lh_LU_test1");
+    // root_hmatrix_LU.save_plot("mat_LU_test");
     ///////////////////////////////////////////
     //// Deux sous clusters pour tester les appelles aux sous blocs
     auto &t = ((root_cluster_1->get_children()[1])->get_children())[0];
@@ -261,7 +264,7 @@ int main() {
     std::cout << "+++++++++++ HLU +++++++++++" << std::endl;
     std::cout << "------> Trouver Lh et Uh tq Lh*Uh=M " << std::endl;
     auto produit_LU = Lh.hmatrix_product(Uh);
-    root_hmatrix_LU.save_plot("prod_LU_test0");
+    // root_hmatrix_LU.save_plot("prod_LU_test0");
     HMatrix<double, double> Llh(root_cluster_1, root_cluster_1);
     Llh.set_admissibility_condition(root_hmatrix_LU.get_admissibility_condition());
     Llh.set_epsilon(epsilon);
@@ -292,9 +295,20 @@ int main() {
     unperm.copy_zero(root_hmatrix_LU);
 
     // // // LA MATRICE QU ON VA FACTORISER
-
-    std::cout << "_________________________________________" << std::endl;
+    auto bt = root_hmatrix_LU.get_block(32, 32, 320, 64);
+    std::cout << "dense ? " << bt->is_dense() << "low rank ? " << bt->is_low_rank() << "nb child : " << bt->get_children().size() << std::endl;
+    // Matrix<double> bb(32, 32);
+    // copy_to_dense(*bt, bb.data());
+    // for (int k = 0; k < 32; ++k) {
+    //     for (int l = 0; l < 31; ++l) {
+    //         std::cout << bb(k, l) << ',';
+    //     }
+    //     std::cout << bb(k, 31) << std::endl;
+    // }
+    std::cout
+        << "_________________________________________" << std::endl;
     // HMatrix_PLU(produit_LU, *root_cluster_1, Llh, Uuh, Permutation, unperm);
+    std::cout << " BT ::::::::::::::::::::::::::::: is dense ? " << ct->is_dense() << " is_low_rank" << ct->is_low_rank() << std::endl;
     HMatrix_PLU(root_hmatrix_LU, *root_cluster_1, Llh, Uuh, Permutation, unperm);
 
     // std::vector<int> pivot(size);
@@ -353,5 +367,5 @@ int main() {
     // // std::cout << "erreur sur les produits :" << normFrob(ldense * udense - ll * uu) / normFrob(ldense * udense) << std::endl;
 
     // std::cout << "erreur dense(Lh*Uh)-Ldense x Udense : " << normFrob(ref_lu - ll * uu) / normFrob(ref_lu) << std::endl;
-    std::cout << testt(2, 3, add) << std::endl;
+    // std::cout << testt(2, 3, add) << std::endl;
 }
