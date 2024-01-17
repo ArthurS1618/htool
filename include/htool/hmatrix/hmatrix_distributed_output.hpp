@@ -202,6 +202,9 @@ void print_distributed_hmatrix_information(const HMatrix<CoefficientPrecision, C
     MPI_Comm_rank(comm, &rankWorld);
     if (rankWorld == 0) {
         std::size_t output_size = 2 + std::max_element(std::begin(distributed_information), std::end(distributed_information), [](const auto &a, const auto &b) { return a.first.size() < b.first.size(); })->first.size();
+        // save default formatting
+        std::ios init(NULL);
+        init.copyfmt(os);
 
         os << std::setfill('_') << std::left;
         os << "Distributed Hmatrix information\n";
@@ -209,6 +212,9 @@ void print_distributed_hmatrix_information(const HMatrix<CoefficientPrecision, C
         for (const auto &information : distributed_information) {
             os << std::setw(output_size) << information.first << information.second << "\n";
         }
+
+        // restore default formatting
+        os.copyfmt(init);
     }
 }
 } // namespace htool

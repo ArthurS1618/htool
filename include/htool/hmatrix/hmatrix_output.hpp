@@ -99,11 +99,19 @@ template <typename CoefficientPrecision, typename CoordinatePrecision>
 void print_tree_parameters(const HMatrix<CoefficientPrecision, CoordinatePrecision> &hmatrix, std::ostream &os) {
     auto tree_parameters = get_tree_parameters(hmatrix);
     int output_size      = 23;
+
+    // save default formatting
+    std::ios init(NULL);
+    init.copyfmt(os);
+
     os << std::setfill('_') << std::left;
     os << "Block tree parameters\n";
     for (const auto &tree_parameter : tree_parameters)
         os << std::setw(output_size) << tree_parameter.first << tree_parameter.second << "\n";
     os << "\n";
+
+    // restore default formatting
+    os.copyfmt(init);
 }
 
 template <typename CoefficientPrecision, typename CoordinatePrecision>
@@ -214,11 +222,18 @@ void print_hmatrix_information(const HMatrix<CoefficientPrecision, CoordinatePre
     auto hmatrix_information = get_hmatrix_information(hmatrix);
     std::size_t output_size  = 2 + std::max_element(std::begin(hmatrix_information), std::end(hmatrix_information), [](const auto &a, const auto &b) { return a.first.size() < b.first.size(); })->first.size();
 
+    // save default formatting
+    std::ios init(NULL);
+    init.copyfmt(os);
+
     os << std::setfill('_') << std::left;
     os << "Hmatrix information\n";
     for (const auto &information : hmatrix_information) {
         os << std::setw(output_size) << information.first << information.second << "\n";
     }
+
+    // restore default formatting
+    os.copyfmt(init);
 }
 } // namespace htool
 

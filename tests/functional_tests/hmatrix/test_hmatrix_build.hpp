@@ -154,7 +154,36 @@ bool test_hmatrix_build(int nr, int nc, bool use_local_cluster, char Symmetry, c
     copy_to_dense(root_hmatrix, hmatrix_to_dense.data());
     Matrix<T> hmatrix_to_matrix;
     hmatrix_to_matrix.assign(hmatrix_target_cluster.get_size(), hmatrix_source_cluster.get_size(), hmatrix_to_dense.data(), false);
-    htool::underlying_type<T> frobenius_error = normFrob(hmatrix_to_matrix - dense_matrix) / normFrob(dense_matrix);
+    htool::underlying_type<T> frobenius_error{0};
+    htool::underlying_type<T> dense_matrix_norm = normFrob(dense_matrix);
+
+    if (Symmetry != 'N') {
+        int local_target_offset = hmatrix_target_cluster.get_cluster_on_partition(rankWorld).get_offset() - hmatrix_target_cluster.get_offset();
+        int local_source_offset = hmatrix_source_cluster.get_cluster_on_partition(rankWorld).get_offset() - hmatrix_source_cluster.get_offset();
+        int local_target_size   = target_root_cluster->get_cluster_on_partition(rankWorld).get_size();
+        int local_source_size   = source_root_cluster->get_cluster_on_partition(rankWorld).get_size();
+        if (UPLO == 'L') {
+            for (int i = 0; i < hmatrix_target_cluster.get_size(); i++) {
+                for (int j = 0; j < hmatrix_source_cluster.get_size(); j++) {
+                    if (!((local_target_offset <= i && i < local_target_offset + local_target_size) && (i + 1 - local_target_offset + local_source_offset <= j && j < local_source_offset + local_source_size))) {
+                        frobenius_error += std::pow(std::abs((hmatrix_to_matrix(i, j) - dense_matrix(i, j))), 2);
+                    }
+                }
+            }
+        } else {
+            for (int i = 0; i < hmatrix_target_cluster.get_size(); i++) {
+                for (int j = 0; j < hmatrix_source_cluster.get_size(); j++) {
+                    if (!((j + 1 - local_source_offset + local_target_offset <= i && i < local_target_offset + local_target_size) && (local_source_offset <= j && j < local_source_offset + local_source_size))) {
+                        frobenius_error += std::pow(std::abs((hmatrix_to_matrix(i, j) - dense_matrix(i, j))), 2);
+                    }
+                }
+            }
+        }
+        frobenius_error = std::sqrt(frobenius_error);
+    } else {
+        frobenius_error = normFrob(hmatrix_to_matrix - dense_matrix);
+    }
+    frobenius_error /= dense_matrix_norm;
 
     // if (rankWorld == 0) {
     //     std::cout << "converted :\n";

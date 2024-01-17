@@ -279,7 +279,7 @@ bool HMatrixTreeBuilder<CoefficientPrecision, CoordinatePrecision>::build_block_
                 return false;
             }
         } else {
-            if (target_cluster.get_size() > source_cluster.get_size()) {
+            if ((target_cluster.get_size() > source_cluster.get_size()) || (target_cluster.get_rank() < 0 && source_cluster.get_rank() >= 0 && is_admissible)) {
                 std::vector<bool> Blocks_not_pushed{};
                 std::vector<HMatrixType *> child_blocks{};
                 for (const auto &target_child : target_children) {
@@ -310,7 +310,7 @@ bool HMatrixTreeBuilder<CoefficientPrecision, CoordinatePrecision>::build_block_
 
                     return false;
                 }
-            } else if (target_cluster.get_size() < source_cluster.get_size()) {
+            } else if (target_cluster.get_size() < source_cluster.get_size() || (source_cluster.get_rank() < 0 && target_cluster.get_rank() >= 0 && is_admissible)) {
                 std::vector<bool> Blocks_not_pushed;
                 std::vector<HMatrixType *> child_blocks{};
                 for (const auto &source_child : source_children) {

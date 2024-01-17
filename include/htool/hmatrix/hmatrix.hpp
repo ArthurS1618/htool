@@ -1889,36 +1889,36 @@ void copy_to_dense(const HMatrix<CoefficientPrecision, CoordinatePrecision> &hma
         }
     }
 
-    char symmetry_type = hmatrix.get_symmetry_for_leaves();
-    for (auto leaf : hmatrix.get_leaves_for_symmetry()) {
-        int local_nr   = leaf->get_target_cluster().get_size();
-        int local_nc   = leaf->get_source_cluster().get_size();
-        int col_offset = leaf->get_target_cluster().get_offset() - source_offset;
-        int row_offset = leaf->get_source_cluster().get_offset() - target_offset;
-        if (leaf->is_dense()) {
-            for (int j = 0; j < local_nr; j++) {
-                for (int k = 0; k < local_nc; k++) {
-                    ptr[k + row_offset + (j + col_offset) * target_size] = (*leaf->get_dense_data())(j, k);
-                }
-            }
-        } else {
+    // char symmetry_type = hmatrix.get_symmetry_for_leaves();
+    // for (auto leaf : hmatrix.get_leaves_for_symmetry()) {
+    //     int local_nr   = leaf->get_target_cluster().get_size();
+    //     int local_nc   = leaf->get_source_cluster().get_size();
+    //     int col_offset = leaf->get_target_cluster().get_offset() - source_offset;
+    //     int row_offset = leaf->get_source_cluster().get_offset() - target_offset;
+    //     if (leaf->is_dense()) {
+    //         for (int j = 0; j < local_nr; j++) {
+    //             for (int k = 0; k < local_nc; k++) {
+    //                 ptr[k + row_offset + (j + col_offset) * target_size] = (*leaf->get_dense_data())(j, k);
+    //             }
+    //         }
+    //     } else {
 
-            Matrix<CoefficientPrecision> low_rank_to_dense(local_nr, local_nc);
-            leaf->get_low_rank_data()->copy_to_dense(low_rank_to_dense.data());
-            for (int j = 0; j < local_nr; j++) {
-                for (int k = 0; k < local_nc; k++) {
-                    ptr[k + row_offset + (j + col_offset) * target_size] = low_rank_to_dense(j, k);
-                }
-            }
-        }
-        if (symmetry_type == 'H') {
-            for (int k = 0; k < local_nc; k++) {
-                for (int j = 0; j < local_nr; j++) {
-                    ptr[k + row_offset + (j + col_offset) * target_size] = conj_if_complex(ptr[k + row_offset + (j + col_offset) * target_size]);
-                }
-            }
-        }
-    }
+    //         Matrix<CoefficientPrecision> low_rank_to_dense(local_nr, local_nc);
+    //         leaf->get_low_rank_data()->copy_to_dense(low_rank_to_dense.data());
+    //         for (int j = 0; j < local_nr; j++) {
+    //             for (int k = 0; k < local_nc; k++) {
+    //                 ptr[k + row_offset + (j + col_offset) * target_size] = low_rank_to_dense(j, k);
+    //             }
+    //         }
+    //     }
+    //     if (symmetry_type == 'H') {
+    //         for (int k = 0; k < local_nc; k++) {
+    //             for (int j = 0; j < local_nr; j++) {
+    //                 ptr[k + row_offset + (j + col_offset) * target_size] = conj_if_complex(ptr[k + row_offset + (j + col_offset) * target_size]);
+    //             }
+    //         }
+    //     }
+    // }
 }
 
 template <typename CoefficientPrecision, typename CoordinatePrecision>
