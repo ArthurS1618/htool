@@ -209,8 +209,9 @@ class Matrix {
     the number of columns is set to _nbc_.
     */
     void resize(const int nbr, const int nbc, T value = 0) {
-        if (m_is_owning_data) {
+        if (m_data != nullptr and m_is_owning_data) {
             delete[] m_data;
+            m_data = nullptr;
         }
         m_data           = new T[nbr * nbc];
         m_number_of_rows = nbr;

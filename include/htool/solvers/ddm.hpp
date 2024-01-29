@@ -128,7 +128,7 @@ class DDM {
         mytime[1]                                    = MPI_Wtime() - time;
 
         time = MPI_Wtime();
-        hpddm_op->buildTwo(MPI_COMM_WORLD, coarse_operator.release());
+        hpddm_op->buildTwo(MPI_COMM_WORLD, coarse_operator.data());
         mytime[2] = MPI_Wtime() - time;
 
         // Timing
