@@ -16,17 +16,21 @@ int main(int argc, char *argv[]) {
 
     bool is_error = false;
 
-    for (auto nb_rhs : {1, 10}) {
-        for (auto symmetry : {'S'}) {
-            std::string datapath_final = symmetry == 'S' ? datapath + "/output_sym/" : datapath + "/output_non_sym/";
+    for (auto nb_rhs : {1, 5}) {
+        for (auto data_symmetry : {'N', 'S'}) {
+            std::string datapath_final   = data_symmetry == 'S' ? datapath + "/output_sym/" : datapath + "/output_non_sym/";
+            std::vector<char> symmetries = {'N'};
+            if (data_symmetry == 'S') {
+                symmetries.push_back('S');
+            }
+            for (auto symmetry : symmetries) {
 
-            is_error = is_error || test_solver_wo_overlap(argc, argv, nb_rhs, symmetry, datapath_final);
-            is_error = is_error || test_solver_ddm_adding_overlap(argc, argv, nb_rhs, symmetry, datapath_final);
-            is_error = is_error || test_solver_ddm(argc, argv, nb_rhs, symmetry, datapath_final);
+                is_error = is_error || test_solver_wo_overlap(argc, argv, nb_rhs, symmetry, datapath_final);
+                is_error = is_error || test_solver_ddm_adding_overlap(argc, argv, nb_rhs, data_symmetry, symmetry, datapath_final);
+                is_error = is_error || test_solver_ddm(argc, argv, nb_rhs, data_symmetry, symmetry, datapath_final);
+            }
         }
     }
-
-    // test = test || test_solver_ddm(argc, argv, 1, 'S', true);
 
     // Finalize the MPI environment.
     MPI_Finalize();

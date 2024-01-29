@@ -109,6 +109,12 @@ class Matrix {
         return m_data;
     }
 
+    T *release() {
+        T *result = m_data;
+        m_data    = nullptr;
+        return result;
+    }
+
     void assign(int number_of_rows, int number_of_cols, T *ptr, bool owning_data) {
         if (m_number_of_rows * m_number_of_cols > 0 && m_is_owning_data)
             delete[] m_data;

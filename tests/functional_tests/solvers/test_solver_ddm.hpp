@@ -1,5 +1,7 @@
 #include <htool/clustering/clustering.hpp>
 #include <htool/distributed_operator/utility.hpp>
+#include <htool/solvers/geneo/coarse_operator_builder.hpp>
+#include <htool/solvers/geneo/coarse_space_builder.hpp>
 #include <htool/solvers/utility.hpp>
 #include <htool/testing/generator_test.hpp>
 #include <htool/testing/gmsh.hpp>
@@ -7,7 +9,7 @@
 using namespace std;
 using namespace htool;
 
-int test_solver_ddm(int argc, char *argv[], int mu, char symmetric, std::string datapath) {
+int test_solver_ddm(int argc, char *argv[], int mu, char data_symmetry, char symmetric, std::string datapath) {
 
     // Get the number of processes
     int size;
@@ -94,6 +96,8 @@ int test_solver_ddm(int argc, char *argv[], int mu, char symmetric, std::string 
     LocalNumberingBuilder local_numbering_builder(ovr_subdomain_to_global, cluster_to_ovr_subdomain, intersections);
     auto &renumbered_intersections  = local_numbering_builder.intersections;
     auto &local_to_global_numbering = local_numbering_builder.local_to_global_numbering;
+    int local_size_wo_overlap       = Operator.get_target_partition().get_size_of_partition(rank);
+    // int local_size_with_overlap = local_to_global_numbering.size();
 
     std::vector<double> geometry(n), local_geometry(local_to_global_numbering.size() * 3);
     bytes_to_vector(geometry, datapath + "/geometry.bin");
@@ -144,11 +148,17 @@ int test_solver_ddm(int argc, char *argv[], int mu, char symmetric, std::string 
     MPI_Barrier(MPI_COMM_WORLD);
     opt.parse("-hpddm_schwarz_method asm ");
     Matrix<complex<double>> Ki;
-    if (symmetric == 'S' && size > 1) {
+
+    if (data_symmetry == 'S' && size > 1) {
         opt.remove("geneo_threshold");
         opt.parse("-hpddm_geneo_nu 2");
         Ki.bytes_to_matrix(datapath + "/Ki_" + NbrToStr(size) + "_" + NbrToStr(rank) + ".bin");
-        ddm_with_overlap.build_coarse_space(Ki);
+        // ddm_with_overlap.build_coarse_space(Ki);
+
+        auto geneo_coarse_space_dense_builder = GeneoCoarseSpaceDenseBuilder<std::complex<double>>::GeneoWithNu(local_size_wo_overlap, default_ddm_solver.block_diagonal_dense_matrix, Ki, symmetric, UPLO, 2);
+        // geneo_coarse_space_dense_builder.set_geneo_nu(2);
+        GeneoCoarseOperatorBuilder<std::complex<double>> geneo_coarse_operator_builder(Operator);
+        ddm_with_overlap.build_coarse_space(geneo_coarse_space_dense_builder, geneo_coarse_operator_builder);
     }
 
     ddm_with_overlap.facto_one_level();
@@ -181,7 +191,7 @@ int test_solver_ddm(int argc, char *argv[], int mu, char symmetric, std::string 
     x_global = 0;
 
     // DDM two level ASM with overlap
-    if (symmetric == 'S' && size > 1) {
+    if (data_symmetry == 'S' && size > 1) {
         if (rank == 0)
             std::cout << "ASM two level with overlap:" << std::endl;
         MPI_Barrier(MPI_COMM_WORLD);
@@ -216,12 +226,16 @@ int test_solver_ddm(int argc, char *argv[], int mu, char symmetric, std::string 
         // DDM solver with threshold
         if (rank == 0)
             std::cout << "RAS two level with overlap and threshold:" << std::endl;
-        opt.parse("-hpddm_schwarz_method ras -hpddm_schwarz_coarse_correction additive -hpddm_geneo_threshold 100");
+        opt.parse("-hpddm_schwarz_method ras -hpddm_schwarz_coarse_correction additive");
         // DDM<complex<double>> ddm_with_overlap_threshold(Generator, &Operator, ovr_subdomain_to_global, cluster_to_ovr_subdomain, neighbors, intersections);
         DefaultDDMSolverBuilder<complex<double>, double> default_ddm_solver_with_threshold(Operator, local_hmatrix, neighbors, renumbered_intersections);
         DDM<complex<double>> &ddm_with_overlap_threshold = default_ddm_solver_with_threshold.solver; // build_ddm_solver(Operator, local_block_diagonal_hmatrix, Generator, ovr_subdomain_to_global, cluster_to_ovr_subdomain, neighbors, intersections);
         Ki.bytes_to_matrix(datapath + "/Ki_" + NbrToStr(size) + "_" + NbrToStr(rank) + ".bin");
-        ddm_with_overlap_threshold.build_coarse_space(Ki);
+        // ddm_with_overlap_threshold.build_coarse_space(Ki);
+        auto geneo_coarse_space_dense_builder = GeneoCoarseSpaceDenseBuilder<std::complex<double>>::GeneoWithThreshold(local_size_wo_overlap, default_ddm_solver.block_diagonal_dense_matrix, Ki, symmetric, UPLO, 100);
+        // geneo_coarse_space_dense_builder.set_geneo_threshold(100);
+        GeneoCoarseOperatorBuilder<std::complex<double>> geneo_coarse_operator_builder(Operator);
+        ddm_with_overlap_threshold.build_coarse_space(geneo_coarse_space_dense_builder, geneo_coarse_operator_builder);
         ddm_with_overlap_threshold.facto_one_level();
         ddm_with_overlap_threshold.solve(f_global.data(), x_global.data(), mu);
         ddm_with_overlap_threshold.print_infos();

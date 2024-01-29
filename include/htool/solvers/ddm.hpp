@@ -6,8 +6,11 @@
 #include "../misc/logger.hpp"
 #include "../misc/misc.hpp"
 #include "../wrappers/wrapper_hpddm.hpp"
+#include "../wrappers/wrapper_lapack.hpp"
 #include "../wrappers/wrapper_mpi.hpp"
-#include "coarse_space.hpp"
+#include "./geneo/coarse_operator_builder.hpp"
+#include "./interfaces/virtual_coarse_operator_builder.hpp"
+#include "./interfaces/virtual_coarse_space_builder.hpp"
 
 namespace htool {
 
@@ -21,16 +24,10 @@ class DDM {
 
     int n;
     int n_inside;
-    std::vector<int> neighbors;
-    std::vector<int> renum_to_global;
-    // const std::vector<int> cluster_to_ovr_subdomain;
-    std::vector<std::vector<int>> intersections;
-    std::vector<CoefficientPrecision> vec_ovr;
     std::unique_ptr<HPDDMDense<CoefficientPrecision>> hpddm_op;
     Matrix<CoefficientPrecision> &mat_loc;
     std::vector<double> D;
     int nevi;
-    int size_E;
     bool one_level;
     bool two_level;
     mutable std::map<std::string, std::string> infos;
@@ -48,7 +45,7 @@ class DDM {
         hpddm_op.reset();
     }
 
-    DDM(const DistributedOperator<CoefficientPrecision> &distributed_operator, Matrix<CoefficientPrecision> &local_dense_matrix, const std::vector<int> &neighbors0, const std::vector<std::vector<int>> &intersections0) : n(local_dense_matrix.nb_rows()), n_inside(distributed_operator.get_target_partition().get_size_of_partition(get_rankWorld(distributed_operator.get_comm()))), neighbors(neighbors0), intersections(intersections0), vec_ovr(n), hpddm_op(std::make_unique<HPDDMDense<CoefficientPrecision>>(&distributed_operator)), mat_loc(local_dense_matrix), D(n), one_level(0), two_level(0) {
+    DDM(const DistributedOperator<CoefficientPrecision> &distributed_operator, Matrix<CoefficientPrecision> &local_dense_matrix, const std::vector<int> &neighbors, const std::vector<std::vector<int>> &intersections) : n(local_dense_matrix.nb_rows()), n_inside(distributed_operator.get_target_partition().get_size_of_partition(get_rankWorld(distributed_operator.get_comm()))), hpddm_op(std::make_unique<HPDDMDense<CoefficientPrecision>>(&distributed_operator)), mat_loc(local_dense_matrix), D(n), one_level(0), two_level(0) {
         // Timing
         double mytime, maxtime;
         double time = MPI_Wtime();
@@ -65,16 +62,6 @@ class DDM {
             if (distributed_operator.get_symmetry_type() == 'S' && is_complex<CoefficientPrecision>()) {
                 htool::Logger::get_instance().log(LogLevel::WARNING, "A symmetric matrix with UPLO='L' has been given to DDM solver. It will be considered hermitian by the solver"); // LCOV_EXCL_LINE
                 // std::cout << "[Htool warning] A symmetric matrix with UPLO='L' has been given to DDM solver. It will be considered hermitian by the solver." << std::endl;
-            }
-        }
-
-        // TODO: add symmetric eigensolver
-        if (sym) {
-            for (int j = 0; j < n; j++) {
-                for (int i = 0; i < j; i++) {
-
-                    mat_loc(i, j) = mat_loc(j, i);
-                }
             }
         }
 
@@ -105,8 +92,56 @@ class DDM {
         one_level                        = 1;
     }
 
-    // TODO: take local VirtualHMatrix instead
-    // void build_coarse_space(Matrix<T> &Mi, VirtualGenerator<T> &generator_Bi, const std::vector<R3> &x) {
+    void build_coarse_space(VirtualCoarseSpaceBuilder<CoefficientPrecision> &coarse_space_builder, VirtualCoarseOperatorBuilder<CoefficientPrecision> &coarse_operator_builder) {
+
+        // Timing
+        std::vector<double> mytime(3), maxtime(3);
+
+        // Coarse space build
+        double time                    = MPI_Wtime();
+        Matrix<CoefficientPrecision> Z = coarse_space_builder.build_coarse_space();
+        mytime[0]                      = MPI_Wtime() - time;
+
+        nevi = Z.nb_cols();
+
+        HPDDM::Option &opt = *HPDDM::Option::get();
+        opt["geneo_nu"]    = nevi;
+
+        // int rankWorld;
+        // MPI_Comm_rank(MPI_COMM_WORLD, &rankWorld);
+        // Z.csv_save("test_" + NbrToStr(rankWorld));
+        CoefficientPrecision **Z_ptr_ptr = new CoefficientPrecision *[nevi];
+        CoefficientPrecision *Z_ptr      = Z.release();
+        for (int i = 0; i < nevi; i++) {
+            Z_ptr_ptr[i] = Z_ptr + i * n;
+        }
+        hpddm_op->setVectors(Z_ptr_ptr);
+
+        //
+        // int rankWorld;
+        // MPI_Comm_rank(hpddm_op->HA->get_comm(), &rankWorld);
+        int sizeWorld;
+        MPI_Comm_size(hpddm_op->HA->get_comm(), &sizeWorld);
+
+        time                                         = MPI_Wtime();
+        Matrix<CoefficientPrecision> coarse_operator = coarse_operator_builder.build_coarse_operator(Z.nb_rows(), Z.nb_cols(), Z_ptr_ptr);
+        mytime[1]                                    = MPI_Wtime() - time;
+
+        time = MPI_Wtime();
+        hpddm_op->buildTwo(MPI_COMM_WORLD, coarse_operator.release());
+        mytime[2] = MPI_Wtime() - time;
+
+        // Timing
+        MPI_Reduce(&(mytime[0]), &(maxtime[0]), mytime.size(), MPI_DOUBLE, MPI_MAX, 0, hpddm_op->HA->get_comm());
+
+        infos["DDM_geev_max"]       = NbrToStr(maxtime[0]);
+        infos["DDM_setup_ZtAZ_max"] = NbrToStr(maxtime[1]);
+        infos["DDM_facto_ZtAZ_max"] = NbrToStr(maxtime[2]);
+        infos["GenEO_coarse_size"]  = NbrToStr(coarse_operator.nb_cols());
+        two_level                   = 1;
+    }
+
+    // void build_coarse_space(Matrix<CoefficientPrecision> &Ki) {
     //     // Timing
     //     double mytime, maxtime;
     //     double time = MPI_Wtime();
@@ -114,244 +149,198 @@ class DDM {
     //     //
     //     int info;
 
-    //     // Building Neumann matrix
-    //     htool::VirtualHMatrix *const Bi(generator_Bi, hpddm_op->HA.get_cluster_tree_t().get_local_cluster_tree(), x, -1, MPI_COMM_SELF);
-    //     Matrix<T> Bi(n, n);
-
-    //     // Building Bi
-    //     bool sym                                                                = false;
-    //     const std::vector<LowRankMatrix<T, ClusterImpl> *> &MyLocalFarFieldMats = HBi.get_MyFarFieldMats();
-    //     const std::vector<SubMatrix<T> *> &MyLocalNearFieldMats                 = HBi.get_MyNearFieldMats();
-
-    //     // Internal dense blocks
-    //     for (int i = 0; i < MyLocalNearFieldMats.size(); i++) {
-    //         const SubMatrix<T> &submat = *(MyLocalNearFieldMats[i]);
-    //         int local_nr               = submat.nb_rows();
-    //         int local_nc               = submat.nb_cols();
-    //         int offset_i               = submat.get_offset_i() - hpddm_op->HA.get_local_offset();
-    //         int offset_j               = submat.get_offset_j() - hpddm_op->HA.get_local_offset();
-    //         for (int i = 0; i < local_nc; i++) {
-    //             std::copy_n(&(submat(0, i)), local_nr, Bi.data() + offset_i + (offset_j + i) * n);
-    //         }
-    //     }
-
-    //     // Internal compressed block
-    //     Matrix<T> FarFielBlock(n, n);
-    //     for (int i = 0; i < MyLocalFarFieldMats.size(); i++) {
-    //         const LowRankMatrix<T, ClusterImpl> &lmat = *(MyLocalFarFieldMats[i]);
-    //         int local_nr                              = lmat.nb_rows();
-    //         int local_nc                              = lmat.nb_cols();
-    //         int offset_i                              = lmat.get_offset_i() - hpddm_op->HA.get_local_offset();
-    //         int offset_j                              = lmat.get_offset_j() - hpddm_op->HA.get_local_offset();
-    //         ;
-    //         FarFielBlock.resize(local_nr, local_nc);
-    //         lmat.get_whole_matrix(&(FarFielBlock(0, 0)));
-    //         for (int i = 0; i < local_nc; i++) {
-    //             std::copy_n(&(FarFielBlock(0, i)), local_nr, Bi.data() + offset_i + (offset_j + i) * n);
-    //         }
-    //     }
-
-    //     // Overlap
-    //     std::vector<T> horizontal_block(n - n_inside, n_inside), vertical_block(n, n - n_inside);
-    //     horizontal_block = generator_Bi.get_submatrix(std::vector<int>(renum_to_global.begin() + n_inside, renum_to_global.end()), std::vector<int>(renum_to_global.begin(), renum_to_global.begin() + n_inside)).get_mat();
-    //     vertical_block   = generator_Bi.get_submatrix(renum_to_global, std::vector<int>(renum_to_global.begin() + n_inside, renum_to_global.end())).get_mat();
-    //     for (int j = 0; j < n_inside; j++) {
-    //         std::copy_n(horizontal_block.begin() + j * (n - n_inside), n - n_inside, Bi.data() + n_inside + j * n);
-    //     }
-    //     for (int j = n_inside; j < n; j++) {
-    //         std::copy_n(vertical_block.begin() + (j - n_inside) * n, n, Bi.data() + j * n);
-    //     }
-
-    //     // LU facto for mass matrix
-    //     int lda = n;
-    //     std::vector<int> _ipiv_mass(n);
-    //     HPDDM::Lapack<Cplx>::getrf(&n, &n, Mi.data(), &lda, _ipiv_mass.data(), &info);
-
     //     // Partition of unity
-    //     Matrix<T> DAiD(n, n);
+    //     Matrix<CoefficientPrecision> DAiD(n, n);
     //     for (int i = 0; i < n_inside; i++) {
-    //         std::copy_n(&(mat_loc[i * n]), n_inside, &(DAiD(0, i)));
+    //         std::copy_n(mat_loc.data() + i * n, n_inside, &(DAiD(0, i)));
     //     }
-
-    //     // M^-1
-    //     const char l = 'N';
-    //     lda          = n;
-    //     int ldb      = n;
-    //     HPDDM::Lapack<Cplx>::getrs(&l, &n, &n, Mi.data(), &lda, _ipiv_mass.data(), DAiD.data(), &ldb, &info);
-    //     HPDDM::Lapack<Cplx>::getrs(&l, &n, &n, Mi.data(), &lda, _ipiv_mass.data(), Bi.data(), &ldb, &info);
 
     //     // Build local eigenvalue problem
-    //     Matrix<T> evp(n, n);
-    //     Bi.mvprod(DAiD.data(), evp.data(), n);
+    //     int ldvl = n, ldvr = n, lwork = -1;
+    //     int lda = n, ldb = n;
+    //     std::vector<CoefficientPrecision> work(n);
+    //     std::vector<double> rwork;
+    //     std::vector<int> index(n, 0);
+    //     std::iota(index.begin(), index.end(), int(0));
 
-    //     // eigenvalue problem
-    //     hpddm_op->solveEVP(evp.data());
-    //     T *const *Z        = const_cast<T *const *>(hpddm_op->getVectors());
-    //     HPDDM::Option &opt = *HPDDM::Option::get();
-    //     nevi               = opt.val("geneo_nu", 2);
+    //     // int rankWorld;
+    //     // MPI_Comm_rank(MPI_COMM_WORLD, &rankWorld);
+    //     // DAiD.csv_save("DAiD_" + NbrToStr(rankWorld));
+    //     // Ki.csv_save("Ki_" + NbrToStr(rankWorld));
+
+    //     if (hpddm_op->HA->get_symmetry_type() == 'S' || hpddm_op->HA->get_symmetry_type() == 'H') {
+    //         char uplo = hpddm_op->HA->get_storage_type();
+    //         int itype = 1;
+    //         std::vector<underlying_type<CoefficientPrecision>> w(n);
+    //         if (is_complex<CoefficientPrecision>()) {
+    //             rwork.resize(3 * n - 2);
+    //         }
+
+    //         Lapack<CoefficientPrecision>::gv(&itype, "V", &uplo, &n, DAiD.data(), &lda, Ki.data(), &ldb, w.data(), work.data(), &lwork, rwork.data(), &info);
+    //         lwork = (int)std::real(work[0]);
+    //         work.resize(lwork);
+    //         Lapack<CoefficientPrecision>::gv(&itype, "V", &uplo, &n, DAiD.data(), &lda, Ki.data(), &ldb, w.data(), work.data(), &lwork, rwork.data(), &info);
+
+    //         std::sort(index.begin(), index.end(), [&](const int &a, const int &b) {
+    //             return (std::abs(w[a]) > std::abs(w[b]));
+    //         });
+
+    //         // if (rankWorld == 0) {
+    //         //     for (int i = 0; i < index.size(); i++) {
+    //         //         std::cout << std::abs(w[index[i]]) << " ";
+    //         //     }
+    //         //     std::cout << "\n";
+    //         //     // std::cout << vr << "\n";
+    //         // }
+    //         // MPI_Barrier(hpddm_op->HA->get_comm());
+    //         // if (rankWorld == 1) {
+    //         //     std::cout << "w : " << w << "\n";
+    //         //     std::cout << "info: " << info << "\n";
+    //         //     for (int i = 0; i < index.size(); i++) {
+    //         //         std::cout << std::abs(w[index[i]]) << " ";
+    //         //     }
+    //         //     std::cout << "\n";
+    //         //     // std::cout << vr << "\n";
+    //         // }
+
+    //         HPDDM::Option &opt = *HPDDM::Option::get();
+    //         nevi               = 0;
+    //         double threshold   = opt.val("geneo_threshold", -1.0);
+    //         if (threshold > 0.0) {
+    //             while (std::abs(w[index[nevi]]) > threshold && nevi < index.size()) {
+    //                 nevi++;
+    //             }
+
+    //         } else {
+    //             nevi = opt.val("geneo_nu", 2);
+    //         }
+
+    //         opt["geneo_nu"] = nevi;
+    //         m_Z             = new CoefficientPrecision *[nevi];
+    //         *m_Z            = new CoefficientPrecision[nevi * n];
+    //         for (int i = 0; i < nevi; i++) {
+    //             m_Z[i] = *m_Z + i * n;
+    //             std::copy_n(DAiD.data() + index[i] * n, n_inside, m_Z[i]);
+    //             for (int j = n_inside; j < n; j++) {
+
+    //                 m_Z[i][j] = 0;
+    //             }
+    //         }
+    //     } else {
+    //         if (is_complex<CoefficientPrecision>()) {
+    //             rwork.resize(8 * n);
+    //         }
+    //         std::vector<CoefficientPrecision> alphar(n), alphai((is_complex<CoefficientPrecision>() ? 0 : n)), beta(n);
+    //         std::vector<CoefficientPrecision> vl(n * n), vr(n * n);
+
+    //         Lapack<CoefficientPrecision>::ggev("N", "V", &n, DAiD.data(), &lda, Ki.data(), &ldb, alphar.data(), alphai.data(), beta.data(), vl.data(), &ldvl, vr.data(), &ldvr, work.data(), &lwork, rwork.data(), &info);
+    //         lwork = (int)std::real(work[0]);
+    //         work.resize(lwork);
+    //         Lapack<CoefficientPrecision>::ggev("N", "V", &n, DAiD.data(), &lda, Ki.data(), &ldb, alphar.data(), alphai.data(), beta.data(), vl.data(), &ldvl, vr.data(), &ldvr, work.data(), &lwork, rwork.data(), &info);
+
+    //         std::sort(index.begin(), index.end(), [&](const int &a, const int &b) {
+    //             return ((std::abs(beta[a]) < 1e-15 || (std::abs(alphar[a] / beta[a]) > std::abs(alphar[b] / beta[b]))) && !(std::abs(beta[b]) < 1e-15));
+    //         });
+
+    //         // if (rankWorld == 0) {
+    //         //     // for (int i = 0; i < index.size(); i++) {
+    //         //     //     std::cout << std::abs(alphar[index[i]] / beta[index[i]]) << " ";
+    //         //     // }
+    //         //     // std::cout << "\n";
+    //         //     std::cout << vr << "\n";
+    //         // }
+    //         // MPI_Barrier(hpddm_op->HA->get_comm());
+    //         // if (rankWorld == 1) {
+    //         //     // std::cout << "alphar : " << alphar << "\n";
+    //         //     // std::cout << "alphai : " << alphai << "\n";
+    //         //     // std::cout << "beta : " << beta << "\n";
+    //         //     // std::cout << "info: " << info << "\n";
+    //         //     // for (int i = 0; i < index.size(); i++) {
+    //         //     //     std::cout << std::abs(alphar[index[i]] / beta[index[i]]) << " ";
+    //         //     // }
+    //         //     // std::cout << "\n";
+    //         //     std::cout << vr << "\n";
+    //         // }
+
+    //         HPDDM::Option &opt = *HPDDM::Option::get();
+    //         nevi               = 0;
+    //         double threshold   = opt.val("geneo_threshold", -1.0);
+    //         if (threshold > 0.0) {
+    //             while (std::abs(beta[index[nevi]]) < 1e-15 || (std::abs(alphar[index[nevi]] / beta[index[nevi]]) > threshold && nevi < index.size())) {
+    //                 nevi++;
+    //             }
+
+    //         } else {
+    //             nevi = opt.val("geneo_nu", 2);
+    //         }
+
+    //         opt["geneo_nu"] = nevi;
+    //         m_Z             = new CoefficientPrecision *[nevi];
+    //         *m_Z            = new CoefficientPrecision[nevi * n];
+    //         for (int i = 0; i < nevi; i++) {
+    //             m_Z[i] = *m_Z + i * n;
+    //             std::copy_n(vr.data() + index[i] * n, n_inside, m_Z[i]);
+    //             for (int j = n_inside; j < n; j++) {
+
+    //                 m_Z[i][j] = 0;
+    //             }
+    //         }
+    //     }
+
+    //     // Matrix<CoefficientPrecision> Z_test(n, nevi);
+    //     // Z_test.assign(n, nevi, m_Z[0], false);
+    //     // // int rankWorld;
+    //     // MPI_Comm_rank(MPI_COMM_WORLD, &rankWorld);
+    //     // Z_test.csv_save("test_2_" + NbrToStr(rankWorld));
+
+    //     hpddm_op->setVectors(m_Z);
 
     //     // timing
     //     mytime = MPI_Wtime() - time;
-    //     time   = MPI_Wtime();
+    //     MPI_Barrier(hpddm_op->HA->get_comm());
+    //     time = MPI_Wtime();
     //     MPI_Reduce(&(mytime), &(maxtime), 1, MPI_DOUBLE, MPI_MAX, 0, hpddm_op->HA->get_comm());
     //     infos["DDM_geev_max"] = NbrToStr(maxtime);
 
     //     //
-    //     build_E(Z);
+    //     build_E(m_Z);
     // }
 
-    void build_coarse_space(Matrix<CoefficientPrecision> &Ki) {
-        // Timing
-        double mytime, maxtime;
-        double time = MPI_Wtime();
+    // void build_E(CoefficientPrecision *const *Z) {
+    //     //
+    //     int sizeWorld;
+    //     MPI_Comm_size(hpddm_op->HA->get_comm(), &sizeWorld);
 
-        //
-        int info;
+    //     // Timing
+    //     std::vector<double> mytime(2), maxtime(2);
+    //     double time = MPI_Wtime();
 
-        // Partition of unity
-        Matrix<CoefficientPrecision> DAiD(n, n);
-        for (int i = 0; i < n_inside; i++) {
-            std::copy_n(mat_loc.data() + i * n, n_inside, &(DAiD(0, i)));
-        }
+    //     // Allgather
+    //     std::vector<int> recvcounts(sizeWorld);
+    //     std::vector<int> displs(sizeWorld);
+    //     MPI_Allgather(&nevi, 1, MPI_INT, recvcounts.data(), 1, MPI_INT, hpddm_op->HA->get_comm());
 
-        // Build local eigenvalue problem
-        int ldvl = n, ldvr = n, lwork = -1;
-        int lda = n, ldb = n;
-        std::vector<CoefficientPrecision> alphar(n), alphai((is_complex<CoefficientPrecision>() ? 0 : n)), beta(n);
-        std::vector<CoefficientPrecision> work(n);
-        std::vector<double> rwork(8 * n);
-        std::vector<CoefficientPrecision> vl(n * n), vr(n * n);
-        std::vector<int> index(n, 0);
+    //     displs[0] = 0;
+    //     for (int i = 1; i < sizeWorld; i++) {
+    //         displs[i] = displs[i - 1] + recvcounts[i - 1];
+    //     }
 
-        int rankWorld;
-        MPI_Comm_rank(hpddm_op->HA->get_comm(), &rankWorld);
-        // if (rankWorld == 0) {
-        //     DAiD.csv_save("DAiD_" + NbrToStr(rankWorld));
-        //     Ki.csv_save("Ki_" + NbrToStr(rankWorld));
-        //     // std::cout << vr << "\n";
-        // }
-        // MPI_Barrier(comm);
-        // if (rankWorld == 1) {
-        //     std::cout << DAiD.nb_rows() << " " << DAiD.nb_cols() << "\n";
-        //     std::cout << "taille " << alphai.size() << "\n";
-        //     std::cout << Ki.nb_rows() << " " << Ki.nb_cols() << "\n";
-        //     DAiD.csv_save("DAiD_" + NbrToStr(rankWorld));
-        //     Ki.csv_save("Ki_" + NbrToStr(rankWorld));
-        //     // std::cout << vr << "\n";
-        // }
+    //     Matrix<CoefficientPrecision> E;
+    //     htool::build_geneo_coarse_operator(*hpddm_op->HA, nevi, n, Z, E);
+    //     mytime[0] = MPI_Wtime() - time;
 
-        HPDDM::Lapack<CoefficientPrecision>::ggev("N", "V", &n, DAiD.data(), &lda, Ki.data(), &ldb, alphar.data(), alphai.data(), beta.data(), vl.data(), &ldvl, vr.data(), &ldvr, work.data(), &lwork, rwork.data(), &info);
-        lwork = (int)std::real(work[0]);
-        work.resize(lwork);
-        HPDDM::Lapack<CoefficientPrecision>::ggev("N", "V", &n, DAiD.data(), &lda, Ki.data(), &ldb, alphar.data(), alphai.data(), beta.data(), vl.data(), &ldvl, vr.data(), &ldvr, work.data(), &lwork, rwork.data(), &info);
+    //     time = MPI_Wtime();
+    //     hpddm_op->buildTwo(MPI_COMM_WORLD, E.release());
+    //     mytime[1] = MPI_Wtime() - time;
 
-        for (int i = 0; i != index.size(); i++) {
-            index[i] = i;
-        }
-        std::sort(index.begin(), index.end(), [&](const int &a, const int &b) {
-            return ((std::abs(beta[a]) < 1e-15 || (std::abs(alphar[a] / beta[a]) > std::abs(alphar[b] / beta[b]))) && !(std::abs(beta[b]) < 1e-15));
-        });
+    //     // Timing
+    //     MPI_Reduce(&(mytime[0]), &(maxtime[0]), 2, MPI_DOUBLE, MPI_MAX, 0, hpddm_op->HA->get_comm());
 
-        // if (rankWorld == 0) {
-        //     for (int i = 0; i < index.size(); i++) {
-        //         std::cout << std::abs(alphar[index[i]] / beta[index[i]]) << " ";
-        //     }
-        //     std::cout << "\n";
-        //     // std::cout << vr << "\n";
-        // }
-        // MPI_Barrier(comm);
-        // if (rankWorld == 1) {
-        //     std::cout << "alphar : " << alphar << "\n";
-        //     std::cout << "alphai : " << alphai << "\n";
-        //     std::cout << "beta : " << beta << "\n";
-        //     std::cout << "info: " << info << "\n";
-        //     for (int i = 0; i < index.size(); i++) {
-        //         std::cout << std::abs(alphar[index[i]] / beta[index[i]]) << " ";
-        //     }
-        //     std::cout << "\n";
-        //     // std::cout << vr << "\n";
-        // }
-        HPDDM::Option &opt = *HPDDM::Option::get();
-        nevi               = 0;
-        double threshold   = opt.val("geneo_threshold", -1.0);
-        if (threshold > 0.0) {
-            while (std::abs(beta[index[nevi]]) < 1e-15 || (std::abs(alphar[index[nevi]] / beta[index[nevi]]) > threshold && nevi < index.size())) {
-                nevi++;
-            }
-
-        } else {
-            nevi = opt.val("geneo_nu", 2);
-        }
-
-        opt["geneo_nu"] = nevi;
-        m_Z             = new CoefficientPrecision *[nevi];
-        *m_Z            = new CoefficientPrecision[nevi * n];
-        for (int i = 0; i < nevi; i++) {
-            m_Z[i] = *m_Z + i * n;
-            std::copy_n(vr.data() + index[i] * n, n_inside, m_Z[i]);
-            for (int j = n_inside; j < n; j++) {
-
-                m_Z[i][j] = 0;
-            }
-        }
-
-        hpddm_op->setVectors(m_Z);
-
-        // timing
-        mytime = MPI_Wtime() - time;
-        MPI_Barrier(hpddm_op->HA->get_comm());
-        time = MPI_Wtime();
-        MPI_Reduce(&(mytime), &(maxtime), 1, MPI_DOUBLE, MPI_MAX, 0, hpddm_op->HA->get_comm());
-        infos["DDM_geev_max"] = NbrToStr(maxtime);
-
-        //
-        build_E(m_Z);
-    }
-
-    void build_E(CoefficientPrecision *const *Z) {
-        //
-        int sizeWorld;
-        MPI_Comm_size(hpddm_op->HA->get_comm(), &sizeWorld);
-
-        // Timing
-        std::vector<double> mytime(2), maxtime(2);
-        double time = MPI_Wtime();
-
-        // Allgather
-        std::vector<int> recvcounts(sizeWorld);
-        std::vector<int> displs(sizeWorld);
-        MPI_Allgather(&nevi, 1, MPI_INT, recvcounts.data(), 1, MPI_INT, hpddm_op->HA->get_comm());
-
-        displs[0] = 0;
-        for (int i = 1; i < sizeWorld; i++) {
-            displs[i] = displs[i - 1] + recvcounts[i - 1];
-        }
-
-        std::vector<CoefficientPrecision> E;
-        build_coarse_space_outside(hpddm_op->HA, nevi, n, Z, E);
-        size_E    = sqrt(E.size());
-        mytime[0] = MPI_Wtime() - time;
-        MPI_Barrier(hpddm_op->HA->get_comm());
-        time = MPI_Wtime();
-
-        int rankWorld;
-        MPI_Comm_rank(hpddm_op->HA->get_comm(), &rankWorld);
-        if (rankWorld == 0) {
-            Matrix<CoefficientPrecision> E_mat(size_E, size_E);
-            E_mat.assign(size_E, size_E, E.data(), false);
-        }
-
-        hpddm_op->buildTwo(MPI_COMM_WORLD, E.data());
-
-        mytime[1] = MPI_Wtime() - time;
-
-        // Timing
-        MPI_Reduce(&(mytime[0]), &(maxtime[0]), 2, MPI_DOUBLE, MPI_MAX, 0, hpddm_op->HA->get_comm());
-
-        infos["DDM_setup_ZtAZ_max"] = NbrToStr(maxtime[0]);
-        infos["DDM_facto_ZtAZ_max"] = NbrToStr(maxtime[1]);
-        two_level                   = 1;
-    }
+    //     infos["DDM_setup_ZtAZ_max"] = NbrToStr(maxtime[0]);
+    //     infos["DDM_facto_ZtAZ_max"] = NbrToStr(maxtime[1]);
+    //     infos["GenEO_coarse_size"]  = NbrToStr(E.nb_cols());
+    //     two_level                   = 1;
+    // }
 
     void solve(const CoefficientPrecision *const rhs, CoefficientPrecision *const x, const int &mu = 1) {
         // Check facto
@@ -522,10 +511,9 @@ class DDM {
             infos["DDM_local_coarse_size_max"]  = "0";
             infos["DDM_local_coarse_size_min"]  = "0";
         } else {
-            infos["GenEO_coarse_size"] = NbrToStr(size_E);
-            int nevi_mean              = nevi;
-            int nevi_max               = nevi;
-            int nevi_min               = nevi;
+            int nevi_mean = nevi;
+            int nevi_max  = nevi;
+            int nevi_min  = nevi;
 
             if (rankWorld == 0) {
                 MPI_Reduce(MPI_IN_PLACE, &(nevi_mean), 1, MPI_INT, MPI_SUM, 0, hpddm_op->HA->get_comm());
@@ -617,9 +605,7 @@ class DDM {
     int get_local_size() const {
         return n;
     }
-    const std::vector<int> &get_local_to_global_numbering() const {
-        return renum_to_global;
-    }
+
     // MPI_Comm get_comm() const {
     //     return comm;
     // }
