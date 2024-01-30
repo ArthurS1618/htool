@@ -505,11 +505,7 @@ class DDM {
         }
 
         if (infos["Precond"] == "None") {
-            infos["GenEO_coarse_size"]          = "0";
-            infos["Coarse_correction"]          = "None";
-            infos["DDM_local_coarse_size_mean"] = "0";
-            infos["DDM_local_coarse_size_max"]  = "0";
-            infos["DDM_local_coarse_size_min"]  = "0";
+            infos["Coarse_correction"] = "None";
         } else {
             int nevi_mean = nevi;
             int nevi_max  = nevi;
@@ -540,11 +536,7 @@ class DDM {
                 infos["Coarse_correction"] = "Additive";
                 break;
             default:
-                infos["Coarse_correction"]          = "None";
-                infos["GenEO_coarse_size"]          = "0";
-                infos["DDM_local_coarse_size_mean"] = "0";
-                infos["DDM_local_coarse_size_max"]  = "0";
-                infos["DDM_local_coarse_size_min"]  = "0";
+                infos["Coarse_correction"] = "None";
             }
         }
         infos["htool_solver"] = "ddm";
