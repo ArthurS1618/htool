@@ -45,7 +45,7 @@ class DDM {
         hpddm_op.reset();
     }
 
-    DDM(const DistributedOperator<CoefficientPrecision> &distributed_operator, Matrix<CoefficientPrecision> &local_dense_matrix, const std::vector<int> &neighbors, const std::vector<std::vector<int>> &intersections) : n(local_dense_matrix.nb_rows()), n_inside(distributed_operator.get_target_partition().get_size_of_partition(get_rankWorld(distributed_operator.get_comm()))), hpddm_op(std::make_unique<HPDDMDense<CoefficientPrecision>>(&distributed_operator)), mat_loc(local_dense_matrix), D(n), one_level(0), two_level(0) {
+    DDM(const DistributedOperator<CoefficientPrecision> &distributed_operator, Matrix<CoefficientPrecision> &local_dense_matrix, const std::vector<int> &neighbors, const std::vector<std::vector<int>> &intersections) : n(local_dense_matrix.nb_rows()), n_inside(distributed_operator.get_target_partition().get_size_of_partition(get_rankWorld(distributed_operator.get_comm()))), hpddm_op(std::make_unique<HPDDMDense<CoefficientPrecision>>(&distributed_operator)), mat_loc(local_dense_matrix), D(n), nevi(0), one_level(0), two_level(0) {
         // Timing
         double mytime, maxtime;
         double time = MPI_Wtime();
