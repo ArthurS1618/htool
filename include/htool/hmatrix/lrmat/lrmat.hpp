@@ -55,7 +55,81 @@ class LowRankMatrix {
     std::vector<CoefficientPrecision> operator*(const std::vector<CoefficientPrecision> &a) const {
         return m_U * (m_V * a);
     }
+    //////////////////////////
+    /// je rajoute l'addition tronqué
+    ///////////////////
+    // void actualise(const Matrix<CoefficientPrecision> &u, const Matrix<CoefficientPrecision> &v, VirtualLowRankGenerator<CoefficientPrecision, CoordinatesPrecision> &LRGenerator, const Cluster<CoordinatesPrecision> &t, const Cluster<CoordinatesPrecision> &s) {
+    //     if (u.nb_rows() == m_U.nb_rows() and v.nb_cols() == m_V.nb_cols()) {
 
+    //         // Matrix<CoefficientPrecision> Uconc(u.nb_rows(), m_U.nb_cols() + u.nb_cols());
+    //         // Matrix<CoefficientPrecision> Vconc(m_V.nb_rows() + v.nb_rows(), v.nb_cols());
+    //         // // U= (U1, U2) , V= (V1, V2) ;
+    //         // for (int k = 0; k < u.nb_rows(); ++k) {
+    //         //     for (int l = 0; l < this->Get_U().nb_cols(); ++l) {
+    //         //         Uconc(k, l) = m_U(k, l);
+    //         //     }
+    //         //     for (int l = m_U.nb_cols(); l < m_U.nb_cols() + u.nb_cols(); ++l) {
+    //         //         Uconc(k, l) = u(k, l - m_U.nb_cols());
+    //         //     }
+    //         // }
+    //         // for (int l = 0; l < v.nb_cols(); ++l) {
+    //         //     for (int k = 0; k < m_V.nb_rows(); ++k) {
+    //         //         Vconc(k, l) = m_V(k, l);
+    //         //     }
+    //         //     for (int k = m_V.nb_rows(); k < m_V.nb_rows() + v.nb_rows(); ++k) {
+    //         //         Vconc(k, l) = v(k - m_V.nb_rows(), l);
+    //         //     }
+    //         // }
+    //         // LowRankMatrix temp(Uconc, Vconc);
+    //         /// la il faudrait une QRSVD
+    //         // en attendant ACA sur M+N
+    //         Matrix<CoefficientPrecision> mat(m_U.nb_rows(), m_V.nb_cols());
+    //         m_U.add_matrix_product('N', 1.0, m_V.data(), 1.0, mat.data(), m_V.nb_cols());
+    //         u.add_matrix_product('N', 1.0, v.data(), 1.0, mat.data(), v.nb_cols());
+    //         MatrixGenerator<CoefficientPrecision> gen(mat, 0, 0);
+    //         LowRankMatrix lr(gen, LRGenerator, t, s);
+    //         m_U    = lr.Get_U();
+    //         m_V    = lr.Get_V();
+    //         m_rank = lr.rank_of();
+    //     }
+    // }
+
+    LowRankMatrix actualise(const Matrix<CoefficientPrecision> &u, const Matrix<CoefficientPrecision> &v, VirtualLowRankGenerator<CoefficientPrecision, CoordinatesPrecision> &LRGenerator, const Cluster<CoordinatesPrecision> &t, const Cluster<CoordinatesPrecision> &s) const {
+        if (u.nb_rows() == this->m_U.nb_rows() and v.nb_cols() == this->m_V.nb_cols()) {
+
+            // Matrix<CoefficientPrecision> Uconc(u.nb_rows(), m_U.nb_cols() + u.nb_cols());
+            // Matrix<CoefficientPrecision> Vconc(m_V.nb_rows() + v.nb_rows(), v.nb_cols());
+            // // U= (U1, U2) , V= (V1, V2) ;
+            // for (int k = 0; k < u.nb_rows(); ++k) {
+            //     for (int l = 0; l < this->Get_U().nb_cols(); ++l) {
+            //         Uconc(k, l) = m_U(k, l);
+            //     }
+            //     for (int l = m_U.nb_cols(); l < m_U.nb_cols() + u.nb_cols(); ++l) {
+            //         Uconc(k, l) = u(k, l - m_U.nb_cols());
+            //     }
+            // }
+            // for (int l = 0; l < v.nb_cols(); ++l) {
+            //     for (int k = 0; k < m_V.nb_rows(); ++k) {
+            //         Vconc(k, l) = m_V(k, l);
+            //     }
+            //     for (int k = m_V.nb_rows(); k < m_V.nb_rows() + v.nb_rows(); ++k) {
+            //         Vconc(k, l) = v(k - m_V.nb_rows(), l);
+            //     }
+            // }
+            // LowRankMatrix temp(Uconc, Vconc);
+            /// la il faudrait une QRSVD
+            // en attendant ACA sur M+N
+            Matrix<CoefficientPrecision> mat(m_U.nb_rows(), m_V.nb_cols());
+            m_U.add_matrix_product('N', 1.0, m_V.data(), 1.0, mat.data(), m_V.nb_cols());
+            u.add_matrix_product('N', 1.0, v.data(), 1.0, mat.data(), v.nb_cols());
+            MatrixGenerator<CoefficientPrecision> gen(mat, 0, 0);
+            LowRankMatrix lr(gen, LRGenerator, t, s);
+            return lr;
+        } else {
+            std::cerr << "wrong size" << std::endl;
+        }
+        return *this;
+    }
     void add_vector_product(char trans, CoefficientPrecision alpha, const CoefficientPrecision *in, CoefficientPrecision beta, CoefficientPrecision *out) const {
         if (m_rank == 0) {
             std::fill(out, out + m_U.nb_cols(), 0);

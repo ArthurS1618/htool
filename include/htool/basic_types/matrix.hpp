@@ -207,6 +207,20 @@ class Matrix {
         }
     }
 
+    Matrix get_block(int row, int col, int row_offset, int col_offset) const {
+        Matrix<T> res(row, col);
+        if (row == m_number_of_rows && col == m_number_of_cols) {
+            res = *this;
+        } else {
+            for (int k = 0; k < row; ++k) {
+                for (int l = 0; l < col; ++l) {
+                    res(k, l) = m_data[(k + row_offset) + (l + col_offset) * this->nb_rows()];
+                }
+            }
+        }
+        return res;
+    }
+
     //! ### Access operator
     /*!
     If _A_ is the instance calling the operator

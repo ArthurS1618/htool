@@ -14,15 +14,17 @@
     void HTOOL_BLAS_F77(C##gemv)(const char *, const int *, const int *, const T *, const T *, const int *, const T *, const int *, const T *, T *, const int *);                            \
     void HTOOL_BLAS_F77(C##gemm)(const char *, const char *, const int *, const int *, const int *, const T *, const T *, const int *, const T *, const int *, const T *, T *, const int *); \
     void HTOOL_BLAS_F77(C##symv)(const char *, const int *, const T *, const T *, const int *, const T *, const int *, const T *, T *, const int *);                                         \
-    void HTOOL_BLAS_F77(C##symm)(const char *, const char *, const int *, const int *, const T *, const T *, const int *, const T *, const int *, const T *, T *, const int *);
+    void HTOOL_BLAS_F77(C##symm)(const char *, const char *, const int *, const int *, const T *, const T *, const int *, const T *, const int *, const T *, T *, const int *);              \
+    void HTOOL_BLAS_F77(C##trsm)(const char *const, const char *const, const char *const, const char *const, const int *const, const int *const, const T *const, const T *const, const int *const, T *const, const int *const);
 
-#define HTOOL_GENERATE_EXTERN_BLAS_COMPLEX(C, T, B, U)                                                                                               \
-    HTOOL_GENERATE_EXTERN_BLAS(B, U)                                                                                                                 \
-    HTOOL_GENERATE_EXTERN_BLAS(C, T)                                                                                                                 \
-    U HTOOL_BLAS_F77(B##nrm2)(const int *, const U *, const int *);                                                                                  \
-    U HTOOL_BLAS_F77(B##C##nrm2)(const int *, const T *, const int *);                                                                               \
-    void HTOOL_BLAS_F77(C##hemv)(const char *, const int *, const T *, const T *, const int *, const T *, const int *, const T *, T *, const int *); \
-    void HTOOL_BLAS_F77(C##hemm)(const char *, const char *, const int *, const int *, const T *, const T *, const int *, const T *, const int *, const T *, T *, const int *);
+#define HTOOL_GENERATE_EXTERN_BLAS_COMPLEX(C, T, B, U)                                                                                                                          \
+    HTOOL_GENERATE_EXTERN_BLAS(B, U)                                                                                                                                            \
+    HTOOL_GENERATE_EXTERN_BLAS(C, T)                                                                                                                                            \
+    U HTOOL_BLAS_F77(B##nrm2)(const int *, const U *, const int *);                                                                                                             \
+    U HTOOL_BLAS_F77(B##C##nrm2)(const int *, const T *, const int *);                                                                                                          \
+    void HTOOL_BLAS_F77(C##hemv)(const char *, const int *, const T *, const T *, const int *, const T *, const int *, const T *, T *, const int *);                            \
+    void HTOOL_BLAS_F77(C##hemm)(const char *, const char *, const int *, const int *, const T *, const T *, const int *, const T *, const int *, const T *, T *, const int *); \
+    // void HTOOL_BLAS_F77(C##stpsv)(const char *, const char *, const char *, const int *, T *, T *, const int *);
 
 #if HTOOL_MKL
 #    define HTOOL_GENERATE_EXTERN_GEMM3M(C, T) \
@@ -82,6 +84,9 @@ struct Blas {
     /* Function: chemm
      *  Computes a hermitian scalar-matrix-matrix product. */
     static void hemm(const char *const, const char *const, const int *const, const int *const, const K *const, const K *const, const int *const, const K *const, const int *const, const K *const, K *const, const int *const);
+    /*Function: trsm
+     * Computes the Ax=b (forward-backward substitution)*/
+    static void trsm(const char *const, const char *const, const char *const, const char *const, const int *const, const int *const, const K *const, const K *const, const int *const, K *const, const int *const);
 };
 
 #    define HTOOL_GENERATE_GEMM(C, T)                                                                                                                                                                                                                                                                            \
@@ -129,7 +134,13 @@ struct Blas {
         inline void Blas<T>::symm(const char *const side, const char *const uplo, const int *const m, const int *const n, const T *const alpha, const T *const a, const int *const lda, const T *const b, const int *const ldb, const T *const beta, T *const c, const int *const ldc) { \
             HTOOL_BLAS_F77(C##symm)                                                                                                                                                                                                                                                      \
             (side, uplo, m, n, alpha, a, lda, b, ldb, beta, c, ldc);                                                                                                                                                                                                                     \
+        }                                                                                                                                                                                                                                                                                \
+        template <>                                                                                                                                                                                                                                                                      \
+        inline void Blas<T>::trsm(const char *const side, const char *const uplo, const char *const transa, const char *const diag, const int *const m, const int *const n, const T *const alpha, const T *const a, const int *const lda, T *const b, const int *const ldb) {            \
+            HTOOL_BLAS_F77(C##trsm)                                                                                                                                                                                                                                                      \
+            (side, uplo, transa, diag, m, n, alpha, a, lda, b, ldb);                                                                                                                                                                                                                     \
         }
+
 #    define HTOOL_GENERATE_BLAS_COMPLEX(C, T, B, U)                                                                                                                                                                                                                                      \
         HTOOL_GENERATE_BLAS(C, T)                                                                                                                                                                                                                                                        \
         HTOOL_GENERATE_GEMM(B, U)                                                                                                                                                                                                                                                        \
