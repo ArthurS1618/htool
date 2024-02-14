@@ -14,7 +14,8 @@
     void HTOOL_LAPACK_F77(C##gesvd)(const char *, const char *, const int *, const int *, T *, const int *, U *, T *, const int *, T *, const int *, T *, const int *, U *, int *); \
     void HTOOL_LAPACK_F77(B##getrf)(const int *, const int *, U *, const int *, int *, int *);                                                                                      \
     void HTOOL_LAPACK_F77(B##getri)(const int *, U *, const int *, int *, U *, const int *, int *);                                                                                 \
-    void HTOOL_LAPACK_F77(B##laswp)(const int *, U *, const int *, const int *, const int *, int *, const int *);
+    void HTOOL_LAPACK_F77(B##laswp)(const int *, U *, const int *, const int *, const int *, int *, const int *);                                                                   \
+    // void HTOOL_LAPACK_F77(B##geqrf)(const int *, const int *, U *, const int *, T *, const T *, const int *, const int *);
 
 #if !defined(PETSC_HAVE_BLASLAPACK)
 #    ifndef _MKL_H_
@@ -43,9 +44,13 @@ struct Lapack {
     /* Function: gesvd
      *  computes the singular value decomposition (SVD). */
     static void gesvd(const char *, const char *, const int *, const int *, K *, const int *, underlying_type<K> *, K *, const int *, K *, const int *, K *, const int *, underlying_type<K> *, int *);
+    /*Funtion : getrf -> computes LU factorisation (L\U)*/
     static void getrf(const int *, const int *, K *, const int *, int *, int *);
+    /*Funtion : getri-> computes the inverse using LU obtained from getrf*/
     static void getri(const int *, K *, const int *, int *, K *, const int *, int *);
     static void laswp(const int *, K *, const int *, const int *, const int *, int *, const int *);
+    /*Funtion: geqrf -> computes QR factorisation*/
+    // static void geqrf(const int *const, const int *const, K *const, const int *, K *, K *, const int *, int *)
     // static void stpsv(const char *, const char *, const char *, const int *, K *, K *, const int *);
 };
 
@@ -70,18 +75,18 @@ struct Lapack {
             HTOOL_LAPACK_F77(B##getri)                                                                                                                                                                                            \
             (n, a, lda, ipiv, work, lwork, info);                                                                                                                                                                                 \
         }                                                                                                                                                                                                                         \
+        // template <>                                                                                                                                                                                                               \
+        // inline void Lapack<U>::geqrf(const int *m, const int *n, U *a, const int *lda, U *Tau, U *work, const int *lwork, int *info) {                                                                                            \
+        //     HTOOL_LAPACK_F77(B##geqrf)                                                                                                                                                                                            \
+        //     (n, a, lda, ipiv, work, lwork, info);                                                                                                                                                                                 \
+        // }                                                                                                                                                                                                                         \
         template <>                                                                                                                                                                                                               \
         inline void Lapack<U>::laswp(const int *n, U *a, const int *lda, const int *k1, const int *k2, int *ipiv, const int *incx) {                                                                                              \
             HTOOL_LAPACK_F77(B##laswp)                                                                                                                                                                                            \
             (n, a, lda, k1, k2, ipiv, incx);                                                                                                                                                                                      \
         }                                                                                                                                                                                                                         \
-        // template <>                                                                                                                                                                                                               \
-        // inline void Lapack<U>::stpsv(const char *uplo, const char *trans, const char *diag, const int *n, U *AP, U *x, const int *incx) {                                                                                         \
-        //     HTOOL_LAPACK_F77(B##stpsv)                                                                                                                                                                                            \
-        //     (uplo, trans, diag, n, AP, x, incx);                                                                                                                                                                                  \
-        // }
-HTOOL_GENERATE_LAPACK_COMPLEX(c, std::complex<float>, s, float)
-HTOOL_GENERATE_LAPACK_COMPLEX(z, std::complex<double>, d, double)
+        HTOOL_GENERATE_LAPACK_COMPLEX(c, std::complex<float>, s, float)                                                                                                                                                           \
+        HTOOL_GENERATE_LAPACK_COMPLEX(z, std::complex<double>, d, double)
 } // namespace htool
 #endif // __cplusplus
 #endif // HTOOL_LAPACK_HPP

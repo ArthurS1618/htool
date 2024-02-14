@@ -58,6 +58,36 @@ class LowRankMatrix {
     //////////////////////////
     /// je rajoute l'addition tronqué
     ///////////////////
+    // est ce qu'il y a un moyen simple de concatener ?
+    // void formatted_addition(const Matrix<CoefficientPrecision> &U, const Matrix<CoefficientPrecision> &V) {
+    //     Matrix<CoefficientPrecision> Uconc(U.nb_rows(), U.nb_cols() + this->rank_of());
+    //     Matrix<CoefficientPrecision> Vconc(V.nb_rows() + this->rank_of(), V.nb_cols());
+    //     for (int k = 0; k < U.nb_rows(); ++k) {
+    //         for (int l = 0; l < this->rank_of(); ++k) {
+    //             Uconc(k, l) = m_U(k, l);
+    //         }
+    //         for (int l = 0; l < U.nb_cols(); ++l) {
+    //             Uconc(k, l + this->rank_of() + l);
+    //         }
+    //     }
+    //     for (int l = 0; l < V.nb_cols(); ++l) {
+    //         for (int k = 0; k < this->rank_of(); ++k) {
+    //             Vconc(k, l) = m_V(k, l);
+    //         }
+    //         for (int k = 0; k < V.nb_rows(); ++k) {
+    //             Vconc(k, l) = V(k, l);
+    //         }
+    //     }
+    //     std::vector<CoefficientPrecision> Tau_U(this->rank_of() * U.nb_rows());
+    //     std::vector<CoefficientPrecision> Tau_V(this->rank_of() * V.nb_rows());
+    //     std::vector<double> lworku(this->rank_of() * (U.nb_cols() + this->rank_of()));
+    //     std::vector<double> lworkv(this->rank_of() * V.nb_cols());
+    //     std::vector<double> worku(this->rank_of() * (U.nb_cols() + this->rank_of()));
+    //     std::vector<double> workv(this->rank_of() * V.nb_cols());
+    //     int infou, infov;
+    //     Lapack<CoefficientPrecision>::geqrf(U.nb_rows(), U.nb_cols() + this->rank_of(), Uconc.data(), U.nb_rows(), Tau_U, worku, lworqu, infou);
+    //     Lapack<CoefficientPrecision>::geqrf(V.nb_rows() + this->rank_of(), V.nb_cols(), Vconc.data(), V.nb_cols(), Tau_V, workv, lworqv, infov);
+    // }
     // void actualise(const Matrix<CoefficientPrecision> &u, const Matrix<CoefficientPrecision> &v, VirtualLowRankGenerator<CoefficientPrecision, CoordinatesPrecision> &LRGenerator, const Cluster<CoordinatesPrecision> &t, const Cluster<CoordinatesPrecision> &s) {
     //     if (u.nb_rows() == m_U.nb_rows() and v.nb_cols() == m_V.nb_cols()) {
 

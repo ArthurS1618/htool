@@ -139,11 +139,11 @@ int main() {
         std::cout << "_________________________________________" << std::endl;
         std::cout << "HMATRIX" << std::endl;
         double epsilon = 1e-4;
-        double eta     = 1;
+        double eta     = 10;
         std::cout << "size =" << size << std::endl;
         ////// GENERATION MAILLAGE
         std::vector<double> p1(3 * size);
-        create_disk(3, 0., size, p1.data());
+        create_disk(3, 0.0, size, p1.data());
 
         std::cout << "création cluster ok" << std::endl;
         //////////////////////
@@ -173,7 +173,7 @@ int main() {
 
         auto er_b = normFrob(reference_num_htool - ref) / normFrob(reference_num_htool);
         err_asmbl.push_back(er_b);
-        std::cout << "asmbl ok " << std::endl;
+        std::cout << "asmbl ok " << root_hmatrix.get_compression() << std::endl;
 
         // Matrice vecteur
         // auto x               = generate_random_vector(size);
@@ -191,7 +191,7 @@ int main() {
         // Matrice Matrice
         auto start_time_mat = std::chrono::high_resolution_clock::now();
         std::cout << "mat " << std::endl;
-        auto prod = root_hmatrix.hmatrix_product_new(root_hmatrix);
+        auto prod = root_hmatrix.hmatrix_product(root_hmatrix);
         std::cout << "mat ok" << std::endl;
         auto end_time_mat = std::chrono::high_resolution_clock::now();
         auto duration_mat = std::chrono::duration_cast<std::chrono::duration<double>>(end_time_mat - start_time_mat).count();
@@ -204,6 +204,7 @@ int main() {
         auto compr = prod.get_compression();
         compr_ratio.push_back(compr);
         std::cout << "erreur :" << er_m << "    , compr" << compr << std::endl;
+        root_hmatrix.save_plot("tete_produit");
         // /// HLU
         // Matrix<double> L(size, size);
         // Matrix<double> U(size, size);

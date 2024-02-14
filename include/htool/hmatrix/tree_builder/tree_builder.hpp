@@ -284,99 +284,99 @@ bool HMatrixTreeBuilder<CoefficientPrecision, CoordinatePrecision>::build_block_
                 return false;
             }
         } else {
-            if (target_cluster.get_size() > source_cluster.get_size()) {
-                std::vector<bool> Blocks_not_pushed{};
-                std::vector<HMatrixType *> child_blocks{};
-                for (const auto &target_child : target_children) {
-                    if (is_target_cluster_in_target_partition(*target_child) && !is_removed_by_symmetry(*target_child, source_cluster)) {
-                        child_blocks.emplace_back(current_hmatrix->add_child(target_child.get(), &source_cluster));
-                        set_hmatrix_symmetry(*child_blocks.back());
-                        Blocks_not_pushed.push_back(build_block_tree(child_blocks.back()));
-                    }
-                }
-                if ((block_size <= m_maxblocksize)
-                    && std::all_of(Blocks_not_pushed.begin(), Blocks_not_pushed.end(), [](bool i) { return i; })
-                    && is_target_cluster_in_target_partition(target_cluster)
-                    && target_cluster.get_depth() >= m_mintargetdepth
-                    && source_cluster.get_depth() >= m_minsourcedepth
-                    && std::all_of(child_blocks.begin(), child_blocks.end(), [](HMatrixType *block) {
-                           return (block != block->get_diagonal_hmatrix());
-                       })) {
-                    child_blocks.clear();
-                    current_hmatrix->delete_children();
-                    return true;
-                } else {
-                    for (int p = 0; p < Blocks_not_pushed.size(); p++) {
-                        if (Blocks_not_pushed[p]) {
-                            m_dense_tasks.push_back(child_blocks[p]);
-                        }
-                    }
+            // if (target_cluster.get_size() > source_cluster.get_size()) {
+            //     std::vector<bool> Blocks_not_pushed{};
+            //     std::vector<HMatrixType *> child_blocks{};
+            //     for (const auto &target_child : target_children) {
+            //         if (is_target_cluster_in_target_partition(*target_child) && !is_removed_by_symmetry(*target_child, source_cluster)) {
+            //             child_blocks.emplace_back(current_hmatrix->add_child(target_child.get(), &source_cluster));
+            //             set_hmatrix_symmetry(*child_blocks.back());
+            //             Blocks_not_pushed.push_back(build_block_tree(child_blocks.back()));
+            //         }
+            //     }
+            //     if ((block_size <= m_maxblocksize)
+            //         && std::all_of(Blocks_not_pushed.begin(), Blocks_not_pushed.end(), [](bool i) { return i; })
+            //         && is_target_cluster_in_target_partition(target_cluster)
+            //         && target_cluster.get_depth() >= m_mintargetdepth
+            //         && source_cluster.get_depth() >= m_minsourcedepth
+            //         && std::all_of(child_blocks.begin(), child_blocks.end(), [](HMatrixType *block) {
+            //                return (block != block->get_diagonal_hmatrix());
+            //            })) {
+            //         child_blocks.clear();
+            //         current_hmatrix->delete_children();
+            //         return true;
+            //     } else {
+            //         for (int p = 0; p < Blocks_not_pushed.size(); p++) {
+            //             if (Blocks_not_pushed[p]) {
+            //                 m_dense_tasks.push_back(child_blocks[p]);
+            //             }
+            //         }
 
-                    return false;
-                }
-            } else if (target_cluster.get_size() < source_cluster.get_size()) {
-                std::vector<bool> Blocks_not_pushed;
-                std::vector<HMatrixType *> child_blocks{};
+            //         return false;
+            //     }
+            // } else if (target_cluster.get_size() < source_cluster.get_size()) {
+            //     std::vector<bool> Blocks_not_pushed;
+            //     std::vector<HMatrixType *> child_blocks{};
+            //     for (const auto &source_child : source_children) {
+            //         if (!is_removed_by_symmetry(target_cluster, *source_child)) {
+            //             child_blocks.emplace_back(current_hmatrix->add_child(&target_cluster, source_child.get()));
+            //             set_hmatrix_symmetry(*child_blocks.back());
+            //             Blocks_not_pushed.push_back(build_block_tree(child_blocks.back()));
+            //         }
+            //     }
+            //     if ((block_size <= m_maxblocksize)
+            //         && std::all_of(Blocks_not_pushed.begin(), Blocks_not_pushed.end(), [](bool i) { return i; })
+            //         && is_target_cluster_in_target_partition(target_cluster)
+            //         && target_cluster.get_depth() >= m_mintargetdepth
+            //         && source_cluster.get_depth() >= m_minsourcedepth
+            //         && std::all_of(child_blocks.begin(), child_blocks.end(), [](HMatrixType *block) {
+            //                return (block != block->get_diagonal_hmatrix());
+            //            })) {
+            //         child_blocks.clear();
+            //         current_hmatrix->delete_children();
+            //         return true;
+            //     } else {
+            //         for (int p = 0; p < Blocks_not_pushed.size(); p++) {
+            //             if (Blocks_not_pushed[p]) {
+            //                 m_dense_tasks.push_back(child_blocks[p]);
+            //             }
+            //         }
+
+            //         return false;
+            //     }
+            // } else {
+            std::vector<bool> Blocks_not_pushed;
+            std::vector<HMatrixType *> child_blocks{};
+            for (const auto &target_child : target_children) {
                 for (const auto &source_child : source_children) {
-                    if (!is_removed_by_symmetry(target_cluster, *source_child)) {
-                        child_blocks.emplace_back(current_hmatrix->add_child(&target_cluster, source_child.get()));
+                    if (is_target_cluster_in_target_partition(*target_child) && !is_removed_by_symmetry(*target_child, *source_child)) {
+                        child_blocks.emplace_back(current_hmatrix->add_child(target_child.get(), source_child.get()));
                         set_hmatrix_symmetry(*child_blocks.back());
                         Blocks_not_pushed.push_back(build_block_tree(child_blocks.back()));
                     }
-                }
-                if ((block_size <= m_maxblocksize)
-                    && std::all_of(Blocks_not_pushed.begin(), Blocks_not_pushed.end(), [](bool i) { return i; })
-                    && is_target_cluster_in_target_partition(target_cluster)
-                    && target_cluster.get_depth() >= m_mintargetdepth
-                    && source_cluster.get_depth() >= m_minsourcedepth
-                    && std::all_of(child_blocks.begin(), child_blocks.end(), [](HMatrixType *block) {
-                           return (block != block->get_diagonal_hmatrix());
-                       })) {
-                    child_blocks.clear();
-                    current_hmatrix->delete_children();
-                    return true;
-                } else {
-                    for (int p = 0; p < Blocks_not_pushed.size(); p++) {
-                        if (Blocks_not_pushed[p]) {
-                            m_dense_tasks.push_back(child_blocks[p]);
-                        }
-                    }
-
-                    return false;
-                }
-            } else {
-                std::vector<bool> Blocks_not_pushed;
-                std::vector<HMatrixType *> child_blocks{};
-                for (const auto &target_child : target_children) {
-                    for (const auto &source_child : source_children) {
-                        if (is_target_cluster_in_target_partition(*target_child) && !is_removed_by_symmetry(*target_child, *source_child)) {
-                            child_blocks.emplace_back(current_hmatrix->add_child(target_child.get(), source_child.get()));
-                            set_hmatrix_symmetry(*child_blocks.back());
-                            Blocks_not_pushed.push_back(build_block_tree(child_blocks.back()));
-                        }
-                    }
-                }
-                if ((block_size <= m_maxblocksize)
-                    && std::all_of(Blocks_not_pushed.begin(), Blocks_not_pushed.end(), [](bool i) { return i; })
-                    && is_target_cluster_in_target_partition(target_cluster)
-                    && target_cluster.get_depth() >= m_mintargetdepth
-                    && source_cluster.get_depth() >= m_minsourcedepth
-                    && std::all_of(child_blocks.begin(), child_blocks.end(), [](HMatrixType *block) {
-                           return (block != block->get_diagonal_hmatrix());
-                       })) {
-                    child_blocks.clear();
-                    current_hmatrix->delete_children();
-                    return true;
-                } else {
-                    for (int p = 0; p < Blocks_not_pushed.size(); p++) {
-                        if (Blocks_not_pushed[p]) {
-                            m_dense_tasks.push_back(child_blocks[p]);
-                        }
-                    }
-
-                    return false;
                 }
             }
+            if ((block_size <= m_maxblocksize)
+                && std::all_of(Blocks_not_pushed.begin(), Blocks_not_pushed.end(), [](bool i) { return i; })
+                && is_target_cluster_in_target_partition(target_cluster)
+                && target_cluster.get_depth() >= m_mintargetdepth
+                && source_cluster.get_depth() >= m_minsourcedepth
+                && std::all_of(child_blocks.begin(), child_blocks.end(), [](HMatrixType *block) {
+                       return (block != block->get_diagonal_hmatrix());
+                   })) {
+                child_blocks.clear();
+                current_hmatrix->delete_children();
+                return true;
+            } else {
+                for (int p = 0; p < Blocks_not_pushed.size(); p++) {
+                    if (Blocks_not_pushed[p]) {
+                        m_dense_tasks.push_back(child_blocks[p]);
+                    }
+                }
+
+                return false;
+            }
+            // }
         }
     }
 }

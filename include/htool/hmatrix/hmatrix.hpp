@@ -174,8 +174,8 @@ class HMatrix : public TreeNode<HMatrix<CoefficientPrecision, CoordinatePrecisio
                 compr     = compr + temp;
             }
         }
-        compr = compr / (this->get_target_cluster().get_size() * this->get_source_cluster().get_size());
-        return 1 - compr;
+        compr = compr * 1.0 / (this->get_target_cluster().get_size() * this->get_source_cluster().get_size());
+        return 1.0 - compr;
     }
     std::vector<double> get_rank_info() {
         auto leaves = this->m_leaves;
@@ -368,10 +368,10 @@ class HMatrix : public TreeNode<HMatrix<CoefficientPrecision, CoordinatePrecisio
                 res.second = m;
             }
         } else {
-            std::cout << "?" << std::endl;
+            // std::cout << "?" << std::endl;
 
             if ((this->get_target_cluster().get_size() == szt) && (this->get_target_cluster().get_offset() == oft) && (this->get_source_cluster().get_size() == szs) && (this->get_source_cluster().get_offset() == ofs)) {
-                std::cout << "!!!!!!!!!!!" << std::endl;
+                // std::cout << "!!!!!!!!!!!" << std::endl;
                 res.first = const_cast<HMatrix<CoefficientPrecision, CoordinatePrecision> *>(this);
                 std::cout << (res.first == nullptr) << std::endl;
             } else {
@@ -6088,44 +6088,83 @@ void HMatrix<CoefficientPrecision, CoordinatePrecision>::recursive_build_hmatrix
     auto &source_cluster  = this->get_source_cluster();
     auto &target_children = target_cluster.get_children();
     auto &source_children = source_cluster.get_children();
-    bool admissible       = this->m_tree_data->m_admissibility_condition->ComputeAdmissibility(target_cluster, source_cluster, this->m_tree_data->m_eta);
-    if (admissible) {
-        LowRankMatrix<CoefficientPrecision, CoordinatePrecision> lr(sum_expr, *this->m_tree_data->m_low_rank_generator, this->get_target_cluster(), this->get_source_cluster(), -1, this->m_tree_data->m_epsilon);
-        if ((lr.Get_U().nb_rows() == 0) or (lr.Get_U().nb_cols() == 0) or (lr.Get_V().nb_rows() == 0) or (lr.Get_V().nb_cols() == 0)) {
-            this->compute_dense_data(sum_expr);
+    bool admissible       = this->m_tree_data->m_admissibility_condition->ComputeAdmissibility(target_cluster, source_cluster, 10);
+    // std::cout << "en haut de prod sr.size =" << sum_expr.get_sr().size() << std::endl;
+    if (target_cluster.get_size() >= 45 && source_cluster.get_size() >= 45) {
+        if (admissible) {
+            LowRankMatrix<CoefficientPrecision, CoordinatePrecision> lr(sum_expr, *this->m_tree_data->m_low_rank_generator, this->get_target_cluster(), this->get_source_cluster(), -1, this->m_tree_data->m_epsilon);
+            if ((lr.Get_U().nb_rows() == 0) or (lr.Get_U().nb_cols() == 0) or (lr.Get_V().nb_rows() == 0) or (lr.Get_V().nb_cols() == 0)) {
+                // on a pas trouvé de bonne approx normalement il faudrait continuer a descedre
+                this->compute_dense_data(sum_expr);
 
+            } else {
+                /// il faudrait vraiment mettre un fast tronsation parce que la c'est vraiment pas opti
+                this->set_low_rank_data(lr);
+            }
+
+        } else if (((target_children.size() == 0) and (source_children.size() == 0)) or !(sum_expr.is_restrectible())) {
+            LowRankMatrix<CoefficientPrecision, CoordinatePrecision> lr(sum_expr, *this->m_tree_data->m_low_rank_generator, this->get_target_cluster(), this->get_source_cluster(), -1, this->m_tree_data->m_epsilon);
+            if ((lr.Get_U().nb_rows() == 0) or (lr.Get_U().nb_cols() == 0) or (lr.Get_V().nb_rows() == 0) or (lr.Get_V().nb_cols() == 0)) {
+
+                this->compute_dense_data(sum_expr);
+
+            } else {
+                /// il faudrait vraiment mettre un fast tronsation parce que la c'est vraiment pas opti
+                this->set_low_rank_data(lr);
+            }
         } else {
-            /// il faudrait vraiment mettre un fast tronsation parce que la c'est vraiment pas opti
-            this->set_low_rank_data(lr);
-        }
+            // if (target_cluster.get_size() > source_cluster.get_size()) {
+            //     for (const auto &target_child : target_children) {
+            //         std::cout << "1111 appelé par " << target_cluster.get_size() << ',' << source_cluster.get_size() << std::endl;
+            //         HMatrix<CoefficientPrecision, CoordinatePrecision> *hmatrix_child = this->add_child(target_child.get(), &source_cluster);
+            //         Sumexpr<CoefficientPrecision, CoordinatePrecision> sum_restr      = sum_expr.restrict(*target_child, source_cluster);
+            //         hmatrix_child->recursive_build_hmatrix_product_new(sum_restr);
+            //     }
+            // } else if (target_cluster.get_size() < source_cluster.get_size()) {
+            //     for (const auto &source_child : source_children) {
+            //         std::cout << "2222 appelé par " << target_cluster.get_size() << ',' << source_cluster.get_size() << std::endl;
 
-    } else if ((target_children.size() == 0) and (source_children.size() == 0) or (sum_expr.is_restrectible())) {
-        this->compute_dense_data(sum_expr);
-    } else {
-
-        if ((target_children.size() > 0) and (source_children.size() > 0)) {
+            //         HMatrix<CoefficientPrecision, CoordinatePrecision> *hmatrix_child = this->add_child(&target_cluster, source_child.get());
+            //         Sumexpr<CoefficientPrecision, CoordinatePrecision> sum_restr      = sum_expr.restrict(target_cluster, *source_child);
+            //         hmatrix_child->recursive_build_hmatrix_product_new(sum_restr);
+            //     }
+            // } else {
             for (const auto &target_child : target_children) {
                 for (const auto &source_child : source_children) {
+                    std::cout << "3333 appelé par " << target_cluster.get_size() << ',' << source_cluster.get_size() << std::endl;
+
                     HMatrix<CoefficientPrecision, CoordinatePrecision> *hmatrix_child = this->add_child(target_child.get(), source_child.get());
                     Sumexpr<CoefficientPrecision, CoordinatePrecision> sum_restr      = sum_expr.restrict(*target_child, *source_child);
                     hmatrix_child->recursive_build_hmatrix_product_new(sum_restr);
                 }
             }
-        }
+            // }
+            // if ((target_children.size() > 0) and (source_children.size() > 0)) {
+            //     for (const auto &target_child : target_children) {
+            //         for (const auto &source_child : source_children) {
+            //             HMatrix<CoefficientPrecision, CoordinatePrecision> *hmatrix_child = this->add_child(target_child.get(), source_child.get());
+            //             Sumexpr<CoefficientPrecision, CoordinatePrecision> sum_restr      = sum_expr.restrict(*target_child, *source_child);
+            //             hmatrix_child->recursive_build_hmatrix_product_new(sum_restr);
+            //         }
+            //     }
+            // }
 
-        else if ((target_children.size() == 0) and (source_children.size() > 0)) {
-            for (const auto &source_child : source_children) {
-                HMatrix<CoefficientPrecision, CoordinatePrecision> *hmatrix_child = this->add_child(&target_cluster, source_child.get());
-                Sumexpr<CoefficientPrecision, CoordinatePrecision> sum_restr      = sum_expr.restrict(target_cluster, *source_child);
-                hmatrix_child->recursive_build_hmatrix_product_new(sum_restr);
-            }
-        } else if ((source_children.size() == 0) and (target_children.size() > 0)) {
-            for (const auto &target_child : target_children) {
-                HMatrix<CoefficientPrecision, CoordinatePrecision> *hmatrix_child = this->add_child(target_child.get(), &source_cluster);
-                Sumexpr<CoefficientPrecision, CoordinatePrecision> sum_restr      = sum_expr.restrict(*target_child, source_cluster);
-                hmatrix_child->recursive_build_hmatrix_product_new(sum_restr);
-            }
+            // else if ((target_children.size() == 0) and (source_children.size() > 0)) {
+            //     for (const auto &source_child : source_children) {
+            //         HMatrix<CoefficientPrecision, CoordinatePrecision> *hmatrix_child = this->add_child(&target_cluster, source_child.get());
+            //         Sumexpr<CoefficientPrecision, CoordinatePrecision> sum_restr      = sum_expr.restrict(target_cluster, *source_child);
+            //         hmatrix_child->recursive_build_hmatrix_product_new(sum_restr);
+            //     }
+            // } else if ((source_children.size() == 0) and (target_children.size() > 0)) {
+            //     for (const auto &target_child : target_children) {
+            //         HMatrix<CoefficientPrecision, CoordinatePrecision> *hmatrix_child = this->add_child(target_child.get(), &source_cluster);
+            //         Sumexpr<CoefficientPrecision, CoordinatePrecision> sum_restr      = sum_expr.restrict(*target_child, source_cluster);
+            //         hmatrix_child->recursive_build_hmatrix_product_new(sum_restr);
+            //     }
+            // }
         }
+    } else {
+        this->compute_dense_data(sum_expr);
     }
 }
 // template <typename CoefficientPrecision, typename CoordinatePrecision>

@@ -35,14 +35,12 @@ class SumExpression : public VirtualGenerator<CoefficientPrecision> {
     using LRtype      = LowRankMatrix<CoefficientPrecision, CoordinatePrecision>;
 
     std::vector<Matrix<CoefficientPrecision>> Sr;
-    std::vector<int> offset;     // target de u et source de v -> 2*size Sr
-    std::vector<int> mid_offset; // le rho au ca ou on essaye de cut des blocs dense
+    std::vector<int> offset; // target de u et source de v -> 2*size Sr
     std::vector<const HMatrixType *> Sh;
     int target_size;
     int target_offset;
     int source_size;
     int source_offset;
-    bool restrictible = true;
 
   public:
     SumExpression(const HMatrixType *A, const HMatrixType *B) {
@@ -54,7 +52,7 @@ class SumExpression : public VirtualGenerator<CoefficientPrecision> {
         source_offset = B->get_source_cluster().get_offset();
     }
 
-    SumExpression(const std::vector<Matrix<CoefficientPrecision>> &sr, const std::vector<const HMatrixType *> &sh, const std::vector<int> &offset0, const int &target_size0, const int &target_offset0, const int &source_size0, const int &source_offset0, const bool flag) {
+    SumExpression(const std::vector<Matrix<CoefficientPrecision>> &sr, const std::vector<const HMatrixType *> &sh, const std::vector<int> &offset0, const int &target_size0, const int &target_offset0, const int &source_size0, const int &source_offset0) {
         Sr            = sr;
         Sh            = sh;
         offset        = offset0;
@@ -62,18 +60,6 @@ class SumExpression : public VirtualGenerator<CoefficientPrecision> {
         target_offset = target_offset0;
         source_size   = source_size0;
         source_offset = source_offset0;
-        restrictible  = flag;
-    }
-
-    SumExpression(const std::vector<Matrix<CoefficientPrecision>> &sr, const std::vector<const HMatrixType *> &sh, const std::vector<int> &offset0, const std::vector<int> &mid_offset0, const int &target_size0, const int &target_offset0, const int &source_size0, const int &source_offset0) {
-        Sr            = sr;
-        Sh            = sh;
-        offset        = offset0;
-        target_size   = target_size0;
-        target_offset = target_offset0;
-        source_size   = source_size0;
-        source_offset = source_offset0;
-        mid_offset    = mid_offset0;
     }
 
     const std::vector<Matrix<CoefficientPrecision>> get_sr() const { return Sr; }
@@ -197,7 +183,6 @@ class SumExpression : public VirtualGenerator<CoefficientPrecision> {
             Matrix<CoefficientPrecision> hk = hdense * kdense;
             for (int i = 0; i < M; ++i) {
                 for (int j = 0; j < N; ++j) {
-                    // mat(i, j) += hk(i + row_offset - H->get_target_cluster().get_offset(), j + col_offset - K->get_source_cluster().get_offset());
                     mat(i, j) += hk(i + row_offset - target_offset, j + col_offset - source_offset);
                 }
             }
@@ -242,9 +227,6 @@ class SumExpression : public VirtualGenerator<CoefficientPrecision> {
             k += 1;
         }
         return test;
-    }
-    bool is_restrictible() {
-        return restrictible;
     }
 
     ///////////////////////////////////////////////////////////
@@ -480,159 +462,6 @@ class SumExpression : public VirtualGenerator<CoefficientPrecision> {
         return res;
     }
 
-    const SumExpression Restrict_s(int target_0, int source_0, int target_offset0, int source_offset0) const {
-        std::vector<const HMatrixType *> sh;
-        auto of = offset;
-        auto sr = Sr;
-        std::vector<int> mid_of;
-        for (int k = 0; k < Sh.size() / 2; ++k) {
-            auto &H = Sh[2 * k];
-            auto &K = Sh[2 * k + 1];
-            for (auto &rho_child : H->get_source_cluster().get_children()) {
-                auto Htr = H->get_block(target_0, rho_child->get_size(), target_offset0, rho_child->get_offset());
-                auto Krs = K->get_block(rho_child->get_size(), source_0, rho_child->get_offset(), source_offset0);
-                // if ( (Htr->get_target_cluster().get_size() == target_0 )and (Htr->get_source_cluster().get_size()  == rho_child->get_size() ) and ( Krs->get_target_cluster().get_size() == rho_child->get_size() ) and ( Krs->get_source_cluster().get_size() == source_0) ){
-                if ((!(Htr->get_target_cluster().get_size() == target_0) or !(Htr->get_source_cluster().get_size() == rho_child->get_size()) or !(Krs->get_target_cluster().get_size() == rho_child->get_size()) or !(Krs->get_source_cluster().get_size() == source_0))) {
-                    // ca veut dire qu'il faut extraire les bons sous blocs
-                    if ((Htr->is_low_rank()) or (Krs->is_low_rank())) {
-                        if ((Htr->is_low_rank()) and (Krs->is_low_rank())) {
-                            auto Uh = Htr->get_low_rank_data()->Get_U().get_block(target_0, Htr->get_low_rank_data()->rank_of(), target_offset0 - Htr->get_target_cluster().get_offset(), 0);
-                            auto Vh = Htr->get_low_rank_data()->Get_V().get_block(Htr->get_low_rank_data()->rank_of(), rho_child->get_size(), 0, rho_child->get_offset() - Htr->get_source_cluster().get_offset());
-                            auto Uk = Krs->get_low_rank_data()->Get_U().get_block(rho_child->get_size(), Krs->get_low_rank_data()->rank_of(), rho_child->get_offset() - Krs->get_target_cluster().get_offset(), 0);
-                            auto Vk = Krs->get_low_rank_data()->Get_V().get_block(Krs->get_low_rank_data()->rank_of(), source_0, 0, source_offset0 - Krs->get_source_cluster().get_offset());
-                            sr.push_back(Uh);
-                            sr.push_back(Vh * Uk * Vk);
-                            of.push_back(target_offset0);
-                            of.push_back(source_offset0);
-                        } else if ((Htr->is_low_rank()) and !(Krs->is_low_rank())) {
-                            auto Uh = Htr->get_low_rank_data()->Get_U().get_block(target_0, Htr->get_low_rank_data()->rank_of(), target_offset0 - Htr->get_target_cluster().get_offset(), 0);
-                            auto Vh = Htr->get_low_rank_data()->Get_V().get_block(Htr->get_low_rank_data()->rank_of(), rho_child->get_size(), 0, rho_child->get_offset() - Htr->get_source_cluster().get_offset());
-                            if (Krs->get_target_cluster().get_size() == rho_child->get_size() && Krs->get_source_cluster().get_size() == source_0) {
-                                sr.push_back(Uh);
-                                sr.push_back(Krs->matrix_hmatrix(Vh));
-                                of.push_back(target_offset0);
-                                of.push_back(source_offset0);
-                            } else { // Krs est pas low rank et n'a pas la bonne taille-> ca devrait pas arriver mais c'est qu'il y a un gros blocs dense
-                                auto krestr = Krs->get_dense_data()->get_block(rho_child->get_size(), source_0, rho_child->get_offset() - Krs->get_target_cluster().get_offset(), source_offset0 - Krs->get_source_cluster().get_offset());
-                                sr.push_back(Uh);
-                                sr.push_back(Vh * krestr);
-                                of.push_back(target_offset0);
-                                of.push_back(source_offset0);
-                            }
-                        } else if (!(Htr->is_low_rank()) and (Krs->is_low_rank())) {
-                            auto Uk = Krs->get_low_rank_data()->Get_U().get_block(rho_child->get_size(), Krs->get_low_rank_data()->rank_of(), source_offset0 - Krs->get_target_cluster().get_offset(), 0);
-                            auto Vk = Krs->get_low_rank_data()->Get_V().get_block(Krs->get_low_rank_data()->rank_of(), source_0, 0, source_offset0 - Krs->get_source_cluster().get_offset());
-                            if (Htr->get_source_cluster().get_size() == rho_child->get_size() && Htr->get_target_cluster().get_size() == target_0) {
-                                sr.push_back(Htr->hmatrix_matrix(Uk));
-                                sr.push_back(Vk);
-                                of.push_back(target_offset0);
-                                of.push_back(source_offset0);
-                            } else { // Htr est pas low rank et n'a pas la bonne taille-> ca devrait pas arriver mais c'est qu'il y a un gros blocs dense
-                                auto Hrestr = Htr->get_dense_data()->get_block(target_0, rho_child->get_size(), target_offset0 - Htr->get_target_cluster().get_offset(), rho_child->get_offset() - Htr->get_source_cluster().get_offset());
-                                sr.push_back(Hrestr * Uk);
-                                sr.push_back(Vk);
-                                of.push_back(target_offset0);
-                                of.push_back(source_offset0);
-                            }
-                        } else {
-                            std::cout << "?!?!?!?!" << std::endl;
-                        }
-                    }
-                } else {
-
-                    if (!(Htr->is_low_rank()) and !(Krs->is_low_rank())) {
-                        sh.push_back(Htr);
-                        sh.push_back(Krs);
-                        mid_of.push_back(rho_child->get_size());
-                        mid_of.push_back(rho_child->get_offset());
-                    } else {
-                        if ((Htr->is_low_rank()) and !(Krs->is_low_rank())) {
-                            auto U = Htr->get_low_rank_data()->Get_U();
-                            // auto V = Krs->mat_hmat(Htr->get_low_rank_data()->Get_V());
-                            auto V = Krs->matrix_hmatrix(Htr->get_low_rank_data()->Get_V());
-
-                            sr.push_back(U);
-                            sr.push_back(V);
-                            of.push_back(target_offset0);
-                            of.push_back(source_offset0);
-                        } else if (!(Htr->is_low_rank()) and (Krs->is_low_rank())) {
-                            // auto U = Htr->hmat_mat(Krs->get_low_rank_data()->Get_U());
-                            auto U = Htr->hmatrix_matrix(Krs->get_low_rank_data()->Get_U());
-
-                            auto V = Krs->get_low_rank_data()->Get_V();
-                            sr.push_back(U);
-                            sr.push_back(V);
-                            of.push_back(target_offset0);
-                            of.push_back(source_offset0);
-                        } else if ((Htr->is_low_rank()) and (Krs->is_low_rank())) {
-                            if (Htr->get_source_cluster().get_size() == Krs->get_target_cluster().get_size()) {
-
-                                auto U = (Htr->get_low_rank_data()->Get_U() * Htr->get_low_rank_data()->Get_V()) * Krs->get_low_rank_data()->Get_U();
-                                auto V = Krs->get_low_rank_data()->Get_V();
-                                sr.push_back(U);
-                                sr.push_back(V);
-                                of.push_back(target_offset0);
-                                of.push_back(source_offset0);
-                            } else {
-                                auto Uh = Htr->get_low_rank_data()->Get_U();
-                                auto Vh = Htr->get_low_rank_data()->Get_V();
-                                auto Uk = Krs->get_low_rank_data()->Get_U();
-                                auto Vk = Krs->get_low_rank_data()->Get_V();
-                                Matrix<CoefficientPrecision> urestrh(target_0, Uh.nb_cols());
-                                Matrix<CoefficientPrecision> vrestrh(Uh.nb_cols(), rho_child->get_size());
-                                Matrix<CoefficientPrecision> urestrk(rho_child->get_size(), Uk.nb_cols());
-                                Matrix<CoefficientPrecision> vrestrk(Uk.nb_cols(), source_0);
-                                if (Uh.nb_rows() == target_0) {
-                                    urestrh = Uh;
-                                } else {
-                                    for (int k = 0; k < target_0; ++k) {
-                                        for (int l = 0; l < Uh.nb_cols(); ++l) {
-                                            urestrh(k, l) = Uh(k + target_offset0 - Htr->get_target_cluster().get_offset(), l);
-                                        }
-                                    }
-                                }
-                                if (Vh.nb_cols() == rho_child->get_size()) {
-                                    vrestrh = Vh;
-                                } else {
-                                    for (int k = 0; k < Vh.nb_rows(); ++k) {
-                                        for (int l = 0; l < rho_child->get_size(); ++l) {
-                                            vrestrh(k, l) = Vh(k, l + rho_child->get_offset() - Htr->get_source_cluster().get_offset());
-                                        }
-                                    }
-                                }
-                                if (Uk.nb_rows() == rho_child->get_size()) {
-                                    urestrk = Uk;
-                                } else {
-                                    for (int k = 0; k < rho_child->get_size(); ++k) {
-                                        for (int l = 0; l < Uk.nb_cols(); ++l) {
-                                            urestrk(k, l) = Uk(k + rho_child->get_offset() - Krs->get_source_cluster().get_offset(), l);
-                                        }
-                                    }
-                                }
-                                if (Vk.nb_cols() == source_0) {
-                                    vrestrk = Vk;
-                                } else {
-                                    for (int k = 0; k < Vk.nb_rows(); ++k) {
-                                        for (int l = 0; l < source_0; ++l) {
-                                            vrestrk(k, l) = Vk(k, l + target_offset0 - Krs->get_source_cluster().get_offset());
-                                        }
-                                    }
-                                }
-                                auto U = urestrh * vrestrh * urestrk;
-                                auto V = vrestrk;
-                                sr.push_back(U);
-                                sr.push_back(V);
-                                of.push_back(target_offset0);
-                                of.push_back(source_offset0);
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        SumExpression res(sr, sh, of, mid_of, target_0, target_offset0, source_0, source_offset0);
-        return res;
-    }
     /////////////////////////
     //// restrcit "clean"
     //// TEST PASSED : YES -> erreur relative hmat hmat = e-5 , 73% de rang faible
@@ -640,9 +469,8 @@ class SumExpression : public VirtualGenerator<CoefficientPrecision> {
     Restrict_clean(int target_size0, int target_offset0, int source_size0, int source_offset0) const {
 
         std::vector<const HMatrixType *> sh;
-        auto of   = offset;
-        auto sr   = Sr;
-        bool flag = true;
+        auto of = offset;
+        auto sr = Sr;
         for (int rep = 0; rep < Sh.size() / 2; ++rep) {
             auto &H          = Sh[2 * rep];
             auto &K          = Sh[2 * rep + 1];
@@ -668,16 +496,12 @@ class SumExpression : public VirtualGenerator<CoefficientPrecision> {
                                             of.push_back(K_child->get_source_cluster().get_offset());
                                         } else if ((H_child->is_low_rank()) and !(K_child->is_low_rank())) {
                                             auto vK = K_child->mat_hmat(H_child->get_low_rank_data()->Get_V());
-                                            // auto vK = K_child->matrix_hmatrix(H_child->get_low_rank_data()->Get_V());
-
                                             sr.push_back(H_child->get_low_rank_data()->Get_U());
                                             sr.push_back(vK);
                                             of.push_back(H_child->get_target_cluster().get_offset());
                                             of.push_back(K_child->get_source_cluster().get_offset());
                                         } else if (!(H_child->is_low_rank()) and (K_child->is_low_rank())) {
                                             auto Hu = H_child->hmat_mat(K_child->get_low_rank_data()->Get_U());
-                                            // auto Hu = H_child->hmatrix_matrix(K_child->get_low_rank_data()->Get_U());
-
                                             sr.push_back(Hu);
                                             sr.push_back(K_child->get_low_rank_data()->Get_V());
                                             of.push_back(H_child->get_target_cluster().get_offset());
@@ -686,67 +510,58 @@ class SumExpression : public VirtualGenerator<CoefficientPrecision> {
                                     } else {
                                         sh.push_back(H_child.get());
                                         sh.push_back(K_child.get());
-                                        if (H_child->get_children().size == 0 && K_child->get_children().size() == 0) {
-                                            flag = false;
-                                        }
                                     }
                                 }
                             }
                         }
                     }
                 }
-            } else {
-                std::cout << "cas pas possible ->  soit tout les fils soit aucun" << std::endl;
+            } else if (H_children.size() == 0 and K_children.size() > 0) {
+                if (target_size0 < H->get_target_cluster().get_size()) {
+                    std::cout << " mauvais restrict , bloc dense insécablble a gauche" << std::endl;
+                } else {
+                    for (int l = 0; l < K_children.size(); ++l) {
+                        auto &K_child = K_children[l];
+                        if ((K_child->get_source_cluster().get_size() == source_size0) and (K_child->get_source_cluster().get_offset() == source_offset0)) {
+                            if (K_child->is_low_rank()) {
+                                auto Hu = H->hmat_mat(K_child->get_low_rank_data()->Get_U());
+                                sr.push_back(Hu);
+                                sr.push_back(K_child->get_low_rank_data()->Get_V());
+                                of.push_back(H->get_target_cluster().get_offset());
+                                of.push_back(K_child->get_source_cluster().get_offset());
+                            } else {
+                                sh.push_back(H);
+                                sh.push_back(K_child.get());
+                            }
+                        }
+                    }
+                }
+            } else if (H_children.size() > 0 and K_children.size() == 0) {
+                if (source_size0 < K->get_source_cluster().get_size()) {
+                    std::cout << "mauvais restric , bloc dense insécable à doite" << std::endl;
+                } else {
+                    for (int l = 0; l < H_children.size(); ++l) {
+                        auto &H_child = H_children[l];
+                        if (H_child->get_target_cluster().get_size() == target_size0 and H_child->get_target_cluster().get_offset() == target_offset0) {
+                            if (H_child->is_low_rank()) {
+                                auto vK = K->mat_hmat(H_child->get_low_rank_data()->Get_V());
+                                sr.push_back(H_child->get_low_rank_data()->Get_U());
+                                sr.push_back(vK);
+
+                                of.push_back(H_child->get_target_cluster().get_offset());
+                                of.push_back(K->get_source_cluster().get_offset());
+                            } else {
+                                sh.push_back(H_child.get());
+                                sh.push_back(K);
+                            }
+                        }
+                    }
+                }
+            } else if ((H_children.size() == 0) and (K_children.size() == 0)) {
+                std::cout << " mauvaise restriction : matrice insécable a gauche et a droite" << std::endl;
             }
-            // else if (H_children.size() == 0 and K_children.size() > 0) {
-            //     if (target_size0 < H->get_target_cluster().get_size()) {
-            //         std::cout << " mauvais restrict , bloc dense insécablble a gauche" << std::endl;
-            //     } else {
-            //         for (int l = 0; l < K_children.size(); ++l) {
-            //             auto &K_child = K_children[l];
-            //             if ((K_child->get_source_cluster().get_size() == source_size0) and (K_child->get_source_cluster().get_offset() == source_offset0)) {
-            //                 if (K_child->is_low_rank()) {
-            //                     // auto Hu = H->hmat_mat(K_child->get_low_rank_data()->Get_U());
-            //                     auto Hu = H->hmatrix_matrix(K_child->get_low_rank_data()->Get_U());
-            //                     sr.push_back(Hu);
-            //                     sr.push_back(K_child->get_low_rank_data()->Get_V());
-            //                     of.push_back(H->get_target_cluster().get_offset());
-            //                     of.push_back(K_child->get_source_cluster().get_offset());
-            //                 } else {
-            //                     sh.push_back(H);
-            //                     sh.push_back(K_child.get());
-            //                 }
-            //             }
-            //         }
-            //     }
-            // } else if (H_children.size() > 0 and K_children.size() == 0) {
-            //     if (source_size0 < K->get_source_cluster().get_size()) {
-            //         std::cout << "mauvais restric , bloc dense insécable à doite" << std::endl;
-            //     } else {
-            //         for (int l = 0; l < H_children.size(); ++l) {
-            //             auto &H_child = H_children[l];
-            //             if (H_child->get_target_cluster().get_size() == target_size0 and H_child->get_target_cluster().get_offset() == target_offset0) {
-            //                 if (H_child->is_low_rank()) {
-            //                     // auto vK = K->mat_hmat(H_child->get_low_rank_data()->Get_V());
-            //                     auto vK = K->matrix_hmatrix(H_child->get_low_rank_data()->Get_V());
-
-            //                     sr.push_back(H_child->get_low_rank_data()->Get_U());
-            //                     sr.push_back(vK);
-
-            //                     of.push_back(H_child->get_target_cluster().get_offset());
-            //                     of.push_back(K->get_source_cluster().get_offset());
-            //                 } else {
-            //                     sh.push_back(H_child.get());
-            //                     sh.push_back(K);
-            //                 }
-            //             }
-            //         }
-            //     }
-            // } else if ((H_children.size() == 0) and (K_children.size() == 0)) {
-            //     std::cout << " mauvaise restriction : matrice insécable a gauche et a droite" << std::endl;
-            // }
         }
-        SumExpression res(sr, sh, of, target_size0, target_offset0, source_size0, source_offset0, flag);
+        SumExpression res(sr, sh, of, target_size0, target_offset0, source_size0, source_offset0);
         return res;
     }
 
