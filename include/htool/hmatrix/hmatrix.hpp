@@ -6013,11 +6013,62 @@ void HMatrix<CoefficientPrecision, CoordinatePrecision>::recursive_build_hmatrix
         // Je dois rajouter ca sinon ca plante avec forward_T_M...
         LowRankMatrix<CoefficientPrecision, CoordinatePrecision> lr(sum_expr, *this->m_tree_data->m_low_rank_generator, this->get_target_cluster(), this->get_source_cluster(), -1, 0.0001);
         if ((lr.Get_U().nb_rows() == 0) or (lr.Get_U().nb_cols() == 0) or (lr.Get_V().nb_rows() == 0) or (lr.Get_V().nb_cols() == 0)) {
-            this->compute_dense_data(sum_expr);
+            // this->compute_dense_data(sum_expr);
+            if ((target_children.size() > 0) and (source_children.size() > 0)) {
+                if ((test_restrict[0] == 0) and (test_restrict[1] == 0)) {
+                    for (const auto &target_child : target_children) {
+                        for (const auto &source_child : source_children) {
+                            HMatrix<CoefficientPrecision, CoordinatePrecision> *hmatrix_child  = this->add_child(target_child.get(), source_child.get());
+                            SumExpression<CoefficientPrecision, CoordinatePrecision> sum_restr = sum_expr.Restrict_clean(target_child->get_size(), target_child->get_offset(), source_child->get_size(), source_child->get_offset());
+                            // SumExpression<CoefficientPrecision, CoordinatePrecision> sum_restr = sum_expr.Restrict_s(target_child->get_size(), source_child->get_size(), target_child->get_offset(), source_child->get_offset());
+                            hmatrix_child->recursive_build_hmatrix_product(sum_restr);
+                        }
+                    }
+                } else {
+                    this->compute_dense_data(sum_expr);
+                }
+            }
+
+            else if ((target_children.size() == 0) and (source_children.size() > 0)) {
+                if (test_restrict[1] == 0) {
+                    for (const auto &source_child : source_children) {
+                        HMatrix<CoefficientPrecision, CoordinatePrecision> *hmatrix_child  = this->add_child(&target_cluster, source_child.get());
+                        SumExpression<CoefficientPrecision, CoordinatePrecision> sum_restr = sum_expr.Restrict_clean(target_cluster.get_size(), target_cluster.get_offset(), source_child->get_size(), source_child->get_offset());
+                        hmatrix_child->recursive_build_hmatrix_product(sum_restr);
+                    }
+                } else {
+                    std::cout << "1" << std::endl;
+
+                    this->compute_dense_data(sum_expr);
+                }
+            } else if ((source_children.size() == 0) and (target_children.size() > 0)) {
+                if (test_restrict[0] == 0) {
+                    for (const auto &target_child : target_children) {
+                        HMatrix<CoefficientPrecision, CoordinatePrecision> *hmatrix_child  = this->add_child(target_child.get(), &source_cluster);
+                        SumExpression<CoefficientPrecision, CoordinatePrecision> sum_restr = sum_expr.Restrict_clean(target_child->get_size(), target_child->get_offset(), source_cluster.get_size(), source_cluster.get_offset());
+                        hmatrix_child->recursive_build_hmatrix_product(sum_restr);
+                    }
+                } else {
+
+                    this->compute_dense_data(sum_expr);
+                }
+            } else {
+
+                this->compute_dense_data(sum_expr);
+            }
 
         } else {
             this->set_low_rank_data(lr);
         }
+        // auto UV = sum_expr.ACA(-1,this->m_tree_data->m_epsilon);
+        // if (UV[0].nb_cols() == 1 && UV[0].nb_rows() == 1) {
+        //     std::cout << "ACA n'a pas trouvé d'approx du bloc admissible" << std::endl;
+        //     this->compute_dense_data(sum_expr);
+
+        // } else {
+        //     LowRankMatrix<CoefficientPrecision, CoordinatePrecision> lr(UV[0], UV[1]);
+        //     this->set_low_rank_data(lr);
+        // }
 
     } else if ((target_children.size() == 0) and (source_children.size() == 0)) {
         this->compute_dense_data(sum_expr);
@@ -6026,13 +6077,15 @@ void HMatrix<CoefficientPrecision, CoordinatePrecision>::recursive_build_hmatrix
             if ((test_restrict[0] == 0) and (test_restrict[1] == 0)) {
                 for (const auto &target_child : target_children) {
                     for (const auto &source_child : source_children) {
-                        HMatrix<CoefficientPrecision, CoordinatePrecision> *hmatrix_child = this->add_child(target_child.get(), source_child.get());
-                        // SumExpression<CoefficientPrecision, CoordinatePrecision> sum_restr = sum_expr.Restrict_clean(target_child->get_size(), target_child->get_offset(), source_child->get_size(), source_child->get_offset());
-                        SumExpression<CoefficientPrecision, CoordinatePrecision> sum_restr = sum_expr.Restrict_s(target_child->get_size(), source_child->get_size(), target_child->get_offset(), source_child->get_offset());
+                        HMatrix<CoefficientPrecision, CoordinatePrecision> *hmatrix_child  = this->add_child(target_child.get(), source_child.get());
+                        SumExpression<CoefficientPrecision, CoordinatePrecision> sum_restr = sum_expr.Restrict_clean(target_child->get_size(), target_child->get_offset(), source_child->get_size(), source_child->get_offset());
+                        // SumExpression<CoefficientPrecision, CoordinatePrecision> sum_restr = sum_expr.Restrict_s(target_child->get_size(), source_child->get_size(), target_child->get_offset(), source_child->get_offset());
                         hmatrix_child->recursive_build_hmatrix_product(sum_restr);
                     }
                 }
             } else {
+                // Il y a des trop gros blocs denses , normalemtn hmatrices =: minblocksize....... c'est a cause de ca qu'on est obligé de cjheker la restrictibilité a chaque fois....
+
                 this->compute_dense_data(sum_expr);
             }
         }
@@ -6041,7 +6094,7 @@ void HMatrix<CoefficientPrecision, CoordinatePrecision>::recursive_build_hmatrix
             if (test_restrict[1] == 0) {
                 for (const auto &source_child : source_children) {
                     HMatrix<CoefficientPrecision, CoordinatePrecision> *hmatrix_child  = this->add_child(&target_cluster, source_child.get());
-                    SumExpression<CoefficientPrecision, CoordinatePrecision> sum_restr = sum_expr.Restrict_s(target_cluster.get_size(), target_cluster.get_offset(), source_child->get_size(), source_child->get_offset());
+                    SumExpression<CoefficientPrecision, CoordinatePrecision> sum_restr = sum_expr.Restrict_clean(target_cluster.get_size(), target_cluster.get_offset(), source_child->get_size(), source_child->get_offset());
                     hmatrix_child->recursive_build_hmatrix_product(sum_restr);
                 }
             } else {
@@ -6051,7 +6104,7 @@ void HMatrix<CoefficientPrecision, CoordinatePrecision>::recursive_build_hmatrix
             if (test_restrict[0] == 0) {
                 for (const auto &target_child : target_children) {
                     HMatrix<CoefficientPrecision, CoordinatePrecision> *hmatrix_child  = this->add_child(target_child.get(), &source_cluster);
-                    SumExpression<CoefficientPrecision, CoordinatePrecision> sum_restr = sum_expr.Restrict_s(target_child->get_size(), target_child->get_offset(), source_cluster.get_size(), source_cluster.get_offset());
+                    SumExpression<CoefficientPrecision, CoordinatePrecision> sum_restr = sum_expr.Restrict_clean(target_child->get_size(), target_child->get_offset(), source_cluster.get_size(), source_cluster.get_offset());
                     hmatrix_child->recursive_build_hmatrix_product(sum_restr);
                 }
             } else {
