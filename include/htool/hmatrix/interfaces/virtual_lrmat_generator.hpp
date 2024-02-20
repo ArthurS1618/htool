@@ -1,7 +1,7 @@
 #ifndef HTOOL_VIRTUAL_LRMAT_GENERATOR_HPP
 #define HTOOL_VIRTUAL_LRMAT_GENERATOR_HPP
 
-#include "../../basic_types/matrix.hpp"
+#include "../../matrix/matrix.hpp"
 #include "../../misc/misc.hpp"
 #include "virtual_generator.hpp"
 #include <cassert>

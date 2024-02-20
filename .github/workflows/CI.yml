@@ -132,28 +132,31 @@ jobs:
           # ref: 14d013835eceb940b9b51dd90462fe67834db777
           fetch-depth: 0 # to get tags
       - name: Checkout hpddm
-        uses: actions/checkout@v3
-        with:
-          path: "hpddm"
-          repository: hpddm/hpddm
-          ref: afb9562c9c6673d9ff760985b104ef8d4caa3621
+        run: |
+          git clone https://github.com/hpddm/hpddm.git hpddm
+          # cd hpddm & git checkout afb9562c9c6673d9ff760985b104ef8d4caa3621
+        # uses: actions/checkout@v3
+        # with:
+        #   path: "hpddm"
+        #   repository: hpddm/hpddm
+        #   ref: afb9562c9c6673d9ff760985b104ef8d4caa3621
 
       - name: Build tests
         run: |
           cd htool && mkdir build && cd build
           cmake -DHTOOL_WITH_EXAMPLES=1 -DMPIEXEC_PREFLAGS="${{ matrix.MPIEXEC_PREFLAGS }}" -DUSE_SANITIZER=${{ matrix.USE_SANITIZER }} -DCMAKE_BUILD_TYPE=${{ matrix.CMAKE_BUILD_TYPE }} -DCODE_COVERAGE=${{ matrix.CODE_COVERAGE }} ../
-          make -j2 build-tests
+          make -j 4 build-tests
 
       - name: Run tests
         run: |
           cd htool/build
           export OMP_NUM_THREADS=2
-          ${{ matrix.ASAN_OPTIONS }} ctest --output-on-failure
+          ${{ matrix.ASAN_OPTIONS }} ctest -j 4 --output-on-failure
 
       - name: Build examples
         run: |
           cd htool/build
-          make -j2 build-examples
+          make -j 4 build-examples
 
       - name: Build documentation
         run: |

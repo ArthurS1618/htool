@@ -91,9 +91,9 @@ bool test_hmatrix_build(int nr, int nc, bool use_local_cluster, char Symmetry, c
 
     std::unique_ptr<HMatrixTreeBuilder<T, htool::underlying_type<T>>> hmatrix_tree_builder;
     if (use_local_cluster) {
-        hmatrix_tree_builder = std::make_unique<HMatrixTreeBuilder<T, htool::underlying_type<T>>>(target_root_cluster->get_cluster_on_partition(rankWorld), source_root_cluster->get_cluster_on_partition(rankWorld), epsilon, eta, Symmetry, UPLO, -1, -1);
+        hmatrix_tree_builder = std::make_unique<HMatrixTreeBuilder<T, htool::underlying_type<T>>>(target_root_cluster->get_cluster_on_partition(rankWorld), source_root_cluster->get_cluster_on_partition(rankWorld), epsilon, eta, Symmetry, UPLO, -1, -1, -1);
     } else {
-        hmatrix_tree_builder = std::make_unique<HMatrixTreeBuilder<T, htool::underlying_type<T>>>(*target_root_cluster, *source_root_cluster, epsilon, eta, Symmetry, UPLO, -1, rankWorld);
+        hmatrix_tree_builder = std::make_unique<HMatrixTreeBuilder<T, htool::underlying_type<T>>>(*target_root_cluster, *source_root_cluster, epsilon, eta, Symmetry, UPLO, -1, rankWorld, rankWorld);
     }
 
     std::shared_ptr<VirtualDenseBlocksGenerator<T>> dense_blocks_generator;

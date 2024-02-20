@@ -1,8 +1,8 @@
 #ifndef HTOOL_LRMAT_HPP
 #define HTOOL_LRMAT_HPP
 
-#include "../../basic_types/matrix.hpp"
 #include "../../clustering/cluster_node.hpp"
+#include "../../matrix/matrix.hpp"
 #include "../interfaces/virtual_generator.hpp"
 #include "../interfaces/virtual_lrmat_generator.hpp"
 #include <cassert>
@@ -14,32 +14,35 @@ template <typename CoefficientPrecision, typename CoordinatesPrecision = underly
 class LowRankMatrix {
 
   protected:
-    // Data member
-    int m_rank;
-    int m_number_of_rows, m_number_of_columns;
     Matrix<CoefficientPrecision> m_U, m_V;
     underlying_type<CoefficientPrecision> m_epsilon;
 
   public:
     // Constructors
-    LowRankMatrix(const VirtualGenerator<CoefficientPrecision> &A, const VirtualLowRankGenerator<CoefficientPrecision, CoordinatesPrecision> &LRGenerator, const Cluster<CoordinatesPrecision> &target_cluster, const Cluster<CoordinatesPrecision> &source_cluster, int rank = -1, underlying_type<CoefficientPrecision> epsilon = 1e-3) : m_rank(rank), m_number_of_rows(target_cluster.get_size()), m_number_of_columns(source_cluster.get_size()), m_U(), m_V(), m_epsilon(epsilon) {
+    LowRankMatrix(const VirtualGenerator<CoefficientPrecision> &A, const VirtualLowRankGenerator<CoefficientPrecision, CoordinatesPrecision> &LRGenerator, const Cluster<CoordinatesPrecision> &target_cluster, const Cluster<CoordinatesPrecision> &source_cluster, int rank = -1, underlying_type<CoefficientPrecision> epsilon = 1e-3) : m_U(), m_V(), m_epsilon(epsilon) {
 
-        if (m_rank == 0) {
-
-            m_U.resize(m_number_of_rows, 1);
-            m_V.resize(1, m_number_of_columns);
-            std::fill_n(m_U.data(), m_number_of_rows, 0);
-            std::fill_n(m_V.data(), m_number_of_columns, 0);
+        if (rank == 0) {
+            m_U.resize(target_cluster.get_size(), 0);
+            m_V.resize(0, source_cluster.get_size());
         } else {
-            LRGenerator.copy_low_rank_approximation(A, target_cluster, source_cluster, epsilon, m_rank, m_U, m_V);
+            LRGenerator.copy_low_rank_approximation(A, target_cluster, source_cluster, epsilon, rank, m_U, m_V);
         }
     }
 
-    // Getters
-    int nb_rows() const { return m_number_of_rows; }
-    int nb_cols() const { return m_number_of_columns; }
-    int rank_of() const { return m_rank; }
+    LowRankMatrix(underlying_type<CoefficientPrecision> epsilon) : m_U(), m_V(), m_epsilon(epsilon) {}
 
+    LowRankMatrix &operator=(const LowRankMatrix &rhs) = default;
+    LowRankMatrix(const LowRankMatrix &rhs)            = default;
+
+    // Getters
+    int nb_rows() const { return m_U.nb_rows(); }
+    int nb_cols() const { return m_V.nb_cols(); }
+    int rank_of() const { return m_U.nb_cols(); }
+
+    Matrix<CoefficientPrecision> &get_U() { return m_U; }
+    Matrix<CoefficientPrecision> &get_V() { return m_V; }
+    const Matrix<CoefficientPrecision> &get_U() const { return m_U; }
+    const Matrix<CoefficientPrecision> &get_V() const { return m_V; }
     CoefficientPrecision get_U(int i, int j) const { return m_U(i, j); }
     CoefficientPrecision get_V(int i, int j) const { return m_V(i, j); }
     void assign_U(int i, int j, CoefficientPrecision *ptr) { return m_U.assign(i, j, ptr); }
@@ -51,42 +54,42 @@ class LowRankMatrix {
     }
 
     void add_vector_product(char trans, CoefficientPrecision alpha, const CoefficientPrecision *in, CoefficientPrecision beta, CoefficientPrecision *out) const {
-        if (m_rank == 0) {
+        if (m_U.nb_cols() == 0) {
             std::fill(out, out + m_U.nb_cols(), 0);
         } else if (trans == 'N') {
-            std::vector<CoefficientPrecision> a(m_rank);
+            std::vector<CoefficientPrecision> a(m_U.nb_cols());
             m_V.add_vector_product(trans, 1, in, 0, a.data());
             m_U.add_vector_product(trans, alpha, a.data(), beta, out);
         } else {
-            std::vector<CoefficientPrecision> a(m_rank);
+            std::vector<CoefficientPrecision> a(m_U.nb_cols());
             m_U.add_vector_product(trans, 1, in, 0, a.data());
             m_V.add_vector_product(trans, alpha, a.data(), beta, out);
         }
     }
 
     void add_matrix_product(char transa, CoefficientPrecision alpha, const CoefficientPrecision *in, CoefficientPrecision beta, CoefficientPrecision *out, int mu) const {
-        if (m_rank == 0) {
+        if (m_U.nb_cols() == 0) {
             std::fill(out, out + m_V.nb_cols() * mu, 0);
         } else if (transa == 'N') {
-            std::vector<CoefficientPrecision> a(m_rank * mu);
+            std::vector<CoefficientPrecision> a(m_U.nb_cols() * mu);
             m_V.add_matrix_product(transa, 1, in, 0, a.data(), mu);
             m_U.add_matrix_product(transa, alpha, a.data(), beta, out, mu);
         } else {
-            std::vector<CoefficientPrecision> a(m_rank * mu);
+            std::vector<CoefficientPrecision> a(m_U.nb_cols() * mu);
             m_U.add_matrix_product(transa, 1, in, 0, a.data(), mu);
             m_V.add_matrix_product(transa, alpha, a.data(), beta, out, mu);
         }
     }
 
     void add_matrix_product_row_major(char transa, CoefficientPrecision alpha, const CoefficientPrecision *in, CoefficientPrecision beta, CoefficientPrecision *out, int mu) const {
-        if (m_rank == 0) {
+        if (m_U.nb_cols() == 0) {
             std::fill(out, out + m_V.nb_cols() * mu, 0);
         } else if (transa == 'N') {
-            std::vector<CoefficientPrecision> a(m_rank * mu);
+            std::vector<CoefficientPrecision> a(m_U.nb_cols() * mu);
             m_V.add_matrix_product_row_major(transa, 1, in, 0, a.data(), mu);
             m_U.add_matrix_product_row_major(transa, alpha, a.data(), beta, out, mu);
         } else {
-            std::vector<CoefficientPrecision> a(m_rank * mu);
+            std::vector<CoefficientPrecision> a(m_U.nb_cols() * mu);
             m_U.add_matrix_product_row_major(transa, 1, in, 0, a.data(), mu);
             m_V.add_matrix_product_row_major(transa, alpha, a.data(), beta, out, mu);
         }
@@ -94,18 +97,18 @@ class LowRankMatrix {
 
     void
     mvprod(const CoefficientPrecision *const in, CoefficientPrecision *const out) const {
-        if (m_rank == 0) {
+        if (m_U.nb_cols() == 0) {
             std::fill(out, out + m_U.nb_cols(), 0);
         } else {
-            std::vector<CoefficientPrecision> a(m_rank);
+            std::vector<CoefficientPrecision> a(m_U.nb_cols());
             m_V.mvprod(in, a.data());
             m_U.mvprod(a.data(), out);
         }
     }
 
     void add_mvprod_row_major(const CoefficientPrecision *const in, CoefficientPrecision *const out, const int &mu, char transb = 'T', char op = 'N') const {
-        if (m_rank != 0) {
-            std::vector<CoefficientPrecision> a(m_rank * mu);
+        if (m_U.nb_cols() != 0) {
+            std::vector<CoefficientPrecision> a(m_U.nb_cols() * mu);
             if (op == 'N') {
                 m_V.mvprod_row_major(in, a.data(), mu, transb, op);
                 m_U.add_mvprod_row_major(a.data(), out, mu, transb, op);
@@ -132,17 +135,17 @@ class LowRankMatrix {
     }
 
     double compression_ratio() const {
-        return (m_number_of_rows * m_number_of_columns) / (double)(m_rank * (m_number_of_rows + m_number_of_columns));
+        return (m_U.nb_rows() * m_V.nb_cols()) / (double)(m_U.nb_cols() * (m_U.nb_rows() + m_V.nb_cols()));
     }
 
     double space_saving() const {
-        return (1 - (m_rank * (1. / double(m_number_of_rows) + 1. / double(m_number_of_columns))));
+        return (1 - (m_U.nb_cols() * (1. / double(m_U.nb_rows()) + 1. / double(m_V.nb_cols()))));
     }
 
     friend std::ostream &operator<<(std::ostream &os, const LowRankMatrix &m) {
         os << "rank:\t" << m.rank << std::endl;
-        os << "number_of_rows:\t" << m.m_number_of_rows << std::endl;
-        os << "m_number_of_columns:\t" << m.m_number_of_columns << std::endl;
+        os << "number_of_rows:\t" << m.nb_rows() << std::endl;
+        os << "m_number_of_columns:\t" << m.nb_cols() << std::endl;
         os << "U:\n";
         os << m.m_U << std::endl;
         os << m.m_V << std::endl;

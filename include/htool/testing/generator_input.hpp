@@ -8,7 +8,7 @@
 namespace htool {
 
 template <typename T>
-void generate_random_vector(std::vector<T> &random_vector) {
+void generate_random_array(T *ptr, size_t size) {
     T lower_bound = 0;
     T upper_bound = 1000;
     std::random_device rd;
@@ -18,10 +18,10 @@ void generate_random_vector(std::vector<T> &random_vector) {
         return dist(mersenne_engine);
     };
 
-    std::generate(begin(random_vector), end(random_vector), gen);
+    std::generate(ptr, ptr + size, gen);
 }
 template <>
-void generate_random_vector(std::vector<int> &random_vector) {
+void generate_random_array(int *ptr, size_t size) {
     int lower_bound = 0;
     int upper_bound = 10000;
     std::random_device rd;
@@ -31,12 +31,12 @@ void generate_random_vector(std::vector<int> &random_vector) {
         return dist(mersenne_engine);
     };
 
-    std::generate(begin(random_vector), end(random_vector), gen);
+    std::generate(ptr, ptr + size, gen);
 }
 
 template <typename T>
-void generate_random_vector(std::vector<std::complex<T>> &random_vector) {
-    std::vector<T> random_vector_real(random_vector.size()), random_vector_imag(random_vector.size());
+void generate_random_array(std::complex<T> *ptr, size_t size) {
+    std::vector<T> random_vector_real(size), random_vector_imag(size);
     T lower_bound = 0;
     T upper_bound = 10000;
     std::random_device rd;
@@ -48,9 +48,14 @@ void generate_random_vector(std::vector<std::complex<T>> &random_vector) {
 
     std::generate(begin(random_vector_real), end(random_vector_real), gen);
     std::generate(begin(random_vector_imag), end(random_vector_imag), gen);
-    std::transform(random_vector_real.begin(), random_vector_real.end(), random_vector_imag.begin(), random_vector.begin(), [](double da, double db) {
+    std::transform(random_vector_real.begin(), random_vector_real.end(), random_vector_imag.begin(), ptr, [](double da, double db) {
         return std::complex<double>(da, db);
     });
+}
+
+template <typename T>
+void generate_random_vector(std::vector<T> &random_vector) {
+    generate_random_array(random_vector.data(), random_vector.size());
 }
 
 template <typename T>
@@ -72,6 +77,11 @@ void generate_random_scalar(std::complex<T> &coefficient) {
     std::uniform_real_distribution<T> dist(lower_bound, upper_bound);
     coefficient.real(dist(mersenne_engine));
     coefficient.imag(dist(mersenne_engine));
+}
+
+template <typename T>
+void generate_random_matrix(Matrix<T> &matrix) {
+    generate_random_array(matrix.data(), matrix.nb_cols() * matrix.nb_rows());
 }
 
 // template <>

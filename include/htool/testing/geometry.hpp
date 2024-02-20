@@ -2,7 +2,7 @@
 #ifndef HTOOL_TESTING_GEOMETRY_HPP
 #define HTOOL_TESTING_GEOMETRY_HPP
 
-#include "../basic_types/matrix.hpp"
+#include "../matrix/matrix.hpp"
 #include <array>
 #include <random>
 #include <vector>
@@ -45,6 +45,7 @@ void create_sphere(int nr, T *const xt, std::array<T, 3> offset = {0, 0, 0}) {
         xt[3 * j + 2] = offset[2] + std::cbrt(rho) * std::cos(phi);
     }
 }
+
 } // namespace htool
 
 #endif

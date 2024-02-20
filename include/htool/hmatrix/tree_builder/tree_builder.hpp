@@ -33,6 +33,7 @@ class HMatrixTreeBuilder {
 
     char m_symmetry_type{'N'};
     char m_UPLO_type{'N'};
+    int m_partition_number_for_symmetry{-1};
 
     // Views
     mutable std::vector<HMatrixType *> m_admissible_tasks{};
@@ -59,15 +60,15 @@ class HMatrixTreeBuilder {
         return (m_symmetry_type != 'N')
                && ((m_UPLO_type == 'U'
                     && target_cluster.get_offset() >= (source_cluster.get_offset() + source_cluster.get_size())
-                    && ((m_target_partition_number == -1)
-                        || source_cluster.get_offset() >= m_source_root_cluster.get_clusters_on_partition()[m_target_partition_number]->get_offset())
+                    && ((m_partition_number_for_symmetry == -1)
+                        || (source_cluster.get_offset() >= m_source_root_cluster.get_clusters_on_partition()[m_partition_number_for_symmetry]->get_offset() and m_target_root_cluster.get_clusters_on_partition()[m_partition_number_for_symmetry]->get_offset() <= target_cluster.get_offset() && target_cluster.get_offset() + target_cluster.get_size() <= m_target_root_cluster.get_clusters_on_partition()[m_partition_number_for_symmetry]->get_offset() + m_target_root_cluster.get_clusters_on_partition()[m_partition_number_for_symmetry]->get_size()))
                     // && ((m_target_partition_number != -1)
                     //     || source_cluster.get_offset() >= target_cluster.get_offset())
                     )
                    || (m_UPLO_type == 'L'
                        && source_cluster.get_offset() >= (target_cluster.get_offset() + target_cluster.get_size())
-                       && ((m_target_partition_number == -1)
-                           || source_cluster.get_offset() < m_source_root_cluster.get_clusters_on_partition()[m_target_partition_number]->get_offset() + m_source_root_cluster.get_clusters_on_partition()[m_target_partition_number]->get_size())
+                       && ((m_partition_number_for_symmetry == -1)
+                           || (source_cluster.get_offset() < m_source_root_cluster.get_clusters_on_partition()[m_partition_number_for_symmetry]->get_offset() + m_source_root_cluster.get_clusters_on_partition()[m_partition_number_for_symmetry]->get_size() && m_target_root_cluster.get_clusters_on_partition()[m_partition_number_for_symmetry]->get_offset() <= target_cluster.get_offset() && target_cluster.get_offset() + target_cluster.get_size() <= m_target_root_cluster.get_clusters_on_partition()[m_partition_number_for_symmetry]->get_offset() + m_target_root_cluster.get_clusters_on_partition()[m_partition_number_for_symmetry]->get_size()))
                        //    && ((m_target_partition_number != -1)
                        //    || source_cluster.get_offset() < target_cluster.get_offset() + target_cluster.get_size())
                        ));
@@ -95,7 +96,7 @@ class HMatrixTreeBuilder {
     }
 
   public:
-    explicit HMatrixTreeBuilder(const ClusterType &root_cluster_tree_target, const ClusterType &root_source_cluster_tree, underlying_type<CoefficientPrecision> epsilon, CoordinatePrecision eta, char symmetry, char UPLO, int reqrank, int target_partition_number) : m_target_root_cluster(root_cluster_tree_target), m_source_root_cluster(root_source_cluster_tree), m_epsilon(epsilon), m_eta(eta), m_reqrank(reqrank), m_target_partition_number(target_partition_number), m_symmetry_type(symmetry), m_UPLO_type(UPLO), m_low_rank_generator(std::make_shared<sympartialACA<CoefficientPrecision, CoordinatePrecision>>()), m_admissibility_condition(std::make_shared<RjasanowSteinbach<CoordinatePrecision>>()) {
+    explicit HMatrixTreeBuilder(const ClusterType &root_cluster_tree_target, const ClusterType &root_source_cluster_tree, underlying_type<CoefficientPrecision> epsilon, CoordinatePrecision eta, char symmetry, char UPLO, int reqrank, int target_partition_number, int partition_number_for_symmetry) : m_target_root_cluster(root_cluster_tree_target), m_source_root_cluster(root_source_cluster_tree), m_epsilon(epsilon), m_eta(eta), m_reqrank(reqrank), m_target_partition_number(target_partition_number), m_symmetry_type(symmetry), m_UPLO_type(UPLO), m_partition_number_for_symmetry(partition_number_for_symmetry), m_low_rank_generator(std::make_shared<sympartialACA<CoefficientPrecision, CoordinatePrecision>>()), m_admissibility_condition(std::make_shared<RjasanowSteinbach<CoordinatePrecision>>()) {
         if (!((m_symmetry_type == 'N' || m_symmetry_type == 'H' || m_symmetry_type == 'S')
               && (m_UPLO_type == 'N' || m_UPLO_type == 'L' || m_UPLO_type == 'U')
               && ((m_symmetry_type == 'N' && m_UPLO_type == 'N') || (m_symmetry_type != 'N' && m_UPLO_type != 'N'))
@@ -105,11 +106,12 @@ class HMatrixTreeBuilder {
             error_message += " and m_UPLO_type=";
             error_message.push_back(m_UPLO_type);
             htool::Logger::get_instance().log(LogLevel::ERROR, error_message); // LCOV_EXCL_LINE
-            // throw std::invalid_argument(error_message); // LCOV_EXCL_LINE
         }
         if (target_partition_number != -1 && target_partition_number >= m_target_root_cluster.get_clusters_on_partition().size()) {
             htool::Logger::get_instance().log(LogLevel::ERROR, "Target partition number cannot exceed number of partitions"); // LCOV_EXCL_LINE
-            // throw std::logic_error("[Htool error] Target partition number cannot exceed number of partitions.");
+        }
+        if (partition_number_for_symmetry != -1 && partition_number_for_symmetry >= m_target_root_cluster.get_clusters_on_partition().size()) {
+            htool::Logger::get_instance().log(LogLevel::ERROR, "Partition number for symmetry cannot exceed number of partitions"); // LCOV_EXCL_LINE
         }
     }
 
@@ -190,7 +192,10 @@ bool HMatrixTreeBuilder<CoefficientPrecision, CoordinatePrecision>::build_block_
     bool is_admissible = m_admissibility_condition->ComputeAdmissibility(target_cluster, source_cluster, m_eta);
 
     ///////////////////// Diagonal blocks
-    // std::cout << target_cluster.get_offset() << " " << target_cluster.get_size() << " " << source_cluster.get_offset() << " " << source_cluster.get_size() << " " << is_block_diagonal(*current_hmatrix) << " " << is_target_cluster_in_target_partition(target_cluster) << " " << target_cluster.get_rank() << "\n";
+    // int rankWorld;
+    // MPI_Comm_rank(MPI_COMM_WORLD, &rankWorld);
+    // if (rankWorld == 0)
+    //     std::cout << target_cluster.get_offset() << " " << target_cluster.get_size() << " " << source_cluster.get_offset() << " " << source_cluster.get_size() << " " << is_block_diagonal(*current_hmatrix) << " " << is_target_cluster_in_target_partition(target_cluster) << " " << target_cluster.get_rank() << " " << is_removed_by_symmetry(target_cluster, source_cluster) << "\n";
     // if (is_block_diagonal(*current_hmatrix)) {
     //     current_hmatrix->set_diagonal_hmatrix(current_hmatrix);
     // }
@@ -203,7 +208,9 @@ bool HMatrixTreeBuilder<CoefficientPrecision, CoordinatePrecision>::build_block_
         && is_target_cluster_in_target_partition(target_cluster)
         && !is_removed_by_symmetry(target_cluster, source_cluster)
         && target_cluster.get_depth() >= m_mintargetdepth
-        && source_cluster.get_depth() >= m_minsourcedepth) {
+        && source_cluster.get_depth() >= m_minsourcedepth
+        && target_cluster.get_rank() >= 0
+        && source_cluster.get_rank() >= 0) {
         m_admissible_tasks.push_back(current_hmatrix);
         return false;
     } else if (source_cluster.is_leaf()) {
@@ -279,12 +286,12 @@ bool HMatrixTreeBuilder<CoefficientPrecision, CoordinatePrecision>::build_block_
                 return false;
             }
         } else {
-            if ((target_cluster.get_size() > source_cluster.get_size()) || (target_cluster.get_rank() < 0 && source_cluster.get_rank() >= 0 && is_admissible)) {
+            if (target_cluster.get_rank() < 0 && source_cluster.get_rank() >= 0) {
                 std::vector<bool> Blocks_not_pushed{};
                 std::vector<HMatrixType *> child_blocks{};
-                for (const auto &target_child : target_children) {
+                for (const auto &target_child : target_cluster.get_clusters_on_partition()) {
                     if ((is_target_cluster_in_target_partition(*target_child) || target_cluster.get_rank() < 0) && !is_removed_by_symmetry(*target_child, source_cluster)) {
-                        child_blocks.emplace_back(current_hmatrix->add_child(target_child.get(), &source_cluster));
+                        child_blocks.emplace_back(current_hmatrix->add_child(target_child, &source_cluster));
                         set_hmatrix_symmetry(*child_blocks.back());
                         Blocks_not_pushed.push_back(build_block_tree(child_blocks.back()));
                     }
@@ -310,12 +317,12 @@ bool HMatrixTreeBuilder<CoefficientPrecision, CoordinatePrecision>::build_block_
 
                     return false;
                 }
-            } else if (target_cluster.get_size() < source_cluster.get_size() || (source_cluster.get_rank() < 0 && target_cluster.get_rank() >= 0 && is_admissible)) {
+            } else if (source_cluster.get_rank() < 0 && target_cluster.get_rank() >= 0) {
                 std::vector<bool> Blocks_not_pushed;
                 std::vector<HMatrixType *> child_blocks{};
-                for (const auto &source_child : source_children) {
+                for (const auto &source_child : source_cluster.get_clusters_on_partition()) {
                     if (!is_removed_by_symmetry(target_cluster, *source_child)) {
-                        child_blocks.emplace_back(current_hmatrix->add_child(&target_cluster, source_child.get()));
+                        child_blocks.emplace_back(current_hmatrix->add_child(&target_cluster, source_child));
                         set_hmatrix_symmetry(*child_blocks.back());
                         Blocks_not_pushed.push_back(build_block_tree(child_blocks.back()));
                     }
@@ -430,7 +437,7 @@ void HMatrixTreeBuilder<CoefficientPrecision, CoordinatePrecision>::compute_bloc
         for (int p = 0; p < m_admissible_tasks.size(); p++) {
             m_admissible_tasks[p]->compute_low_rank_data(generator, *m_low_rank_generator, m_reqrank, m_epsilon);
             // local_low_rank_leaves.emplace_back(m_admissible_tasks[p]);
-            if (m_admissible_tasks[p]->get_low_rank_data()->rank_of() == -1) {
+            if (m_admissible_tasks[p]->get_low_rank_data()->get_U().nb_rows() != m_admissible_tasks[p]->get_target_cluster().get_size() || m_admissible_tasks[p]->get_low_rank_data()->get_V().nb_cols() != m_admissible_tasks[p]->get_source_cluster().get_size()) {
                 // local_low_rank_leaves.pop_back();
                 m_admissible_tasks[p]->clear_low_rank_data();
                 // if (m_dense_blocks_generator.get() == nullptr) {

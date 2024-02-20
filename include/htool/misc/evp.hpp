@@ -1,7 +1,7 @@
 #ifndef HTOOL_EVP_HPP
 #define HTOOL_EVP_HPP
 
-#include "../basic_types/matrix.hpp"
+#include "../matrix/matrix.hpp"
 #include <iostream>
 #include <limits>
 #include <vector>

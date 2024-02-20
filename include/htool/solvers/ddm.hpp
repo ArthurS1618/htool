@@ -1,7 +1,7 @@
 #ifndef HTOOL_DDM_HPP
 #define HTOOL_DDM_HPP
 
-#include "../basic_types/matrix.hpp"
+#include "../matrix/matrix.hpp"
 #include "../distributed_operator/distributed_operator.hpp"
 #include "../misc/logger.hpp"
 #include "../misc/misc.hpp"

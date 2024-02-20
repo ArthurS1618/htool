@@ -1,7 +1,7 @@
 #ifndef HTOOL_VIRTUAL_OPERATOR_SPACE_BUILDER_HPP
 #define HTOOL_VIRTUAL_OPERATOR_SPACE_BUILDER_HPP
 
-#include "../../basic_types/matrix.hpp"
+#include "../../matrix/matrix.hpp"
 
 namespace htool {
 

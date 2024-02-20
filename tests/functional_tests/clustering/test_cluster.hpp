@@ -97,9 +97,9 @@ bool test_cluster(int size, bool use_given_partition) {
         }
 
         // Testing save and read root cluster
-        save_cluster_tree(root_cluster, "test_save_" + NbrToStr(rankWorld));
-        Cluster<T> copied_cluster = read_cluster_tree<T>("test_save_" + NbrToStr(rankWorld) + "_cluster_tree_properties.csv", "test_save_" + NbrToStr(rankWorld) + "_cluster_tree.csv");
-        save_cluster_tree(copied_cluster, "test_save_2_" + NbrToStr(rankWorld));
+        save_cluster_tree(root_cluster, "test_save_" + NbrToStr(rankWorld) + "_" + NbrToStr(sizeWorld));
+        Cluster<T> copied_cluster = read_cluster_tree<T>("test_save_" + NbrToStr(rankWorld) + "_" + NbrToStr(sizeWorld) + "_cluster_tree_properties.csv", "test_save_" + NbrToStr(rankWorld) + "_" + NbrToStr(sizeWorld) + "_cluster_tree.csv");
+        save_cluster_tree(copied_cluster, "test_save_2_" + NbrToStr(rankWorld) + "_" + NbrToStr(sizeWorld));
 
         is_error = is_error || !(root_cluster.get_minclustersize() == copied_cluster.get_minclustersize());
         is_error = is_error || !(root_cluster.get_maximal_depth() == copied_cluster.get_maximal_depth());

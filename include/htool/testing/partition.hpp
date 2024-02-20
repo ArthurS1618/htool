@@ -2,7 +2,7 @@
 #ifndef HTOOL_TESTING_PARTITION_HPP
 #define HTOOL_TESTING_PARTITION_HPP
 
-#include "../basic_types/matrix.hpp"
+#include "../matrix/matrix.hpp"
 #include "../misc/evp.hpp"
 
 namespace htool {

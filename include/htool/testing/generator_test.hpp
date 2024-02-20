@@ -2,7 +2,7 @@
 #ifndef HTOOL_TESTING_GENERATOR_TEST_HPP
 #define HTOOL_TESTING_GENERATOR_TEST_HPP
 
-#include "../basic_types/matrix.hpp"
+#include "../matrix/matrix.hpp"
 #include "../clustering/cluster_node.hpp"
 #include "../hmatrix/interfaces/virtual_generator.hpp"
 #include <vector>

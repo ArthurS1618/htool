@@ -10,6 +10,10 @@ add_custom_target(build-tests-clustering)
 add_dependencies(build-tests build-tests-clustering)
 add_subdirectory(clustering)
 
+add_custom_target(build-tests-matrix)
+add_dependencies(build-tests build-tests-matrix)
+add_subdirectory(matrix)
+
 add_custom_target(build-tests-hmatrix)
 add_dependencies(build-tests build-tests-hmatrix)
 add_subdirectory(hmatrix)

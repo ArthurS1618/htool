@@ -113,11 +113,11 @@ int test_solver_ddm(int argc, char *argv[], int mu, char data_symmetry, char sym
 
     LocalGeneratorFromMatrix<std::complex<double>> local_generator(A, local_cluster.get_permutation(), local_cluster.get_permutation(), local_to_global_numbering, local_to_global_numbering);
 
-    HMatrixTreeBuilder<std::complex<double>, double> local_hmatrix_builder(local_cluster, local_cluster, epsilon, eta, symmetric, UPLO, -1, -1);
+    HMatrixTreeBuilder<std::complex<double>, double> local_hmatrix_builder(local_cluster, local_cluster, epsilon, eta, symmetric, UPLO, -1, -1, -1);
 
     HMatrix<std::complex<double>, double> local_hmatrix = local_hmatrix_builder.build(local_generator);
     print_distributed_hmatrix_information(local_hmatrix, std::cout, MPI_COMM_WORLD);
-
+    save_leaves_with_rank(local_hmatrix, "local_hmatrix_" + std::to_string(rank));
     // Errors
     double error2;
 

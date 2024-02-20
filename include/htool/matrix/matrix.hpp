@@ -1,10 +1,10 @@
 #ifndef HTOOL_BASIC_TYPES_MATRIX_HPP
 #define HTOOL_BASIC_TYPES_MATRIX_HPP
 
+#include "../basic_types/vector.hpp"
 #include "../misc/logger.hpp"
 #include "../misc/misc.hpp"
 #include "../wrappers/wrapper_blas.hpp"
-#include "vector.hpp"
 #include <cassert>
 #include <functional>
 #include <iterator>
@@ -21,9 +21,9 @@ class Matrix {
 
   public:
     Matrix() : m_number_of_rows(0), m_number_of_cols(0), m_data(nullptr), m_is_owning_data(true) {}
-    Matrix(int nbr, int nbc) : m_number_of_rows(nbr), m_number_of_cols(nbc), m_is_owning_data(true) {
+    Matrix(int nbr, int nbc, T value = 0) : m_number_of_rows(nbr), m_number_of_cols(nbc), m_is_owning_data(true) {
         m_data = new T[nbr * nbc];
-        std::fill_n(m_data, nbr * nbc, 0);
+        std::fill_n(m_data, nbr * nbc, value);
     }
     Matrix(const Matrix &rhs) : m_number_of_rows(rhs.m_number_of_rows), m_number_of_cols(rhs.m_number_of_cols), m_is_owning_data(true) {
         m_data = new T[rhs.m_number_of_rows * rhs.m_number_of_cols]();
@@ -38,7 +38,7 @@ class Matrix {
             std::copy_n(rhs.m_data, m_number_of_rows * m_number_of_cols, m_data);
             m_number_of_rows = rhs.m_number_of_rows;
             m_number_of_cols = rhs.m_number_of_cols;
-            m_is_owning_data = true;
+            // m_is_owning_data = true;
         } else {
             m_number_of_rows = rhs.m_number_of_rows;
             m_number_of_cols = rhs.m_number_of_cols;
@@ -105,7 +105,7 @@ class Matrix {
     T *data() {
         return m_data;
     }
-    T *data() const {
+    const T *data() const {
         return m_data;
     }
 
@@ -208,12 +208,15 @@ class Matrix {
     the number of rows is set to _nbr_ and
     the number of columns is set to _nbc_.
     */
-    void resize(const int nbr, const int nbc, T value = 0) {
-        if (m_data != nullptr and m_is_owning_data) {
+    void resize(int nbr, int nbc, T value = 0) {
+        if (m_data != nullptr and m_is_owning_data and m_number_of_rows * m_number_of_cols != nbr * nbc) {
             delete[] m_data;
             m_data = nullptr;
+            m_data = new T[nbr * nbc];
+        } else if (m_number_of_rows * m_number_of_cols != nbr * nbc) {
+            m_data = new T[nbr * nbc];
         }
-        m_data           = new T[nbr * nbc];
+
         m_number_of_rows = nbr;
         m_number_of_cols = nbc;
         std::fill_n(m_data, nbr * nbc, value);
@@ -594,10 +597,6 @@ class Matrix {
                 // throw std::invalid_argument("[Htool error] Operation is not supported (" + std::string(1, trans) + " with " + symmetry + ")"); // LCOV_EXCL_LINE
             }
         }
-    }
-
-    void scale(T alpha) {
-        std::transform(m_data, m_data + m_number_of_rows * m_number_of_cols, m_data, std::bind(std::multiplies<T>(), std::placeholders::_1, alpha));
     }
 
     //! ### Looking for the entry of maximal modulus

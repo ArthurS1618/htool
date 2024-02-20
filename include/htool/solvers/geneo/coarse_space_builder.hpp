@@ -1,7 +1,7 @@
 #ifndef HTOOL_GENEO_COARSE_SPACE_BUILDER_HPP
 #define HTOOL_GENEO_COARSE_SPACE_BUILDER_HPP
 
-#include "../../basic_types/matrix.hpp"
+#include "../../matrix/matrix.hpp"
 // #include "../../wrappers/wrapper_hpddm.hpp"
 #include "../../wrappers/wrapper_lapack.hpp"
 // #include "../hmatrix/hmatrix.hpp"

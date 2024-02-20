@@ -6,36 +6,30 @@ using namespace htool;
 
 int main(int, char *[]) {
 
-    bool is_error                         = false;
-    const int number_of_rows              = 200;
-    const int number_of_rows_increased    = 400;
-    const int number_of_columns           = 200;
-    const int number_of_columns_increased = 400;
-    const int number_of_rhs               = 5;
-    const double margin                   = 0;
+    bool is_error                                 = false;
+    const int n1                                  = 200;
+    const int n1_increased                        = 400;
+    const int n2                                  = 200;
+    const int n2_increased                        = 400;
+    const int n3                                  = 100;
+    const double additional_compression_tolerance = 0;
+    const std::array<double, 4> additional_lrmat_sum_tolerances{1., 1., 1., 1.};
 
-    // Square matrix
-    is_error = is_error || test_lrmat_product<double, GeneratorTestDouble, partialACA<double>>(number_of_rows, number_of_columns, 1, 'N', margin);
-    is_error = is_error || test_lrmat_product<double, GeneratorTestDouble, partialACA<double>>(number_of_rows, number_of_columns, number_of_rhs, 'N', margin);
-    is_error = is_error || test_lrmat_product<double, GeneratorTestDouble, partialACA<double>>(number_of_rows, number_of_columns, 1, 'T', margin);
-    is_error = is_error || test_lrmat_product<double, GeneratorTestDouble, partialACA<double>>(number_of_rows, number_of_columns, number_of_rhs, 'T', margin);
+    for (auto epsilon : {1e-6, 1e-10}) {
+        for (auto operation : {'N', 'T'}) {
+            std::cout << epsilon << " " << operation << "\n";
+            // Square matrix
+            is_error = is_error || test_lrmat_product<double, GeneratorTestDouble, partialACA<double>>(operation, 'N', n1, n2, n3, epsilon, additional_compression_tolerance, additional_lrmat_sum_tolerances);
+            is_error = is_error || test_lrmat_product<std::complex<double>, GeneratorTestComplex, partialACA<std::complex<double>>>(operation, 'N', n1, n2, n3, epsilon, additional_compression_tolerance, additional_lrmat_sum_tolerances);
 
-    is_error = is_error || test_lrmat_product<std::complex<double>, GeneratorTestComplex, partialACA<std::complex<double>>>(number_of_rows, number_of_columns, 1, 'N', margin);
-    is_error = is_error || test_lrmat_product<std::complex<double>, GeneratorTestComplex, partialACA<std::complex<double>>>(number_of_rows, number_of_columns, number_of_rhs, 'N', margin);
-    is_error = is_error || test_lrmat_product<std::complex<double>, GeneratorTestComplex, partialACA<std::complex<double>>>(number_of_rows, number_of_columns, 1, 'T', margin);
-    is_error = is_error || test_lrmat_product<std::complex<double>, GeneratorTestComplex, partialACA<std::complex<double>>>(number_of_rows, number_of_columns, number_of_rhs, 'T', margin);
+            // Rectangle matrix
+            is_error = is_error || test_lrmat_product<double, GeneratorTestDouble, partialACA<double>>(operation, 'N', n1_increased, n2, n3, epsilon, additional_compression_tolerance, additional_lrmat_sum_tolerances);
+            is_error = is_error || test_lrmat_product<double, GeneratorTestDouble, partialACA<double>>(operation, 'N', n1, n2_increased, n3, epsilon, additional_compression_tolerance, additional_lrmat_sum_tolerances);
 
-    // Rectangle matrix
-    is_error = is_error || test_lrmat_product<double, GeneratorTestDouble, partialACA<double>>(number_of_rows_increased, number_of_columns, 1, 'N', margin);
-    is_error = is_error || test_lrmat_product<double, GeneratorTestDouble, partialACA<double>>(number_of_rows_increased, number_of_columns, number_of_rhs, 'N', margin);
-    is_error = is_error || test_lrmat_product<double, GeneratorTestDouble, partialACA<double>>(number_of_rows, number_of_columns_increased, 1, 'N', margin);
-    is_error = is_error || test_lrmat_product<double, GeneratorTestDouble, partialACA<double>>(number_of_rows, number_of_columns_increased, number_of_rhs, 'N', margin);
-
-    is_error = is_error || test_lrmat_product<std::complex<double>, GeneratorTestComplex, partialACA<std::complex<double>>>(number_of_rows_increased, number_of_columns, 1, 'N', margin);
-    is_error = is_error || test_lrmat_product<std::complex<double>, GeneratorTestComplex, partialACA<std::complex<double>>>(number_of_rows_increased, number_of_columns, number_of_rhs, 'N', margin);
-    is_error = is_error || test_lrmat_product<std::complex<double>, GeneratorTestComplex, partialACA<std::complex<double>>>(number_of_rows, number_of_columns_increased, 1, 'N', margin);
-    is_error = is_error || test_lrmat_product<std::complex<double>, GeneratorTestComplex, partialACA<std::complex<double>>>(number_of_rows, number_of_columns_increased, number_of_rhs, 'N', margin);
-
+            is_error = is_error || test_lrmat_product<std::complex<double>, GeneratorTestComplex, partialACA<std::complex<double>>>(operation, 'N', n1_increased, n2, n3, epsilon, additional_compression_tolerance, additional_lrmat_sum_tolerances);
+            is_error = is_error || test_lrmat_product<std::complex<double>, GeneratorTestComplex, partialACA<std::complex<double>>>(operation, 'N', n1, n2_increased, n3, epsilon, additional_compression_tolerance, additional_lrmat_sum_tolerances);
+        }
+    }
     if (is_error) {
         return 1;
     }

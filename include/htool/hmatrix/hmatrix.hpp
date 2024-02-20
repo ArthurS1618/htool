@@ -20,6 +20,12 @@ namespace htool {
 // Class
 template <typename CoefficientPrecision, typename CoordinatePrecision = underlying_type<CoefficientPrecision>>
 class HMatrix : public TreeNode<HMatrix<CoefficientPrecision, CoordinatePrecision>, HMatrixTreeData<CoefficientPrecision, CoordinatePrecision>> {
+  public:
+    enum class StorageType {
+        Dense,
+        LowRank,
+        Hierarchical
+    };
 
   private:
     // Data members
@@ -42,11 +48,6 @@ class HMatrix : public TreeNode<HMatrix<CoefficientPrecision, CoordinatePrecisio
     mutable char m_symmetry_type_for_leaves{'N'};
     // std::vector<HMatrix *> m_leaves_in_diagonal_block{};
 
-    enum class StorageType {
-        Dense,
-        LowRank,
-        Hierarchical
-    };
     StorageType m_storage_type{StorageType::Hierarchical};
 
     void set_leaves_in_cache() const {
@@ -91,9 +92,51 @@ class HMatrix : public TreeNode<HMatrix<CoefficientPrecision, CoordinatePrecisio
     // Child constructor
     HMatrix(const HMatrix &parent, const Cluster<CoordinatePrecision> *target_cluster, const Cluster<CoordinatePrecision> *source_cluster) : TreeNode<HMatrix, HMatrixTreeData<CoefficientPrecision, CoordinatePrecision>>(parent), m_target_cluster(target_cluster), m_source_cluster(source_cluster) {}
 
-    // no copy
-    HMatrix(const HMatrix &)                = delete;
-    HMatrix &operator=(const HMatrix &)     = delete;
+    HMatrix(const HMatrix &rhs) : TreeNode<HMatrix<CoefficientPrecision, CoordinatePrecision>, HMatrixTreeData<CoefficientPrecision, CoordinatePrecision>>(rhs), m_target_cluster(rhs.m_target_cluster), m_source_cluster(rhs.m_source_cluster), m_symmetry(rhs.m_symmetry), m_UPLO(rhs.m_UPLO), m_leaves(), m_leaves_for_symmetry(), m_symmetry_type_for_leaves(), m_storage_type(rhs.m_storage_type) {
+        Logger::get_instance().log(LogLevel::INFO, "Deep copy of HMatrix");
+        this->m_depth     = rhs.m_depth;
+        this->m_is_root   = rhs.m_is_root;
+        this->m_tree_data = std::make_shared<HMatrixTreeData<CoefficientPrecision, CoordinatePrecision>>(*rhs.m_tree_data);
+        this->m_children.clear();
+        for (auto &child : rhs.m_children) {
+            this->m_children.emplace_back(std::make_unique<HMatrix<CoefficientPrecision, CoordinatePrecision>>(*child));
+        }
+        if (rhs.m_dense_data) {
+            m_dense_data = std::make_unique<Matrix<CoefficientPrecision>>(*rhs.m_dense_data);
+        }
+        if (rhs.m_low_rank_data) {
+            m_low_rank_data = std::make_unique<LowRankMatrix<CoefficientPrecision, CoordinatePrecision>>(*rhs.m_low_rank_data);
+        }
+    }
+    HMatrix &operator=(const HMatrix &rhs) {
+        Logger::get_instance().log(LogLevel::INFO, "Deep copy of HMatrix");
+        if (&rhs == this) {
+            return *this;
+        }
+        this->m_depth     = rhs.m_depth;
+        this->m_is_root   = rhs.m_is_root;
+        this->m_tree_data = std::make_shared<HMatrixTreeData<CoefficientPrecision, CoordinatePrecision>>(*rhs.m_tree_data);
+        this->m_children.clear();
+        for (auto &child : rhs.m_children) {
+            this->m_children.emplace_back(std::make_unique<HMatrix<CoefficientPrecision, CoordinatePrecision>>(*child));
+        }
+        m_target_cluster = rhs.m_target_cluster;
+        m_source_cluster = rhs.m_source_cluster;
+        m_symmetry       = rhs.m_symmetry;
+        m_UPLO           = rhs.m_UPLO;
+        m_storage_type   = rhs.m_storage_type;
+
+        if (rhs.m_dense_data) {
+            m_dense_data = std::make_unique<Matrix<CoefficientPrecision>>(*rhs.m_dense_data);
+        }
+        if (rhs.m_low_rank_data) {
+            m_low_rank_data = std::make_unique<LowRankMatrix<CoefficientPrecision, CoordinatePrecision>>(*rhs.m_low_rank_data);
+        }
+        m_leaves.clear();
+        m_leaves_for_symmetry.clear();
+        return *this;
+    }
+
     HMatrix(HMatrix &&) noexcept            = default;
     HMatrix &operator=(HMatrix &&) noexcept = default;
     virtual ~HMatrix()                      = default;
@@ -101,6 +144,33 @@ class HMatrix : public TreeNode<HMatrix<CoefficientPrecision, CoordinatePrecisio
     // HMatrix getters
     const Cluster<CoordinatePrecision> &get_target_cluster() const { return *m_target_cluster; }
     const Cluster<CoordinatePrecision> &get_source_cluster() const { return *m_source_cluster; }
+    int nb_cols() const { return m_source_cluster->get_size(); }
+    int nb_rows() const { return m_target_cluster->get_size(); }
+
+    HMatrix<CoefficientPrecision, CoordinatePrecision> *get_child_or_this(const Cluster<CoordinatePrecision> &required_target_cluster, const Cluster<CoordinatePrecision> &required_source_cluster) {
+        if (*m_target_cluster == required_target_cluster and *m_source_cluster == required_source_cluster) {
+            return this;
+        }
+        for (auto &child : this->m_children) {
+            if (child->get_target_cluster() == required_target_cluster and child->get_source_cluster() == required_source_cluster) {
+                return child.get();
+            }
+        }
+        return nullptr;
+    }
+
+    const HMatrix<CoefficientPrecision, CoordinatePrecision> *get_child_or_this(const Cluster<CoordinatePrecision> &required_target_cluster, const Cluster<CoordinatePrecision> &required_source_cluster) const {
+        if (*m_target_cluster == required_target_cluster and *m_source_cluster == required_source_cluster) {
+            return this;
+        }
+        for (auto &child : this->m_children) {
+            if (child->get_target_cluster() == required_target_cluster and child->get_source_cluster() == required_source_cluster) {
+                return child.get();
+            }
+        }
+        return nullptr;
+    }
+
     int get_rank() const {
         return m_storage_type == StorageType::LowRank ? m_low_rank_data->rank_of() : -1;
     }
@@ -113,7 +183,9 @@ class HMatrix : public TreeNode<HMatrix<CoefficientPrecision, CoordinatePrecisio
         return m_leaves_for_symmetry;
     }
     const Matrix<CoefficientPrecision> *get_dense_data() const { return m_dense_data.get(); }
+    Matrix<CoefficientPrecision> *get_dense_data() { return m_dense_data.get(); }
     const LowRankMatrix<CoefficientPrecision, CoordinatePrecision> *get_low_rank_data() const { return m_low_rank_data.get(); }
+    LowRankMatrix<CoefficientPrecision, CoordinatePrecision> *get_low_rank_data() { return m_low_rank_data.get(); }
     char get_symmetry() const { return m_symmetry; }
     char get_UPLO() const { return m_UPLO; }
     const HMatrixTreeData<CoefficientPrecision, CoordinatePrecision> *get_hmatrix_tree_data() const { return this->m_tree_data.get(); }
@@ -136,6 +208,26 @@ class HMatrix : public TreeNode<HMatrix<CoefficientPrecision, CoordinatePrecisio
         }
         return nullptr;
     }
+    HMatrix<CoefficientPrecision> *get_sub_hmatrix(const Cluster<CoordinatePrecision> &target_cluster, const Cluster<CoordinatePrecision> &source_cluster) {
+        std::queue<HMatrix<CoefficientPrecision> *> hmatrix_queue;
+        hmatrix_queue.push(this);
+
+        while (!hmatrix_queue.empty()) {
+            HMatrix<CoefficientPrecision> *current_hmatrix = hmatrix_queue.front();
+            hmatrix_queue.pop();
+
+            if (target_cluster == current_hmatrix->get_target_cluster() && source_cluster == current_hmatrix->get_source_cluster()) {
+                return current_hmatrix;
+            }
+
+            auto &children = current_hmatrix->get_children();
+            for (auto &child : children) {
+                hmatrix_queue.push(child.get());
+            }
+        }
+        return nullptr;
+    }
+    StorageType get_storage_type() const { return m_storage_type; }
 
     // HMatrix node setters
     void set_symmetry(char symmetry) { m_symmetry = symmetry; }
@@ -145,6 +237,7 @@ class HMatrix : public TreeNode<HMatrix<CoefficientPrecision, CoordinatePrecisio
     // Test properties
     bool is_dense() const { return m_storage_type == StorageType::Dense; }
     bool is_low_rank() const { return m_storage_type == StorageType::LowRank; }
+    bool is_hierarchical() const { return m_storage_type == StorageType::Hierarchical; }
 
     // HMatrix Tree setters
     void set_eta(CoordinatePrecision eta) { this->m_tree_data->m_eta = eta; }
@@ -185,6 +278,15 @@ class HMatrix : public TreeNode<HMatrix<CoefficientPrecision, CoordinatePrecisio
         m_storage_type  = StorageType::LowRank;
     }
     void clear_low_rank_data() { m_low_rank_data.reset(); }
+
+    void set_dense_data(Matrix<CoefficientPrecision> &dense_matrix) {
+        this->delete_children();
+        m_leaves.clear();
+        m_leaves_for_symmetry.clear();
+        m_dense_data = std::make_unique<Matrix<CoefficientPrecision>>();
+        m_dense_data->assign(dense_matrix.nb_rows(), dense_matrix.nb_cols(), dense_matrix.release(), true);
+        m_storage_type = StorageType::Dense;
+    }
 
     // Linear algebra
     void add_vector_product(char trans, CoefficientPrecision alpha, const CoefficientPrecision *in, CoefficientPrecision beta, CoefficientPrecision *out) const;

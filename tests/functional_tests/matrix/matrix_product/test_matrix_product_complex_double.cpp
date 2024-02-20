@@ -1,4 +1,4 @@
-#include "../test_basic_type_matrix_product.hpp"
+#include "../test_matrix_product.hpp"
 
 using namespace std;
 using namespace htool;
