@@ -2,11 +2,11 @@
 #ifndef HTOOL_TESTING_LOCAL_HMATRIX_HPP
 #define HTOOL_TESTING_LOCAL_HMATRIX_HPP
 
-#include "../matrix/matrix.hpp"
 #include "../clustering/cluster_node.hpp"
 #include "../hmatrix/hmatrix.hpp"
 #include "../hmatrix/interfaces/virtual_generator.hpp"
 #include "../hmatrix/tree_builder/tree_builder.hpp"
+#include "../matrix/matrix.hpp"
 #include "local_operator.hpp"
 
 namespace htool {

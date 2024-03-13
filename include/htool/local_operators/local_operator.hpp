@@ -2,10 +2,10 @@
 #ifndef HTOOL_TESTING_LOCAL_OPERATOR_HPP
 #define HTOOL_TESTING_LOCAL_OPERATOR_HPP
 
-#include "../matrix/matrix.hpp"
 #include "../clustering/cluster_node.hpp"
 #include "../hmatrix/interfaces/virtual_generator.hpp"
 #include "../local_operators/virtual_local_operator.hpp"
+#include "../matrix/matrix.hpp"
 #include "../misc/logger.hpp"
 
 namespace htool {

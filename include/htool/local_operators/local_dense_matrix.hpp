@@ -2,9 +2,9 @@
 #ifndef HTOOL_TESTING_LOCAL_DENSE_MATRIX_HPP
 #define HTOOL_TESTING_LOCAL_DENSE_MATRIX_HPP
 
-#include "../matrix/matrix.hpp"
 #include "../clustering/cluster_node.hpp"
 #include "../hmatrix/interfaces/virtual_generator.hpp"
+#include "../matrix/matrix.hpp"
 #include "local_operator.hpp"
 
 namespace htool {

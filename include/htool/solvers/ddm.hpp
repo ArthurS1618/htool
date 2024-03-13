@@ -1,8 +1,8 @@
 #ifndef HTOOL_DDM_HPP
 #define HTOOL_DDM_HPP
 
-#include "../matrix/matrix.hpp"
 #include "../distributed_operator/distributed_operator.hpp"
+#include "../matrix/matrix.hpp"
 #include "../misc/logger.hpp"
 #include "../misc/misc.hpp"
 #include "../wrappers/wrapper_hpddm.hpp"
