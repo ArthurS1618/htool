@@ -15,10 +15,10 @@
 #include "misc/misc.hpp"
 #include "misc/user.hpp"
 
-#include "basic_types/matrix.hpp"
 #include "basic_types/vector.hpp"
 #include "hmatrix/hmatrix.hpp"
 #include "hmatrix/interfaces/virtual_generator.hpp"
+#include "matrix/matrix.hpp"
 
 #ifdef WITH_HPDDM
 #    include "solvers/ddm.hpp"
