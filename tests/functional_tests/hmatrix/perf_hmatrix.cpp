@@ -414,14 +414,21 @@ int main() {
     std::vector<double> err_asmbl;
     std::vector<double> err_vect;
     std::vector<double> err_mat;
+    std::vector<double> err_prod;
+
     std::vector<double> err_lu;
 
-    std::vector<double> compr_ratio;
+    std::vector<double> compr_mat;
+    std::vector<double> compr_prod;
+    std::vector<double> compr_L;
+    std::vector<double> compr_U;
+    std::vector<double> sizee;
 
     std::cout << "____________________________" << std::endl;
-    for (int k = 12; k < 13; ++k) {
+    for (int k = 6; k < 30; ++k) {
 
-        int size = 600 + std::pow(2.0, k / 30.0 * 15.0);
+        int size = 111 + std::pow(2.0, k / 30.0 * 12.0);
+        sizee.push_back(size);
         // 600 + 133 * k;
 
         std::cout << "_________________________________________" << std::endl;
@@ -458,9 +465,11 @@ int main() {
         time_assmbl.push_back(duration_asmbl);
         Matrix<double> ref(size, size);
         copy_to_dense(root_hmatrix, ref.data());
+        auto comprr = root_hmatrix.get_compression();
+        compr_mat.push_back(comprr);
 
         auto er_b = normFrob(reference_num_htool - ref) / normFrob(reference_num_htool);
-        err_asmbl.push_back(er_b);
+        err_mat.push_back(er_b);
         std::cout << "asmbl ok " << root_hmatrix.get_compression() << std::endl;
 
         // Matrice vecteur
@@ -478,34 +487,34 @@ int main() {
 
         // Smexpression
 
-        SumExpression<double, double> test_sumexpr(&root_hmatrix, &root_hmatrix);
-        auto x_sumexpr      = generate_random_vector(size);
-        auto y_prod_sumexpr = test_sumexpr.new_prod('N', x_sumexpr);
-        auto prod           = reference_num_htool * reference_num_htool;
-        std::vector<double> y_prod_ref_N(size);
-        prod.add_vector_product('N', 1.0, x_sumexpr.data(), 1.0, y_prod_ref_N.data());
-        std::cout << " error prod " << norm2(y_prod_sumexpr - y_prod_ref_N) / norm2(y_prod_ref_N) << std::endl;
-        auto test_restrict = test_sumexpr.Restrict_clean(root_hmatrix.get_children()[0]->get_target_cluster().get_size(), root_hmatrix.get_target_cluster().get_offset(), root_hmatrix.get_children()[0]->get_source_cluster().get_size(), root_hmatrix.get_source_cluster().get_offset());
-        auto ref_restr     = prod.get_block(root_cluster_1->get_children()[0]->get_size(), root_cluster_1->get_children()[0]->get_size(), 0, 0);
-        auto sh            = test_restrict.get_sh();
-        std::cout << sh.size() << std::endl;
-        auto x_restr        = generate_random_vector(root_cluster_1->get_children()[0]->get_size());
-        auto y_prod_restr_N = test_restrict.new_prod('N', x_restr);
-        std::vector<double> y_ref_restr_N(root_cluster_1->get_children()[0]->get_size());
-        ref_restr.add_vector_product('N', 1.0, x_restr.data(), 1.0, y_ref_restr_N.data());
-        std::cout << "prod restr " << norm2(y_ref_restr_N - y_prod_restr_N) / norm2(y_ref_restr_N) << std::endl;
+        // SumExpression<double, double> test_sumexpr(&root_hmatrix, &root_hmatrix);
+        // auto x_sumexpr      = generate_random_vector(size);
+        // auto y_prod_sumexpr = test_sumexpr.new_prod('N', x_sumexpr);
+        // auto prod           = reference_num_htool * reference_num_htool;
+        // std::vector<double> y_prod_ref_N(size);
+        // prod.add_vector_product('N', 1.0, x_sumexpr.data(), 1.0, y_prod_ref_N.data());
+        // std::cout << " error prod " << norm2(y_prod_sumexpr - y_prod_ref_N) / norm2(y_prod_ref_N) << std::endl;
+        // auto test_restrict = test_sumexpr.Restrict_clean(root_hmatrix.get_children()[0]->get_target_cluster().get_size(), root_hmatrix.get_target_cluster().get_offset(), root_hmatrix.get_children()[0]->get_source_cluster().get_size(), root_hmatrix.get_source_cluster().get_offset());
+        // auto ref_restr     = prod.get_block(root_cluster_1->get_children()[0]->get_size(), root_cluster_1->get_children()[0]->get_size(), 0, 0);
+        // auto sh            = test_restrict.get_sh();
+        // std::cout << sh.size() << std::endl;
+        // auto x_restr        = generate_random_vector(root_cluster_1->get_children()[0]->get_size());
+        // auto y_prod_restr_N = test_restrict.new_prod('N', x_restr);
+        // std::vector<double> y_ref_restr_N(root_cluster_1->get_children()[0]->get_size());
+        // ref_restr.add_vector_product('N', 1.0, x_restr.data(), 1.0, y_ref_restr_N.data());
+        // std::cout << "prod restr " << norm2(y_ref_restr_N - y_prod_restr_N) / norm2(y_ref_restr_N) << std::endl;
 
-        std::vector<double> y_ref_restr_T(root_cluster_1->get_children()[0]->get_size());
-        ref_restr.add_vector_product('T', 1.0, x_restr.data(), 1.0, y_ref_restr_T.data());
-        auto y_prod_restr_T = test_restrict.new_prod('T', x_restr);
-        std::cout << "prod restr transp " << norm2(y_prod_restr_T - y_ref_restr_T) / norm2(y_ref_restr_T) << std::endl;
+        // std::vector<double> y_ref_restr_T(root_cluster_1->get_children()[0]->get_size());
+        // ref_restr.add_vector_product('T', 1.0, x_restr.data(), 1.0, y_ref_restr_T.data());
+        // auto y_prod_restr_T = test_restrict.new_prod('T', x_restr);
+        // std::cout << "prod restr transp " << norm2(y_prod_restr_T - y_ref_restr_T) / norm2(y_ref_restr_T) << std::endl;
 
-        auto &t         = ((root_cluster_1->get_children()[1])->get_children())[1];
-        auto &s         = ((root_cluster_1->get_children()[0])->get_children())[0];
-        auto temp_restr = test_sumexpr.Restrict_clean(root_cluster_1->get_children()[1]->get_size(), root_cluster_1->get_children()[1]->get_offset(), root_cluster_1->get_children()[0]->get_size(), root_cluster_1->get_children()[0]->get_offset());
-        auto restr_adm  = temp_restr.Restrict_clean(t->get_size(), t->get_offset(), s->get_size(), s->get_offset());
-        std::cout << "?" << restr_adm.get_sh().size() << std::endl;
-        auto ref_adm = prod.get_block(t->get_size(), s->get_size(), t->get_offset(), s->get_offset());
+        // auto &t         = ((root_cluster_1->get_children()[1])->get_children())[1];
+        // auto &s         = ((root_cluster_1->get_children()[0])->get_children())[0];
+        // auto temp_restr = test_sumexpr.Restrict_clean(root_cluster_1->get_children()[1]->get_size(), root_cluster_1->get_children()[1]->get_offset(), root_cluster_1->get_children()[0]->get_size(), root_cluster_1->get_children()[0]->get_offset());
+        // auto restr_adm  = temp_restr.Restrict_clean(t->get_size(), t->get_offset(), s->get_size(), s->get_offset());
+        // std::cout << "?" << restr_adm.get_sh().size() << std::endl;
+        // auto ref_adm = prod.get_block(t->get_size(), s->get_size(), t->get_offset(), s->get_offset());
         // int rank   = 6;
         // auto udata = generate_random_vector(rank * size);
         // auto vdata = generate_random_vector(rank * size);
@@ -546,6 +555,45 @@ int main() {
         // auto V  = lr[1];
         // std::cout << normFrob(U * V - ref_lr) / normFrob(ref_lr) << std::endl;
 
+        //////geqrf
+        // auto A    = reference_num_htool;
+        // int lda   = size;
+        // int lwork = 10 * size;
+        // int info;
+        // std::vector<double> work(lwork);
+        // std::vector<double> tau(size);
+        // Lapack<double>::geqrf(&size, &size, A.data(), &lda, tau.data(), work.data(), &lwork, &info);
+        // std::cout << "info " << info << std::endl;
+        // Matrix<double> R(size, size);
+        // for (int k = 0; k < size; ++k) {
+        //     for (int l = k; l < size; ++l) {
+        //         R(k, l) = A(k, l);
+        //     }
+        // }
+        // std::vector<double> work1(lwork);
+        // int K = tau.size();
+        // Lapack<double>::orgqr(&size, &size, &K, A.data(), &lda, tau.data(), work1.data(), &lwork, &info);
+
+        // std::cout << "norme dense -Q*R     :" << normFrob(A * R - reference_num_htool) / normFrob(reference_num_htool) << std::endl;
+
+        // auto mat = reference_num_htool;
+        // std::vector<double> S(size, 0.0);
+        // Matrix<double> U(size, size);
+        // Matrix<double> VT(size, size);
+        // int lworkk = 10 * size;
+        // std::vector<double> workk(lworkk);
+        // Lapack<double>::gesvd("A", "A", &size, &size, mat.data(), &size, S.data(), U.data(), &size, VT.data(), &size, workk.data(), &lworkk, workk.data(), &info);
+        // Matrix<double> diag(size, size);
+        // for (int k = 0; k < size; ++k) {
+        //     diag(k, k) = S[k];
+        // }
+        // std::cout << "erreur svd  : " << normFrob(reference_num_htool - (U * diag * VT)) / normFrob(reference_num_htool) << std::endl;
+
+        // std::vector<int> ipiv(size, 0.0);
+        // int info = -1;
+        // Lapack<double>::getrf(&size, &size, A.data(), &size, ipiv.data(), &info);
+        // std::cout << "LU ok " << std::endl;
+        ///////////////////////
         // Matrice Matrice
         auto start_time_mat = std::chrono::high_resolution_clock::now();
         std::cout << "mat " << std::endl;
@@ -558,10 +606,224 @@ int main() {
         Matrix<double> dense_prod(size, size);
         copy_to_dense(prodd, dense_prod.data());
         auto er_m = normFrob(dense_prod - tempm) / normFrob(tempm);
-        err_mat.push_back(er_m);
+        err_prod.push_back(er_m);
         auto compr = prodd.get_compression();
-        compr_ratio.push_back(compr);
+        compr_prod.push_back(compr);
         std::cout << "erreur :" << er_m << "    , compr" << compr << std::endl;
+        std::cout << "_______________________________________________" << std::endl;
+
+        Matrix<double> L(size, size);
+        Matrix<double> U(size, size);
+        std::vector<int> ipiv(size, 0.0);
+        int info = -1;
+        auto A   = reference_num_htool;
+        Lapack<double>::getrf(&size, &size, A.data(), &size, ipiv.data(), &info);
+
+        for (int i = 0; i < size; ++i) {
+            L(i, i) = 1;
+            U(i, i) = A(i, i);
+
+            for (int j = 0; j < i; ++j) {
+                L(i, j) = A(i, j);
+                U(j, i) = A(j, i);
+            }
+        }
+
+        // // Matrice Lh et Uh
+        auto ll = get_unperm_mat(L, *root_cluster_1, *root_cluster_1);
+        Matricegenerator<double, double> l_generator(ll, *root_cluster_1, *root_cluster_1);
+        HMatrixTreeBuilder<double, double> lh_builder(root_cluster_1, root_cluster_1, epsilon, eta, 'N', 'N');
+        auto Lh = lh_builder.build(l_generator);
+        Matrix<double> ldense(size, size);
+        copy_to_dense(Lh, ldense.data());
+        std::cout << "erreur Lh :" << normFrob(L - ldense) / normFrob(L) << std::endl;
+
+        auto uu = get_unperm_mat(U, *root_cluster_1, *root_cluster_1);
+        Matricegenerator<double, double> u_generator(uu, *root_cluster_1, *root_cluster_1);
+        HMatrixTreeBuilder<double, double> uh_builder(root_cluster_1, root_cluster_1, epsilon, eta, 'N', 'N');
+        auto Uh = uh_builder.build(u_generator);
+        Matrix<double> udense(size, size);
+        copy_to_dense(Uh, udense.data());
+        std::cout << "erreur uh : " << normFrob(U - udense) / normFrob(U) << std::endl;
+
+        Lh.set_epsilon(epsilon);
+        Uh.set_epsilon(epsilon);
+        auto produit_LU = Lh.hmatrix_product(Uh);
+        Matrix<double> ref_lu(size, size);
+        copy_to_dense(produit_LU, ref_lu.data());
+
+        produit_LU.set_epsilon(epsilon);
+        HMatrix<double, double> Llh(root_cluster_1, root_cluster_1);
+        Llh.set_admissibility_condition(root_hmatrix.get_admissibility_condition());
+        Llh.set_epsilon(epsilon);
+        Llh.set_low_rank_generator(root_hmatrix.get_low_rank_generator());
+
+        HMatrix<double, double> Uuh(root_cluster_1, root_cluster_1);
+        Uuh.set_admissibility_condition(root_hmatrix.get_admissibility_condition());
+        Uuh.set_epsilon(epsilon);
+        Uuh.set_low_rank_generator(root_hmatrix.get_low_rank_generator());
+        Uuh.copy_zero(produit_LU);
+        Llh.copy_zero(produit_LU);
+        auto start_time_lu = std::chrono::high_resolution_clock::now();
+
+        HLU_noperm(produit_LU, *root_cluster_1, Llh, Uuh);
+        auto end_time_lu = std::chrono::high_resolution_clock::now();
+        auto duration_lu = std::chrono::duration_cast<std::chrono::duration<double>>(end_time_lu - start_time_lu).count();
+        time_lu.push_back(duration_lu);
+        Matrix<double> uuu(size, size);
+        Matrix<double> lll(size, size);
+        copy_to_dense(Llh, lll.data());
+        copy_to_dense(Uuh, uuu.data());
+        auto erlu = normFrob(lll * uuu - ref_lu) / normFrob(ref_lu);
+        std::cout << "erreur LU : " << erlu << std::endl;
+        err_lu.push_back(erlu);
+        auto compru = Uuh.get_compression_triang('U');
+        auto comprl = Llh.get_compression_triang('T');
+        compr_L.push_back(comprl);
+        compr_U.push_back(compru);
+
+        // HMatrix<double, double> test_new(root_cluster_1, root_cluster_1);
+        // test_new.set_admissibility_condition(root_hmatrix.get_admissibility_condition());
+        // test_new.set_epsilon(root_hmatrix.get_epsilon());
+        // test_new.set_eta(eta);
+        // test_new.set_low_rank_generator(root_hmatrix.get_low_rank_generator());
+        // test_new.format_minblock(&root_hmatrix, 20);
+        // std::cout << "format ok " << std::endl;
+        // // for (auto &l : test_new.get_leaves()) {
+        // //     std::cout << "size " << l->get_target_cluster().get_size() << ',' << l->get_source_cluster().get_size() << ',' << (l->get_dense_data() == nullptr) << ',' << (l->get_low_rank_data() == nullptr) << '\n';
+        // //     // if ((l->get_dense_data() == nullptr) && (l->get_low_rank_data() == nullptr)) {
+        // //     //     std::cout << l->get_target_cluster().get_size() << ',' << l->get_source_cluster().get_size() << '\n';
+        // //     // }
+        // // }
+        // Matrix<double> test_dense(size, size);
+        // copy_to_dense(test_new, test_dense.data());
+        // std::cout << "norme formated : " << normFrob(test_dense) << "     " << normFrob(reference_num_htool) << std::endl;
+        // // test_new.save_plot("test_minblock");
+        // // std::cout << "save ok " << std::endl;
+
+        // ////tests QR
+        // auto qr = QR_factorisation(size, size, reference_num_htool);
+        // auto q  = qr[0];
+        // auto r  = qr[1];
+        // std::cout << "erreur qr  " << normFrob(q * r - reference_num_htool) / normFrob(reference_num_htool) << std::endl;
+        // /// test SVD
+        // Matrix<double> Uu(size, size);
+        // Matrix<double> VT(size, size);
+        // int info;
+        // int lwork = 10 * size;
+        // std::vector<double> work(lwork);
+        // std::vector<double> rwork(lwork);
+        // std::vector<double> S(size);
+        // auto tempp = reference_num_htool;
+        // Lapack<double>::gesvd("A", "A", &size, &size, tempp.data(), &size, S.data(), Uu.data(), &size, VT.data(), &size, work.data(), &lwork, rwork.data(), &info);
+        // Matrix<double> SS(size, size);
+        // for (int k = 0; k < size; ++k) {
+        //     SS(k, k) = S[k];
+        // }
+        // std::cout << "erreur svd : " << normFrob(Uu * SS * VT - reference_num_htool) / normFrob(reference_num_htool) << std::endl;
+        // std::cout << "_________________________" << std::endl;
+        // // auto xtest = generate_random_vector(size);
+        // // std::vector<double> ytest(size, 0.0);
+        // // // test_new.add_vector_product('N', 1.0, xtest.data(), 1.0, ytest.data());
+        // // test_new.add_vector_product('N', 1.0, xtest.data(), 1.0, ytest.data());
+        // // std::cout << "erreur N " << norm2(ytest - reference_num_htool * xtest) / norm2(reference_num_htool * xtest) << std::endl;
+        // // Matrix<double> Vv(size, size);
+
+        // std::cout << "_____________________________________" << std::endl;
+        // ////// test row et col
+        // SumExpression_update<double, double> test_neeew(&test_new, &test_new);
+
+        // std::vector<double> col(size);
+        // for (int k = 0; k < size; ++k) {
+        //     col[k] = tempm(10, k);
+        // }
+        // auto test_col = test_neeew.get_col(10);
+        // std::cout << "erreur col : " << norm2(col - test_col) << std::endl;
+        // std::cout << "____________________________________" << std::endl;
+
+        // std::vector<double> row(size);
+        // for (int k = 0; k < size; ++k) {
+        //     row[k] = tempm(10, k);
+        // }
+        // auto test_row = test_neeew.get_row(10);
+        // std::cout << "erreur row : " << norm2(row - test_row) << std::endl;
+        // std::cout << "____________________________________" << std::endl;
+
+        // std::cout << "test concatenation " << std::endl;
+        // Matrix<double> row_conc(2 * size, size);
+        // // Matrix<double> col_conc_T(size, 2 * size);
+        // // for (int i = 0; i < reference_num_htool.nb_rows(); ++i) {
+        // //     std::vector<double> ei(reference_num_htool.nb_rows(), 0);
+        // //     ei[i] = 1.0;
+        // //     std::vector<double> rowtemp(reference_num_htool.nb_cols());
+        // //     reference_num_htool.add_vector_product('T', 1.0, ei.data(), 1.0, rowtemp.data());
+        // //     std::copy(rowtemp.begin(), rowtemp.begin() + reference_num_htool.nb_cols(), col_conc_T.data() + i * reference_num_htool.nb_cols());
+        // // }
+        // // for (int i = 0; i < reference_num_htool.nb_rows(); ++i) {
+        // //     std::vector<double> ei(reference_num_htool.nb_rows(), 0);
+        // //     ei[i] = 1.0;
+        // //     std::vector<double> rowtemp(reference_num_htool.nb_cols()); // oui V , ca doit être la même taille
+        // //     reference_num_htool.add_vector_product('T', 1.0, ei.data(), 1.0, rowtemp.data());
+        // //     std::copy(rowtemp.begin(), rowtemp.begin() + reference_num_htool.nb_cols(), col_conc_T.data() + (i + reference_num_htool.nb_rows()) * reference_num_htool.nb_cols());
+        // // }
+        // auto col_conc_T = conc_row_T(reference_num_htool, reference_num_htool);
+
+        // Matrix<double> dumb_col(size, 2 * size);
+        // for (int k = 0; k < reference_num_htool.nb_cols(); ++k) {
+        //     for (int l = 0; l < reference_num_htool.nb_rows(); ++l) {
+        //         dumb_col(k, l) = reference_num_htool(l, k);
+        //     }
+        //     for (int l = 0; l < reference_num_htool.nb_rows(); ++l) {
+        //         dumb_col(k, l + reference_num_htool.nb_cols()) = reference_num_htool(l, k);
+        //     }
+        // }
+        // std::cout << "erreru conc+T " << normFrob(dumb_col - col_conc_T) << std::endl;
+
+        // Matrix<double> dumb_conc(size, 2 * size);
+        // for (int k = 0; k < size; ++k) {
+        //     for (int l = 0; l < size; ++l) {
+        //         dumb_conc(k, l) = reference_num_htool(k, l);
+        //     }
+        //     for (int l = 0; l < size; ++l) {
+        //         dumb_conc(k, l + size) = reference_num_htool(k, l);
+        //     }
+        // }
+        // std::cout << normFrob(dumb_col) << ',' << normFrob(col_conc_T) << ',' << normFrob(reference_num_htool) << std::endl;
+        // auto dumbdumb = conc_col(reference_num_htool, reference_num_htool);
+        // std::cout << "errerur conc " << normFrob(dumbdumb - dumb_conc) << std::endl;
+        // std::cout << "___________________________" << std::endl;
+        // Matrix<double> coltrunc(size, 10);
+        // for (int k = 0; k < size; ++k) {
+        //     for (int l = 0; l < 10; ++l) {
+        //         coltrunc(k, l) = reference_num_htool(k, l);
+        //     }
+        // }
+        // auto trunctrunccol = reference_num_htool.trunc_col(10);
+        // std::cout << normFrob(coltrunc) << ',' << normFrob(trunctrunccol) << std::endl;
+        // std::cout << "erreur col trunc : " << normFrob(coltrunc - trunctrunccol) << std::endl;
+
+        // Matrix<double> rowtrunc(10, size);
+        // for (int k = 0; k < 10; ++k) {
+        //     for (int l = 0; l < size; ++l) {
+        //         rowtrunc(k, l) = reference_num_htool(k, l);
+        //     }
+        // }
+        // auto trunctruncrow = reference_num_htool.trunc_row(10);
+        // std::cout << "erreur trunc row " << normFrob(trunctruncrow - rowtrunc) << std::endl;
+        // Matrix<double> dense_sum(size, size);
+        // double *ptr[size * size];
+        // test_neeew.copy_submatrix(size, size, 0, 0, dense_sum.data());
+        // std::cout << "norme dense block : " << normFrob(dense_sum) << std::endl;
+        // std::cout << normFrob(tempm - dense_sum) << std::endl;
+        // std::cout << "_____________________________________________" << std::endl;
+        // auto test_new_prod = test_new.hmatrix_product_new(test_new);
+        // std::cout << "prod ok " << std::endl;
+        // // // for (auto &l : test_new.get_leaves()) {
+        // // //     std::cout << "size " << l->get_target_cluster().get_size() << ',' << l->get_source_cluster().get_size() << "          dense/lr   :" << (l->get_dense_data() != nullptr) << ',' << (l->get_low_rank_data() != nullptr) << std::endl;
+        // // // }
+        // Matrix<double> dense_new(size, size);
+        // copy_to_dense(test_new_prod, dense_new.data());
+        // std::cout << "erreur new prod " << normFrob(dense_new - tempm) / normFrob(tempm) << std::endl;
 
         // root_hmatrix.save_plot("tete_produit");
         // /// HLU
@@ -687,12 +949,19 @@ int main() {
     }
     // saveVectorToFile(time_assmbl, "time_assemble_eps4.txt");
     // saveVectorToFile(time_vect, "time_vect_eps4.txt");
-    // saveVectorToFile(time_mat, "time_mat_eps4.txt");
-    // // saveVectorToFile(time_lu, "time_lu_eps4.txt");
+    // saveVectorToFile(time_mat, "time_prod_mat_eps4.txt");
+    // saveVectorToFile(time_lu, "time_lu_eps4.txt");
+    // saveVectorToFile(compr_prod, "compr_prod_mat_eps4.txt");
+    // saveVectorToFile(compr_U, "compr_U_eps4.txt");
+    // saveVectorToFile(compr_L, "compr_L_eps4.txt");
 
-    // // saveVectorToFile(err_asmbl, "error_assemble_eps4.txt");
-    // // saveVectorToFile(err_vect, "error_vect_eps4.txt");
-    // saveVectorToFile(err_mat, "error_mat_eps4.txt");
+    // // // saveVectorToFile(time_lu, "time_lu_eps4.txt");
+
+    // // // saveVectorToFile(err_asmbl, "error_assemble_eps4.txt");
+    // // // saveVectorToFile(err_vect, "error_vect_eps4.txt");
+    // saveVectorToFile(err_prod, "error_prod_mat_eps4.txt");
+    // saveVectorToFile(err_lu, "error_lu_eps4.txt");
+
     // saveVectorToFile(err_lu, "error_lu_eps4.txt");
 
     // saveVectorToFile(compr_ratio, "compression_ratio_eps4.txt");

@@ -149,7 +149,7 @@ class Matrix {
     If _A_ is the instance calling the operator
     _A.get_stridedslice(i,j,k)_ returns the slice of _A_ containing every element from _start_ to _start_+_lenght with a step of _stride_. Modification forbidden
     */
-    //// TRansposé
+    //// TRansposé -----------> a ne jamais utiliser c'est juste pour les tests
 
     Matrix transp(const Matrix &M) const {
         Matrix res(M.nb_cols(), M.nb_rows());
@@ -752,7 +752,118 @@ class Matrix {
     //     }
     //     return mat;
     // }
+    /// trunc row --> return the k first row
+    // Matrix trunc_row(int k) {
+    //     Matrix<T> res(k, m_number_of_cols);
+    //     for (int l = 0; l < m_number_of_cols; ++l) {
+    //         std::vector<T> el(k)
+    //     }
+    //     return res;
+    // }
+
+    // // trunc col -------> crazy fast
+    // friend Matrix trunc_col(const int &l)  {
+    //     Matrix<T> res(m_number_of_rows, l);
+    //     std::copy(data.begin(), data.begin() + l * m_number_of_rows, res.data().begin());
+    //     return res;
+    // }
+
+    ///// extraire les k-1 premières colonnes
+    /* Attention col(10) renvoie les 10 premières col0, col1, ..., col9*/
+    Matrix<T> trunc_col(const int &l) {
+        Matrix<T> res(m_number_of_rows, l);
+        std::copy(this->data(), this->data() + l * m_number_of_rows, res.data());
+        return res;
+    }
+
+    // extraire les k-1 premières lignes   -> vraiment pas dingue , plus interresant que get_çblock si k << lda
+    // Matrix<T> trunc_row(const int &k) {
+    //     Matrix<T> res(k, m_number_of_cols);
+    //     for (int l = 0; l < k; ++l) {
+    //         std::vector<T> el(m_number_of_rows);
+    //         el[l] = 1;
+    //         std::vector<T> rowtemp(m_number_of_cols);
+    //         this->add_vector_product('T', 1.0, el.data(), 1.0, rowtemp.data());
+    //         std::copy(rowtemp.begin(), rowtemp.begin() + m_number_of_cols, res.data() + l * m_number_of_cols);
+    //     }
+    //     return res;
+    // }
+
+    Matrix<T> trunc_row(const int &k) {
+        Matrix<T> res(k, m_number_of_cols);
+        for (int l = 0; l < m_number_of_cols; ++l) {
+            std::vector<T> el(m_number_of_rows);
+            el[l] = 1;
+            std::vector<T> rowtemp(m_number_of_cols);
+            this->add_vector_product('T', 1.0, el.data(), 1.0, rowtemp.data());
+            rowtemp.resize(k); // on enlève tout ce qu'il y a en dessous de la ligne k
+            std::copy(rowtemp.begin(), rowtemp.begin() + k, res.data() + l * k);
+        }
+        return res;
+    }
 };
+
+// template <typename T>
+// Matrix<T> trunc_row(const Matrix<T> *M, const int &k) {
+//     Matrix<T> res(k, M->nb_cols());
+//     for (int l = 0; l < k; ++l) {
+//         std::vector<T> el(M->nb_rows());
+//         el[l] = 1;
+//         std::vector<T> rowtemp(M->nb_cols());
+//         M->add_vector_product('T', 1.0, el.data(), 1.0, rowtemp.data());
+//         std::copy(rowtemp.begin(), rowtemp.begin() + M->nb_cols(), res.data() + l * M->nb_cols());
+//     }
+//     return res;
+// }
+
+// trunc col -------> crazy fast
+
+/// concaténation
+// V1 V2 -> (V1^T, V2^T)
+template <typename T>
+Matrix<T> conc_row_T(const Matrix<T> &A, const Matrix<T> &B) {
+    Matrix<T> row_conc(A.nb_cols(), A.nb_rows() + B.nb_rows());
+    for (int i = 0; i < A.nb_rows(); ++i) {
+        std::vector<T> ei(A.nb_rows(), 0);
+        ei[i] = 1.0;
+        std::vector<T> rowtemp(A.nb_cols()); // colonne of conc
+        A.add_vector_product('T', 1.0, ei.data(), 1.0, rowtemp.data());
+        std::copy(rowtemp.begin(), rowtemp.begin() + A.nb_cols(), row_conc.data() + i * A.nb_cols());
+    }
+    for (int i = 0; i < B.nb_rows(); ++i) {
+        std::vector<T> ei(B.nb_rows(), 0);
+        ei[i] = 1.0;
+        std::vector<T> rowtemp(B.nb_cols());
+        B.add_vector_product('T', 1.0, ei.data(), 1.0, rowtemp.data());
+        std::copy(rowtemp.begin(), rowtemp.begin() + B.nb_cols(), row_conc.data() + (i + A.nb_rows()) * B.nb_cols());
+    }
+
+    return row_conc;
+}
+
+// U1 U2 -> (U1, U2)
+template <typename T>
+Matrix<T> conc_col(const Matrix<T> &A, const Matrix<T> &B) {
+    Matrix<T> col_conc(A.nb_rows(), A.nb_cols() + B.nb_cols());
+    for (int j = 0; j < A.nb_cols(); ++j) {
+        std::copy(A.data() + j * A.nb_rows(), A.data() + (j + 1) * A.nb_rows(), col_conc.data() + j * A.nb_rows());
+    }
+    for (int j = 0; j < B.nb_cols(); ++j) {
+        std::copy(B.data() + j * B.nb_rows(), B.data() + (j + 1) * B.nb_rows(), col_conc.data() + (j + A.nb_cols()) * B.nb_rows());
+    }
+    return col_conc;
+}
+// template <typename T>
+// std::vector<T> get_col(const Matrix<T> *M, const int &l) {
+//     std::vector<T> col(M->m_number_of_rows, 0.0);
+//     std::copy(M->data.begin() + l * M->m_number_of_rows, M->data.begin() + (l + 1) * M->m_number_of_rows, col.data().begin());
+// }
+
+// template <typename T>
+// Matrix<T> get_range_col(const Matrix<T> *M, const int &size_l, const int &begin, const int &end) {
+//     Matrix<T> res(M->m_number_of_rows, size_l);
+//     std::copy(M->data.begin() + begin * M->m_number_of_rows, M->data.begin() + (end + 1) * M->m_number_of_rows, res.data().begin());
+// }
 
 //////////////////// ARTHUR : A = PLU avec LAPACK
 template <typename T>
@@ -781,6 +892,46 @@ void get_lu_factorisation(const Matrix<T> &M, Matrix<T> &L, Matrix<T> &U, std::v
             P[ipiv[k] - 1] = temp;
         }
     }
+}
+
+// ARTHUR : A = QR avec lapack ------------> row  A > colA
+template <typename T>
+std::vector<Matrix<T>> QR_factorisation(const int &target_size, const int &source_size, Matrix<T> A) {
+    int lda_u   = target_size;
+    int lwork_u = 10 * target_size;
+    int info_u;
+
+    int N = A.nb_cols();
+    std::vector<T> work_u(lwork_u);
+    std::vector<T> tau_u(N);
+    Lapack<T>::geqrf(&target_size, &N, A.data(), &lda_u, tau_u.data(), work_u.data(), &lwork_u, &info_u);
+    Matrix<T> R_u(N, N);
+    for (int k = 0; k < N; ++k) {
+        for (int l = k; l < N; ++l) {
+            R_u(k, l) = A(k, l);
+        }
+    }
+    std::vector<T> workU(lwork_u);
+    Lapack<T>::orgqr(&target_size, &N, &std::min(target_size, N), A.data(), &lda_u, tau_u.data(), workU.data(), &lwork_u, &info_u);
+    std::vector<Matrix<T>> res;
+    // Matrix<double> Q, R;
+    // Q.assign(A.nb_rows(), A.nb_cols(), A.data());
+    res.push_back(A);
+    res.push_back(R_u);
+    return res;
+}
+
+/// A =SVD -> lapack ------------> je le fait pour renvoyer S et écrire U et V sur des matrices d'entrées !!!!! MARCHE QUE AVEC DES MATRICES CARRE sinon il faut changer lda, ldb etc
+template <typename T>
+std::vector<T> compute_svd(const Matrix<T> &A, Matrix<T> &U, Matrix<T> &V) {
+    int N = A.nb_cols();
+    std::vector<T> S(N, 0.0);
+    int info;
+    int lwork = 10 * N;
+    std::vector<T> rwork(lwork);
+    std::vector<T> work(lwork);
+    Lapack<T>::gesvd("A", "A", &N, &N, A.data(), &N, S.data(), U.data(), &N, V.data(), &N, work.data(), &lwork, rwork.data(), &info);
+    return S;
 }
 //! ### Computation of the Frobenius norm
 /*!
