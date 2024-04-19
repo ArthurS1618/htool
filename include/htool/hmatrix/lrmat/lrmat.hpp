@@ -45,8 +45,6 @@ class LowRankMatrix {
     const Matrix<CoefficientPrecision> &get_V() const { return m_V; }
     CoefficientPrecision get_U(int i, int j) const { return m_U(i, j); }
     CoefficientPrecision get_V(int i, int j) const { return m_V(i, j); }
-    void assign_U(int i, int j, CoefficientPrecision *ptr) { return m_U.assign(i, j, ptr); }
-    void assign_V(int i, int j, CoefficientPrecision *ptr) { return m_V.assign(i, j, ptr); }
     underlying_type<CoefficientPrecision> get_epsilon() const { return m_epsilon; }
 
     std::vector<CoefficientPrecision> operator*(const std::vector<CoefficientPrecision> &a) const {

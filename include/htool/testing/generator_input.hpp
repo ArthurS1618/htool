@@ -38,7 +38,7 @@ template <typename T>
 void generate_random_array(std::complex<T> *ptr, size_t size) {
     std::vector<T> random_vector_real(size), random_vector_imag(size);
     T lower_bound = 0;
-    T upper_bound = 10000;
+    T upper_bound = 1000;
     std::random_device rd;
     std::mt19937 mersenne_engine(rd());
     std::uniform_real_distribution<T> dist(lower_bound, upper_bound);

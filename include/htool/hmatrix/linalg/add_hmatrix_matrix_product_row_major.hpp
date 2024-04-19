@@ -7,7 +7,6 @@ namespace htool {
 
 template <typename CoefficientPrecision, typename CoordinatePrecision = CoefficientPrecision>
 void sequential_add_hmatrix_matrix_product_row_major(char transa, char transb, CoefficientPrecision alpha, const HMatrix<CoefficientPrecision, CoordinatePrecision> &A, const CoefficientPrecision *B, CoefficientPrecision beta, CoefficientPrecision *C, int mu) {
-    // set_leaves_in_cache();
     auto &leaves              = A.get_leaves();
     auto &leaves_for_symmetry = A.get_leaves_for_symmetry();
 
@@ -46,7 +45,7 @@ void sequential_add_hmatrix_matrix_product_row_major(char transa, char transb, C
     for (int b = 0; b < leaves.size(); b++) {
         int input_offset  = (leaves[b]->*get_input_cluster)().get_offset();
         int output_offset = (leaves[b]->*get_output_cluster)().get_offset();
-        leaves[b]->add_matrix_product_row_major(transa, 1, B + (input_offset - local_input_offset) * mu, 1, temp.data() + (output_offset - local_output_offset) * mu, mu);
+        add_hmatrix_matrix_product_row_major(transa, transb, CoefficientPrecision(1), *leaves[b], B + (input_offset - local_input_offset) * mu, CoefficientPrecision(1), temp.data() + (output_offset - local_output_offset) * mu, mu);
     }
 
     // Symmetry part of the diagonal part
@@ -54,7 +53,7 @@ void sequential_add_hmatrix_matrix_product_row_major(char transa, char transb, C
         for (int b = 0; b < leaves_for_symmetry.size(); b++) {
             int input_offset  = (leaves_for_symmetry[b]->*get_input_cluster)().get_offset();
             int output_offset = (leaves_for_symmetry[b]->*get_output_cluster)().get_offset();
-            leaves_for_symmetry[b]->add_matrix_product_row_major(trans_sym, 1, B + (output_offset - local_input_offset) * mu, 1, temp.data() + (input_offset - local_output_offset) * mu, mu);
+            add_hmatrix_matrix_product_row_major(trans_sym, transb, CoefficientPrecision(1), *leaves_for_symmetry[b], B + (output_offset - local_input_offset) * mu, CoefficientPrecision(1), temp.data() + (input_offset - local_output_offset) * mu, mu);
         }
     }
     Blas<CoefficientPrecision>::axpy(&out_size, &alpha, temp.data(), &incx, C, &incy);
@@ -144,10 +143,75 @@ void add_hmatrix_matrix_product_row_major(char transa, char transb, CoefficientP
         A.get_low_rank_data()->add_matrix_product_row_major(transa, alpha, in, beta, out, mu);
         break;
     default:
-        openmp_add_hmatrix_matrix_product_row_major(transa, transb, alpha, A, in, beta, out, mu);
+        sequential_add_hmatrix_matrix_product_row_major(transa, transb, alpha, A, in, beta, out, mu);
         break;
     }
 }
+
+template <typename CoefficientPrecision, typename CoordinatePrecision = CoefficientPrecision>
+void sequential_add_symmetric_hmatrix_matrix_product_row_major(char side, char UPLO, CoefficientPrecision alpha, const HMatrix<CoefficientPrecision, CoordinatePrecision> &A, const CoefficientPrecision *B, CoefficientPrecision beta, CoefficientPrecision *C, int mu) {
+    auto &leaves              = A.get_leaves();
+    auto &leaves_for_symmetry = A.get_leaves_for_symmetry();
+
+    if (side != 'L') {
+        htool::Logger::get_instance().log(LogLevel::ERROR, "Operation is not implemented for sequential_add_symmetric_hmatrix_matrix_product_row_major (side=" + std::string(1, side) + ")"); // LCOV_EXCL_LINE
+    }
+
+    int out_size(A.get_target_cluster().get_size() * mu);
+    auto get_output_cluster{&HMatrix<CoefficientPrecision, CoordinatePrecision>::get_target_cluster};
+    auto get_input_cluster{&HMatrix<CoefficientPrecision, CoordinatePrecision>::get_source_cluster};
+    int local_output_offset = A.get_target_cluster().get_offset();
+    int local_input_offset  = A.get_source_cluster().get_offset();
+    char trans_sym          = 'T';
+
+    int incx(1), incy(1);
+    if (CoefficientPrecision(beta) != CoefficientPrecision(1)) {
+        // TODO: use blas
+        std::transform(C, C + out_size, C, [&beta](CoefficientPrecision &c) { return c * beta; });
+    }
+
+    // Contribution champ lointain
+    std::vector<CoefficientPrecision> temp(out_size, 0);
+    for (int b = 0; b < leaves.size(); b++) {
+        int input_offset  = (leaves[b]->*get_input_cluster)().get_offset();
+        int output_offset = (leaves[b]->*get_output_cluster)().get_offset();
+        if (input_offset == output_offset) {
+            add_symmetric_hmatrix_matrix_product_row_major(side, UPLO, CoefficientPrecision(1), *leaves[b], B + (input_offset - local_input_offset) * mu, CoefficientPrecision(1), temp.data() + (output_offset - local_output_offset) * mu, mu);
+        } else {
+            add_hmatrix_matrix_product_row_major('N', 'N', CoefficientPrecision(1), *leaves[b], B + (input_offset - local_input_offset) * mu, CoefficientPrecision(1), temp.data() + (output_offset - local_output_offset) * mu, mu);
+        }
+    }
+
+    // Symmetry part of the diagonal part
+    for (int b = 0; b < leaves_for_symmetry.size(); b++) {
+        int input_offset  = (leaves_for_symmetry[b]->*get_input_cluster)().get_offset();
+        int output_offset = (leaves_for_symmetry[b]->*get_output_cluster)().get_offset();
+        add_hmatrix_matrix_product_row_major(trans_sym, 'N', CoefficientPrecision(1), *leaves_for_symmetry[b], B + (output_offset - local_input_offset) * mu, CoefficientPrecision(1), temp.data() + (input_offset - local_output_offset) * mu, mu);
+    }
+    Blas<CoefficientPrecision>::axpy(&out_size, &alpha, temp.data(), &incx, C, &incy);
+}
+
+template <typename CoefficientPrecision, typename CoordinatePrecision>
+void add_symmetric_hmatrix_matrix_product_row_major(char side, char UPLO, CoefficientPrecision alpha, const HMatrix<CoefficientPrecision, CoordinatePrecision> &A, const CoefficientPrecision *in, CoefficientPrecision beta, CoefficientPrecision *out, int mu) {
+    switch (A.get_storage_type()) {
+    case HMatrix<CoefficientPrecision, CoordinatePrecision>::StorageType::Dense:
+        add_symmetric_matrix_matrix_product_row_major(side, UPLO, alpha, *A.get_dense_data(), in, beta, out, mu);
+        break;
+    case HMatrix<CoefficientPrecision, CoordinatePrecision>::StorageType::LowRank:
+        htool::Logger::get_instance().log(LogLevel::ERROR, "Operation is not implemented for add_symmetric_hmatrix_matrix_product_row_major (symmetric lrmat?)"); // LCOV_EXCL_LINE
+        // add_symmetric_matrix_product_row_major(side, UPLO, alpha, *A.get_low_rank_data(), in, beta, out, mu);
+        break;
+    default:
+        if (side == 'L') {
+            sequential_add_symmetric_hmatrix_matrix_product_row_major(side, UPLO, alpha, A, in, beta, out, mu);
+        } else {
+            //
+            sequential_add_symmetric_hmatrix_matrix_product_row_major(side, UPLO, alpha, A, in, beta, out, mu);
+        }
+        break;
+    }
+}
+
 } // namespace htool
 
 #endif

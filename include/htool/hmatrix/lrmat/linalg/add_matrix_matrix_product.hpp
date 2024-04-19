@@ -9,14 +9,11 @@ namespace htool {
 
 template <typename CoefficientPrecision, typename CoordinatePrecision>
 void add_matrix_matrix_product(char transa, char transb, CoefficientPrecision alpha, const Matrix<CoefficientPrecision> &A, const Matrix<CoefficientPrecision> &B, CoefficientPrecision beta, LowRankMatrix<CoefficientPrecision, CoordinatePrecision> &C) {
-    if (transb != 'N') {
-        htool::Logger::get_instance().log(LogLevel::ERROR, "Operation is not implemented for add_matrix_lrmat_product (transb=" + std::string(1, transb) + ")"); // LCOV_EXCL_LINE
-    }
 
     bool C_is_overwritten = (beta == CoefficientPrecision(0) || C.rank_of() == 0);
 
     int nb_rows = (transa == 'N') ? A.nb_rows() : A.nb_cols();
-    int nb_cols = B.nb_cols();
+    int nb_cols = (transb == 'N') ? B.nb_cols() : B.nb_rows();
     Matrix<CoefficientPrecision> AB(nb_rows, nb_cols);
     add_matrix_matrix_product(transa, transb, alpha, A, B, beta, AB);
 

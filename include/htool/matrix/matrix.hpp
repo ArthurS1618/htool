@@ -18,14 +18,15 @@ class Matrix {
     int m_number_of_rows, m_number_of_cols;
     T *m_data;
     bool m_is_owning_data;
+    std::vector<int> m_pivots;
 
   public:
-    Matrix() : m_number_of_rows(0), m_number_of_cols(0), m_data(nullptr), m_is_owning_data(true) {}
-    Matrix(int nbr, int nbc, T value = 0) : m_number_of_rows(nbr), m_number_of_cols(nbc), m_is_owning_data(true) {
+    Matrix() : m_number_of_rows(0), m_number_of_cols(0), m_data(nullptr), m_is_owning_data(true), m_pivots(0) {}
+    Matrix(int nbr, int nbc, T value = 0) : m_number_of_rows(nbr), m_number_of_cols(nbc), m_is_owning_data(true), m_pivots(0) {
         m_data = new T[nbr * nbc];
         std::fill_n(m_data, nbr * nbc, value);
     }
-    Matrix(const Matrix &rhs) : m_number_of_rows(rhs.m_number_of_rows), m_number_of_cols(rhs.m_number_of_cols), m_is_owning_data(true) {
+    Matrix(const Matrix &rhs) : m_number_of_rows(rhs.m_number_of_rows), m_number_of_cols(rhs.m_number_of_cols), m_is_owning_data(true), m_pivots(rhs.m_pivots) {
         m_data = new T[rhs.m_number_of_rows * rhs.m_number_of_cols]();
 
         std::copy_n(rhs.m_data, rhs.m_number_of_rows * rhs.m_number_of_cols, m_data);
@@ -48,9 +49,10 @@ class Matrix {
             std::copy_n(rhs.m_data, m_number_of_rows * m_number_of_cols, m_data);
             m_is_owning_data = true;
         }
+        m_pivots = rhs.m_pivots;
         return *this;
     }
-    Matrix(Matrix &&rhs) : m_number_of_rows(rhs.m_number_of_rows), m_number_of_cols(rhs.m_number_of_cols), m_data(rhs.m_data), m_is_owning_data(rhs.m_is_owning_data) {
+    Matrix(Matrix &&rhs) : m_number_of_rows(rhs.m_number_of_rows), m_number_of_cols(rhs.m_number_of_cols), m_data(rhs.m_data), m_is_owning_data(rhs.m_is_owning_data), m_pivots(rhs.m_pivots) {
         rhs.m_data = nullptr;
     }
 
@@ -63,6 +65,7 @@ class Matrix {
             m_data           = rhs.m_data;
             m_is_owning_data = rhs.m_is_owning_data;
             rhs.m_data       = nullptr;
+            m_pivots         = rhs.m_pivots;
         }
         return *this;
     }
@@ -201,6 +204,9 @@ class Matrix {
         m_number_of_rows = nr0;
         m_number_of_cols = nc0;
     }
+
+    std::vector<int> &get_pivots() { return m_pivots; }
+    const std::vector<int> &get_pivots() const { return m_pivots; }
 
     //! ### Modifies the size of the matrix
     /*!

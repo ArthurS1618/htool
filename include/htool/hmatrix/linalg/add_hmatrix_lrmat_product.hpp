@@ -3,25 +3,12 @@
 
 #include "../hmatrix.hpp"
 #include "add_hmatrix_matrix_product.hpp"
+#include "add_lrmat_hmatrix.hpp"
 
 namespace htool {
 
-// template <typename CoefficientPrecision, typename CoordinatePrecision = CoefficientPrecision>
-// void add_hmatrix_lrmat_product(char transa, char transb, CoefficientPrecision alpha, const HMatrix<CoefficientPrecision, CoordinatePrecision> &A, const LowRankMatrix<CoefficientPrecision, CoordinatePrecision> &B, CoefficientPrecision beta, LowRankMatrix<CoefficientPrecision, CoordinatePrecision> &C) {
-//     if (transb != 'N') {
-//         htool::Logger::get_instance().log(LogLevel::ERROR, "Operation is not implemented for add_matrix_lrmat_product (transb=" + std::string(1, transb) + ")"); // LCOV_EXCL_LINE
-//     }
-//     auto &U   = B.get_U();
-//     auto &V   = B.get_V();
-//     auto rank = B.rank_of();
-// }
-
 template <typename CoefficientPrecision, typename CoordinatePrecision = CoefficientPrecision>
 void add_hmatrix_lrmat_product(char transa, char transb, CoefficientPrecision alpha, const HMatrix<CoefficientPrecision, CoordinatePrecision> &A, const LowRankMatrix<CoefficientPrecision, CoordinatePrecision> &B, CoefficientPrecision beta, Matrix<CoefficientPrecision> &C) {
-    if (transb != 'N') {
-        htool::Logger::get_instance().log(LogLevel::ERROR, "Operation is not implemented for add_matrix_lrmat_product (transb=" + std::string(1, transb) + ")"); // LCOV_EXCL_LINE
-    }
-
     auto rank = B.rank_of();
 
     if (rank != 0) {
@@ -29,21 +16,22 @@ void add_hmatrix_lrmat_product(char transa, char transb, CoefficientPrecision al
         auto &V = B.get_V();
         Matrix<CoefficientPrecision> AU;
         if (transa == 'N') {
-            AU.resize(A.nb_rows(), U.nb_cols());
+            AU.resize(A.nb_rows(), transb == 'N' ? U.nb_cols() : V.nb_rows());
         } else {
-            AU.resize(A.nb_cols(), U.nb_cols());
+            AU.resize(A.nb_cols(), transb == 'N' ? U.nb_cols() : V.nb_rows());
         }
-        add_hmatrix_matrix_product<CoefficientPrecision>(transa, 'N', 1, A, U, 0, AU);
-        add_matrix_matrix_product<CoefficientPrecision>('N', 'N', alpha, AU, V, beta, C);
+        if (transb == 'N') {
+            add_hmatrix_matrix_product<CoefficientPrecision>(transa, 'N', 1, A, U, 0, AU);
+            add_matrix_matrix_product<CoefficientPrecision>('N', 'N', alpha, AU, V, beta, C);
+        } else {
+            add_hmatrix_matrix_product<CoefficientPrecision>(transa, transb, 1, A, V, 0, AU);
+            add_matrix_matrix_product<CoefficientPrecision>('N', transb, alpha, AU, U, beta, C);
+        }
     }
 }
 
 template <typename CoefficientPrecision, typename CoordinatePrecision = CoefficientPrecision>
 void add_hmatrix_lrmat_product(char transa, char transb, CoefficientPrecision alpha, const HMatrix<CoefficientPrecision, CoordinatePrecision> &A, const LowRankMatrix<CoefficientPrecision, CoordinatePrecision> &B, CoefficientPrecision beta, LowRankMatrix<CoefficientPrecision, CoordinatePrecision> &C) {
-    if (transb != 'N') {
-        htool::Logger::get_instance().log(LogLevel::ERROR, "Operation is not implemented for add_matrix_lrmat_product (transb=" + std::string(1, transb) + ")"); // LCOV_EXCL_LINE
-    }
-
     auto rank = B.rank_of();
 
     if (rank != 0) {
@@ -53,31 +41,57 @@ void add_hmatrix_lrmat_product(char transa, char transb, CoefficientPrecision al
         auto &V_C = C.get_V();
         if (beta == CoefficientPrecision(0) || C.rank_of() == 0) {
             if (transa == 'N') {
-                U_C.resize(A.nb_rows(), U_B.nb_cols());
+                U_C.resize(A.nb_rows(), transb == 'N' ? U_B.nb_cols() : V_B.nb_rows());
             } else {
-                U_C.resize(A.nb_cols(), U_B.nb_cols());
+                U_C.resize(A.nb_cols(), transb == 'N' ? U_B.nb_cols() : V_B.nb_rows());
             }
-            V_C = V_B;
-            add_hmatrix_matrix_product<CoefficientPrecision>(transa, 'N', alpha, A, U_B, 0, U_C);
+            if (transb == 'N') {
+                V_C = V_B;
+                add_hmatrix_matrix_product<CoefficientPrecision>(transa, 'N', alpha, A, U_B, 0, U_C);
+            } else {
+                V_C.resize(U_B.nb_cols(), U_B.nb_rows());
+                transpose(U_B, V_C);
+                if (transb == 'C') {
+                    conj_if_complex(V_C.data(), V_C.nb_rows() * V_C.nb_cols());
+                }
+                add_hmatrix_matrix_product<CoefficientPrecision>(transa, transb, alpha, A, V_B, 0, U_C);
+            }
         } else {
 
             // Concatenate V_B and V_C
             Matrix<CoefficientPrecision> new_V;
             scale(beta, V_C);
-            new_V.resize(V_B.nb_rows() + V_C.nb_rows(), V_C.nb_cols());
-            for (int j = 0; j < new_V.nb_cols(); j++) {
-                std::copy_n(V_B.data() + j * V_B.nb_rows(), V_B.nb_rows(), new_V.data() + j * new_V.nb_rows());
-                std::copy_n(V_C.data() + j * V_C.nb_rows(), V_C.nb_rows(), new_V.data() + j * new_V.nb_rows() + V_B.nb_rows());
+            if (transb == 'N') {
+                new_V.resize(V_B.nb_rows() + V_C.nb_rows(), V_C.nb_cols());
+                for (int j = 0; j < new_V.nb_cols(); j++) {
+                    std::copy_n(V_B.data() + j * V_B.nb_rows(), V_B.nb_rows(), new_V.data() + j * new_V.nb_rows());
+                    std::copy_n(V_C.data() + j * V_C.nb_rows(), V_C.nb_rows(), new_V.data() + j * new_V.nb_rows() + V_B.nb_rows());
+                }
+            } else {
+                new_V.resize(U_B.nb_cols() + V_C.nb_rows(), V_C.nb_cols());
+                Matrix<CoefficientPrecision> temp(U_B.nb_cols(), U_B.nb_rows());
+                transpose(U_B, temp);
+                if (transb == 'C') {
+                    conj_if_complex(temp.data(), temp.nb_rows() * temp.nb_cols());
+                }
+                for (int j = 0; j < new_V.nb_cols(); j++) {
+                    std::copy_n(temp.data() + j * temp.nb_rows(), temp.nb_rows(), new_V.data() + j * new_V.nb_rows());
+                    std::copy_n(V_C.data() + j * V_C.nb_rows(), V_C.nb_rows(), new_V.data() + j * new_V.nb_rows() + V_B.nb_rows());
+                }
             }
 
             // Compute AU= A*U_A
             Matrix<CoefficientPrecision> AU;
             if (transa == 'N') {
-                AU.resize(A.nb_rows(), U_B.nb_cols());
+                AU.resize(A.nb_rows(), transb == 'N' ? U_B.nb_cols() : V_B.nb_rows());
             } else {
-                AU.resize(A.nb_cols(), U_B.nb_cols());
+                AU.resize(A.nb_cols(), transb == 'N' ? U_B.nb_cols() : V_B.nb_rows());
             }
-            add_hmatrix_matrix_product<CoefficientPrecision>(transa, 'N', alpha, A, U_B, 0, AU);
+            if (transb == 'N') {
+                add_hmatrix_matrix_product<CoefficientPrecision>(transa, 'N', alpha, A, U_B, 0, AU);
+            } else {
+                add_hmatrix_matrix_product<CoefficientPrecision>(transa, transb, alpha, A, V_B, 0, AU);
+            }
 
             // Concatenate U_A and U_C
             Matrix<CoefficientPrecision> new_U;
@@ -90,6 +104,17 @@ void add_hmatrix_lrmat_product(char transa, char transb, CoefficientPrecision al
             recompression(C);
         }
     }
+}
+
+template <typename CoefficientPrecision, typename CoordinatePrecision = CoefficientPrecision>
+void add_hmatrix_lrmat_product(char transa, char transb, CoefficientPrecision alpha, const HMatrix<CoefficientPrecision, CoordinatePrecision> &A, const LowRankMatrix<CoefficientPrecision, CoordinatePrecision> &B, CoefficientPrecision beta, HMatrix<CoefficientPrecision, CoordinatePrecision> &C) {
+    if (beta != CoefficientPrecision(1)) {
+        scale(beta, C);
+    }
+
+    LowRankMatrix<CoefficientPrecision, CoordinatePrecision> lrmat(B.get_epsilon());
+    add_hmatrix_lrmat_product(transa, transb, alpha, A, B, CoefficientPrecision(1), lrmat);
+    add_lrmat_hmatrix(lrmat, C);
 }
 
 } // namespace htool

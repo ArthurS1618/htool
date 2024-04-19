@@ -2,8 +2,9 @@
 #define HTOOL_HMATRIX_OUTPUT_HPP
 
 #include <array>
-#include <iostream>
+#include <fstream>
 #include <map>
+#include <vector>
 #if defined(_OPENMP)
 #    include <omp.h>
 #endif

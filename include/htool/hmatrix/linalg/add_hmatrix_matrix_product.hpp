@@ -8,24 +8,26 @@ namespace htool {
 
 template <typename CoefficientPrecision, typename CoordinatePrecision = CoefficientPrecision>
 void add_hmatrix_matrix_product(char transa, char transb, CoefficientPrecision alpha, const HMatrix<CoefficientPrecision, CoordinatePrecision> &A, const Matrix<CoefficientPrecision> &B, CoefficientPrecision beta, Matrix<CoefficientPrecision> &C) {
-
-    Matrix<CoefficientPrecision> transposed_B, transposed_C;
-    transpose(B, transposed_B);
-    transpose(C, transposed_C);
-    sequential_add_hmatrix_matrix_product_row_major(transa, transb, alpha, A, transposed_B.data(), beta, transposed_C.data(), transposed_C.nb_rows());
-    transpose(transposed_C, C);
+    if (transb == 'N') {
+        Matrix<CoefficientPrecision> transposed_B(B.nb_cols(), B.nb_rows()), transposed_C(C.nb_cols(), C.nb_rows());
+        transpose(B, transposed_B);
+        transpose(C, transposed_C);
+        sequential_add_hmatrix_matrix_product_row_major(transa, transb, alpha, A, transposed_B.data(), beta, transposed_C.data(), transposed_C.nb_rows());
+        transpose(transposed_C, C);
+    } else {
+        Matrix<CoefficientPrecision> transposed_C(C.nb_cols(), C.nb_rows());
+        transpose(C, transposed_C);
+        sequential_add_hmatrix_matrix_product_row_major(transa, 'N', alpha, A, B.data(), beta, transposed_C.data(), transposed_C.nb_rows());
+        transpose(transposed_C, C);
+    }
 }
 
 template <typename CoefficientPrecision, typename CoordinatePrecision = CoefficientPrecision>
 void add_hmatrix_matrix_product(char transa, char transb, CoefficientPrecision alpha, const HMatrix<CoefficientPrecision, CoordinatePrecision> &A, const Matrix<CoefficientPrecision> &B, CoefficientPrecision beta, LowRankMatrix<CoefficientPrecision, CoordinatePrecision> &C) {
-    if (transb != 'N') {
-        htool::Logger::get_instance().log(LogLevel::ERROR, "Operation is not implemented for add_matrix_lrmat_product (transb=" + std::string(1, transb) + ")"); // LCOV_EXCL_LINE
-    }
-
     bool C_is_overwritten = (beta == CoefficientPrecision(0) || C.rank_of() == 0);
 
     int nb_rows = (transa == 'N') ? A.nb_rows() : A.nb_cols();
-    int nb_cols = B.nb_cols();
+    int nb_cols = (transb == 'N') ? B.nb_cols() : B.nb_rows();
 
     //
     Matrix<CoefficientPrecision> AB(nb_rows, nb_cols);
@@ -97,6 +99,22 @@ void add_hmatrix_matrix_product(char transa, char transb, CoefficientPrecision a
     C.get_V() = new_V;
     recompression(C);
 }
+
+// template <typename CoefficientPrecision, typename CoordinatePrecision = CoefficientPrecision>
+// void add_symmetric_hmatrix_matrix_product(char side, char UPLO, CoefficientPrecision alpha, const HMatrix<CoefficientPrecision, CoordinatePrecision> &A, const Matrix<CoefficientPrecision> &B, CoefficientPrecision beta, Matrix<CoefficientPrecision> &C) {
+//     if (transb == 'N') {
+//         Matrix<CoefficientPrecision> transposed_B(B.nb_cols(), B.nb_rows()), transposed_C(C.nb_cols(), C.nb_rows());
+//         transpose(B, transposed_B);
+//         transpose(C, transposed_C);
+//         sequential_add_hmatrix_matrix_product_row_major(transa, transb, alpha, A, transposed_B.data(), beta, transposed_C.data(), transposed_C.nb_rows());
+//         transpose(transposed_C, C);
+//     } else {
+//         Matrix<CoefficientPrecision> transposed_C(C.nb_cols(), C.nb_rows());
+//         transpose(C, transposed_C);
+//         sequential_add_hmatrix_matrix_product_row_major(transa, 'N', alpha, A, B.data(), beta, transposed_C.data(), transposed_C.nb_rows());
+//         transpose(transposed_C, C);
+//     }
+// }
 } // namespace htool
 
 #endif

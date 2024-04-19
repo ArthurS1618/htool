@@ -9,11 +9,13 @@
 #    define HTOOL_LAPACK_F77(func) func##_
 #endif
 
-#define HTOOL_GENERATE_EXTERN_LAPACK(C, T)                                                                     \
-    void HTOOL_LAPACK_F77(C##geqrf)(const int *, const int *, T *, const int *, T *, T *, const int *, int *); \
-    void HTOOL_LAPACK_F77(C##gelqf)(const int *, const int *, T *, const int *, T *, T *, const int *, int *);
-
-// const int *itype, const char *jobz, const char *UPLO, const int *n, T *A, const int *lda, T *B, const int *ldb, T *W, T *work, const int *lwork, U *, int *info)
+#define HTOOL_GENERATE_EXTERN_LAPACK(C, T)                                                                                                 \
+    void HTOOL_LAPACK_F77(C##geqrf)(const int *, const int *, T *, const int *, T *, T *, const int *, int *);                             \
+    void HTOOL_LAPACK_F77(C##gelqf)(const int *, const int *, T *, const int *, T *, T *, const int *, int *);                             \
+    void HTOOL_LAPACK_F77(C##getrf)(const int *, const int *, T *, const int *, int *, int *);                                             \
+    void HTOOL_LAPACK_F77(C##getrs)(const char *, const int *, const int *, const T *, const int *, const int *, T *, const int *, int *); \
+    void HTOOL_LAPACK_F77(C##potrf)(const char *, const int *, T *, const int *, int *);                                                   \
+    void HTOOL_LAPACK_F77(C##potrs)(const char *, const int *, const int *, const T *, const int *, T *, const int *, int *);
 #define HTOOL_GENERATE_EXTERN_LAPACK_COMPLEX(C, T, B, U)                                                                                                                                     \
     HTOOL_GENERATE_EXTERN_LAPACK(B, U)                                                                                                                                                       \
     HTOOL_GENERATE_EXTERN_LAPACK(C, T)                                                                                                                                                       \
@@ -64,6 +66,18 @@ struct Lapack {
     /* Function: mlq
      *  Multiplies a matrix by an orthogonal or unitary matrix obtained with gelqf. */
     static void mlq(const char *, const char *, const int *, const int *, const int *, const K *, const int *, const K *, K *, const int *, K *, const int *, int *);
+    /* Function: getrf
+     *  Computes an LU factorization of a general rectangular matrix. */
+    static void getrf(const int *, const int *, K *, const int *, int *, int *);
+    /* Function: getrs
+     *  Solves a system of linear equations with an LU-factored matrix. */
+    static void getrs(const char *, const int *, const int *, const K *, const int *, const int *, K *, const int *, int *);
+    /* Function: potrf
+     *  Computes the Cholesky factorization of a symmetric or Hermitian positive definite matrix. */
+    static void potrf(const char *, const int *, K *, const int *, int *);
+    /* Function: potrs
+     *  Solves a system of linear equations with a Cholesky-factored matrix. */
+    static void potrs(const char *, const int *, const int *, const K *, const int *, K *, const int *, int *);
     /* Function: gesvd
      *  computes the singular value decomposition (SVD). */
     static void gesvd(const char *, const char *, const int *, const int *, K *, const int *, underlying_type<K> *, K *, const int *, K *, const int *, K *, const int *, underlying_type<K> *, int *);
@@ -75,16 +89,36 @@ struct Lapack {
     static void gv(const int *, const char *, const char *, const int *, K *, const int *, K *, const int *, underlying_type<K> *, K *, const int *, underlying_type<K> *, int *);
 };
 
-#    define HTOOL_GENERATE_LAPACK(C, T)                                                                                                \
-        template <>                                                                                                                    \
-        inline void Lapack<T>::geqrf(const int *m, const int *n, T *a, const int *lda, T *tau, T *work, const int *lwork, int *info) { \
-            HTOOL_LAPACK_F77(C##geqrf)                                                                                                 \
-            (m, n, a, lda, tau, work, lwork, info);                                                                                    \
-        }                                                                                                                              \
-        template <>                                                                                                                    \
-        inline void Lapack<T>::gelqf(const int *m, const int *n, T *a, const int *lda, T *tau, T *work, const int *lwork, int *info) { \
-            HTOOL_LAPACK_F77(C##gelqf)                                                                                                 \
-            (m, n, a, lda, tau, work, lwork, info);                                                                                    \
+#    define HTOOL_GENERATE_LAPACK(C, T)                                                                                                                                \
+        template <>                                                                                                                                                    \
+        inline void Lapack<T>::geqrf(const int *m, const int *n, T *a, const int *lda, T *tau, T *work, const int *lwork, int *info) {                                 \
+            HTOOL_LAPACK_F77(C##geqrf)                                                                                                                                 \
+            (m, n, a, lda, tau, work, lwork, info);                                                                                                                    \
+        }                                                                                                                                                              \
+        template <>                                                                                                                                                    \
+        inline void Lapack<T>::gelqf(const int *m, const int *n, T *a, const int *lda, T *tau, T *work, const int *lwork, int *info) {                                 \
+            HTOOL_LAPACK_F77(C##gelqf)                                                                                                                                 \
+            (m, n, a, lda, tau, work, lwork, info);                                                                                                                    \
+        }                                                                                                                                                              \
+        template <>                                                                                                                                                    \
+        inline void Lapack<T>::getrf(const int *m, const int *n, T *a, const int *lda, int *ipiv, int *info) {                                                         \
+            HTOOL_LAPACK_F77(C##getrf)                                                                                                                                 \
+            (m, n, a, lda, ipiv, info);                                                                                                                                \
+        }                                                                                                                                                              \
+        template <>                                                                                                                                                    \
+        inline void Lapack<T>::getrs(const char *trans, const int *n, const int *nrhs, const T *a, const int *lda, const int *ipiv, T *b, const int *ldb, int *info) { \
+            HTOOL_LAPACK_F77(C##getrs)                                                                                                                                 \
+            (trans, n, nrhs, a, lda, ipiv, b, ldb, info);                                                                                                              \
+        }                                                                                                                                                              \
+        template <>                                                                                                                                                    \
+        inline void Lapack<T>::potrf(const char *uplo, const int *n, T *a, const int *lda, int *info) {                                                                \
+            HTOOL_LAPACK_F77(C##potrf)                                                                                                                                 \
+            (uplo, n, a, lda, info);                                                                                                                                   \
+        }                                                                                                                                                              \
+        template <>                                                                                                                                                    \
+        inline void Lapack<T>::potrs(const char *uplo, const int *n, const int *nrhs, const T *a, const int *lda, T *b, const int *ldb, int *info) {                   \
+            HTOOL_LAPACK_F77(C##potrs)                                                                                                                                 \
+            (uplo, n, nrhs, a, lda, b, ldb, info);                                                                                                                     \
         }
 
 #    define HTOOL_GENERATE_LAPACK_COMPLEX(C, T, B, U)                                                                                                                                                                                                           \

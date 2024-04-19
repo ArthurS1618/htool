@@ -1,8 +1,8 @@
 #ifndef HTOOL_BLOCKS_ADMISSIBILITY_CONDITIONS_HPP
 #define HTOOL_BLOCKS_ADMISSIBILITY_CONDITIONS_HPP
 
+#include "../../basic_types/vector.hpp"
 #include "../../clustering/cluster_node.hpp"
-
 namespace htool {
 
 template <typename CoordinatePrecision>

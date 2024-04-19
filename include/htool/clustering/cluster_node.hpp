@@ -88,6 +88,14 @@ bool is_cluster_on_partition(const Cluster<CoordinatesPrecision> &cluster) {
     return cluster.get_depth() == cluster.get_clusters_on_partition()[0]->get_depth();
 }
 
+template <typename CoordinatesPrecision>
+bool left_cluster_contains_right_cluster(const Cluster<CoordinatesPrecision> &cluster1, const Cluster<CoordinatesPrecision> &cluster2) {
+
+    if (cluster1.get_offset() <= cluster2.get_offset() && cluster1.get_size() + cluster1.get_offset() >= cluster2.get_size() + cluster2.get_offset()) {
+        return true;
+    }
+    return false;
+}
 // template <typename CoordinatesPrecision>
 // Cluster<CoordinatesPrecision> clone_cluster_tree_from_partition(const Cluster<CoordinatesPrecision> &cluster, int index) {
 //     if (!cluster.is_permutation_local()) {

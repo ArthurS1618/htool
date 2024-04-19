@@ -146,6 +146,7 @@ class HMatrix : public TreeNode<HMatrix<CoefficientPrecision, CoordinatePrecisio
     const Cluster<CoordinatePrecision> &get_source_cluster() const { return *m_source_cluster; }
     int nb_cols() const { return m_source_cluster->get_size(); }
     int nb_rows() const { return m_target_cluster->get_size(); }
+    htool::underlying_type<CoefficientPrecision> get_epsilon() const { return this->m_tree_data->m_epsilon; }
 
     HMatrix<CoefficientPrecision, CoordinatePrecision> *get_child_or_this(const Cluster<CoordinatePrecision> &required_target_cluster, const Cluster<CoordinatePrecision> &required_source_cluster) {
         if (*m_target_cluster == required_target_cluster and *m_source_cluster == required_source_cluster) {
@@ -279,12 +280,13 @@ class HMatrix : public TreeNode<HMatrix<CoefficientPrecision, CoordinatePrecisio
     }
     void clear_low_rank_data() { m_low_rank_data.reset(); }
 
-    void set_dense_data(Matrix<CoefficientPrecision> &dense_matrix) {
+    void set_dense_data(std::unique_ptr<Matrix<CoefficientPrecision>> dense_matrix_ptr) {
         this->delete_children();
         m_leaves.clear();
         m_leaves_for_symmetry.clear();
-        m_dense_data = std::make_unique<Matrix<CoefficientPrecision>>();
-        m_dense_data->assign(dense_matrix.nb_rows(), dense_matrix.nb_cols(), dense_matrix.release(), true);
+        m_dense_data = std::move(dense_matrix_ptr);
+        // m_dense_data = std::make_unique<Matrix<CoefficientPrecision>>();
+        // m_dense_data->assign(dense_matrix.nb_rows(), dense_matrix.nb_cols(), dense_matrix.release(), true);
         m_storage_type = StorageType::Dense;
     }
 

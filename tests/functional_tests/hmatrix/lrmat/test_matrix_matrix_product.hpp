@@ -11,10 +11,11 @@ using namespace std;
 using namespace htool;
 
 template <typename T, typename GeneratorTestType, class Compressor>
-bool test_matrix_matrix_product(const TestCase<T, GeneratorTestType> &test_case, htool::underlying_type<T> epsilon, htool::underlying_type<T> additional_compression_tolerance, htool::underlying_type<T> additional_lrmat_sum_tolerance) {
+bool test_matrix_matrix_product(const TestCaseProduct<T, GeneratorTestType> &test_case, htool::underlying_type<T> epsilon, htool::underlying_type<T> additional_compression_tolerance, htool::underlying_type<T> additional_lrmat_sum_tolerance) {
     bool is_error = false;
 
     char transa = test_case.transa;
+    char transb = test_case.transb;
 
     // ACA automatic building
     Compressor compressor;
@@ -36,12 +37,12 @@ bool test_matrix_matrix_product(const TestCase<T, GeneratorTestType> &test_case,
     test_case.operator_C->copy_submatrix(test_case.no_C, test_case.ni_C, 0, 0, C_dense.data());
     Matrix<T> matrix_result_wo_sum(C_dense), matrix_result_w_lrmat_sum(C_dense);
     C_auto_approximation.copy_to_dense(matrix_result_w_lrmat_sum.data());
-    add_matrix_matrix_product(transa, 'N', alpha, A_dense, B_dense, beta, matrix_result_w_lrmat_sum);
-    add_matrix_matrix_product(transa, 'N', alpha, A_dense, B_dense, T(0), matrix_result_wo_sum);
+    add_matrix_matrix_product(transa, transb, alpha, A_dense, B_dense, beta, matrix_result_w_lrmat_sum);
+    add_matrix_matrix_product(transa, transb, alpha, A_dense, B_dense, T(0), matrix_result_wo_sum);
 
     // Product
     lrmat_test = C_auto_approximation;
-    add_matrix_matrix_product(transa, 'N', alpha, A_dense, B_dense, T(0), lrmat_test);
+    add_matrix_matrix_product(transa, transb, alpha, A_dense, B_dense, T(0), lrmat_test);
     dense_lrmat_test.resize(lrmat_test.get_U().nb_rows(), lrmat_test.get_V().nb_cols());
     lrmat_test.copy_to_dense(dense_lrmat_test.data());
     error    = normFrob(matrix_result_wo_sum - dense_lrmat_test) / normFrob(matrix_result_wo_sum);
@@ -49,7 +50,7 @@ bool test_matrix_matrix_product(const TestCase<T, GeneratorTestType> &test_case,
     cout << "> Errors on a matrix matrix product to lrmat without sum: " << error << " vs " << epsilon << endl;
 
     lrmat_test = C_auto_approximation;
-    add_matrix_matrix_product(transa, 'N', alpha, A_dense, B_dense, beta, lrmat_test);
+    add_matrix_matrix_product(transa, transb, alpha, A_dense, B_dense, beta, lrmat_test);
     dense_lrmat_test.resize(lrmat_test.get_U().nb_rows(), lrmat_test.get_V().nb_cols());
     lrmat_test.copy_to_dense(dense_lrmat_test.data());
     error    = normFrob(matrix_result_w_lrmat_sum - dense_lrmat_test) / normFrob(matrix_result_w_lrmat_sum);

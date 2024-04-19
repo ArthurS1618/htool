@@ -9,25 +9,22 @@ namespace htool {
 template <typename CoefficientPrecision, typename CoordinatePrecision = CoefficientPrecision>
 void add_matrix_hmatrix_product(char transa, char transb, CoefficientPrecision alpha, const Matrix<CoefficientPrecision> &A, const HMatrix<CoefficientPrecision, CoordinatePrecision> &B, CoefficientPrecision beta, Matrix<CoefficientPrecision> &C) {
 
+    char new_transa = transb == 'N' ? 'T' : 'N';
     if (transa == 'N') {
-        sequential_add_hmatrix_matrix_product_row_major('T', transb, alpha, B, A.data(), beta, C.data(), C.nb_rows());
+        sequential_add_hmatrix_matrix_product_row_major(new_transa, 'N', alpha, B, A.data(), beta, C.data(), C.nb_rows());
     } else {
-        Matrix<CoefficientPrecision> transposed_A;
+        Matrix<CoefficientPrecision> transposed_A(A.nb_cols(), A.nb_rows());
         transpose(A, transposed_A);
-        sequential_add_hmatrix_matrix_product_row_major('T', transb, alpha, B, transposed_A.data(), beta, C.data(), C.nb_rows());
+        sequential_add_hmatrix_matrix_product_row_major(new_transa, 'N', alpha, B, transposed_A.data(), beta, C.data(), C.nb_rows());
     }
 }
 
 template <typename CoefficientPrecision, typename CoordinatePrecision = CoefficientPrecision>
 void add_matrix_hmatrix_product(char transa, char transb, CoefficientPrecision alpha, const Matrix<CoefficientPrecision> &A, const HMatrix<CoefficientPrecision, CoordinatePrecision> &B, CoefficientPrecision beta, LowRankMatrix<CoefficientPrecision, CoordinatePrecision> &C) {
-    if (transb != 'N') {
-        htool::Logger::get_instance().log(LogLevel::ERROR, "Operation is not implemented for add_matrix_lrmat_product (transb=" + std::string(1, transb) + ")"); // LCOV_EXCL_LINE
-    }
-
     bool C_is_overwritten = (beta == CoefficientPrecision(0) || C.rank_of() == 0);
 
     int nb_rows = (transa == 'N') ? A.nb_rows() : A.nb_cols();
-    int nb_cols = B.nb_cols();
+    int nb_cols = (transb == 'N') ? B.nb_cols() : B.nb_rows();
 
     //
     Matrix<CoefficientPrecision> AB(nb_rows, nb_cols);

@@ -6,51 +6,99 @@
 
 namespace htool {
 template <typename CoefficientPrecision, typename CoordinatePrecision>
-void add_lrmat_lrmat(LowRankMatrix<CoefficientPrecision, CoordinatePrecision> &C, const Cluster<CoordinatePrecision> &target_cluster, const Cluster<CoordinatePrecision> &source_cluster, const LowRankMatrix<CoefficientPrecision, CoordinatePrecision> &R, const Cluster<CoordinatePrecision> &target_cluster_child, const Cluster<CoordinatePrecision> &source_cluster_child) {
-    int row_offset = target_cluster_child.get_offset() - target_cluster.get_offset();
-    int col_offset = source_cluster_child.get_offset() - source_cluster.get_offset();
+void add_lrmat_lrmat(const LowRankMatrix<CoefficientPrecision, CoordinatePrecision> &X_lrmat, const Cluster<CoordinatePrecision> &X_target_cluster, const Cluster<CoordinatePrecision> &X_source_cluster, LowRankMatrix<CoefficientPrecision, CoordinatePrecision> &Y_lrmat, const Cluster<CoordinatePrecision> &Y_target_cluster, const Cluster<CoordinatePrecision> &Y_source_cluster) {
+    if (left_cluster_contains_right_cluster(Y_target_cluster, X_target_cluster) && left_cluster_contains_right_cluster(Y_source_cluster, X_source_cluster)) { // extends X and add to Y
+        int row_offset = X_target_cluster.get_offset() - Y_target_cluster.get_offset();
+        int col_offset = X_source_cluster.get_offset() - Y_source_cluster.get_offset();
 
-    bool C_is_overwritten = (C.rank_of() == 0);
+        bool C_is_overwritten = (Y_lrmat.rank_of() == 0);
 
-    auto &U_R = R.get_U();
-    auto &V_R = R.get_V();
-    auto &U_C = C.get_U();
-    auto &V_C = C.get_V();
+        auto &U_X = X_lrmat.get_U();
+        auto &V_X = X_lrmat.get_V();
+        auto &U_Y = Y_lrmat.get_U();
+        auto &V_Y = Y_lrmat.get_V();
 
-    if (C_is_overwritten) {
-        U_C.resize(C.nb_rows(), R.rank_of());
-        V_C.resize(R.rank_of(), C.nb_cols());
+        if (C_is_overwritten) {
+            U_Y.resize(Y_lrmat.nb_rows(), X_lrmat.rank_of());
+            V_Y.resize(X_lrmat.rank_of(), Y_lrmat.nb_cols());
 
-        for (int i = 0; i < U_R.nb_cols(); i++) {
-            std::copy_n(U_R.data() + U_R.nb_rows() * i, U_R.nb_rows(), U_C.data() + i * U_C.nb_rows() + row_offset);
+            for (int i = 0; i < U_X.nb_cols(); i++) {
+                std::copy_n(U_X.data() + U_X.nb_rows() * i, U_X.nb_rows(), U_Y.data() + i * U_Y.nb_rows() + row_offset);
+            }
+            for (int j = 0; j < V_X.nb_cols(); j++) {
+                std::copy_n(V_X.data() + j * V_X.nb_rows(), V_X.nb_rows(), V_Y.data() + (j + col_offset) * V_Y.nb_rows());
+            }
+
+        } else {
+
+            // Concatenate U_X and U_Y
+            Matrix<CoefficientPrecision> new_U(Y_lrmat.nb_rows(), U_X.nb_cols() + U_Y.nb_cols());
+            std::copy_n(U_Y.data(), U_Y.nb_cols() * U_Y.nb_rows(), new_U.data());
+
+            for (int i = 0; i < U_X.nb_cols(); i++) {
+                std::copy_n(U_X.data() + U_X.nb_rows() * i, U_X.nb_rows(), new_U.data() + U_Y.nb_cols() * Y_lrmat.nb_rows() + i * new_U.nb_rows() + row_offset);
+            }
+            // Concatenate V_X and V_Y
+            Matrix<CoefficientPrecision> new_V(V_Y.nb_rows() + V_X.nb_rows(), Y_lrmat.nb_cols());
+
+            for (int j = 0; j < new_V.nb_cols(); j++) {
+                std::copy_n(V_Y.data() + j * V_Y.nb_rows(), V_Y.nb_rows(), new_V.data() + j * new_V.nb_rows());
+            }
+            for (int j = 0; j < V_X.nb_cols(); j++) {
+                std::copy_n(V_X.data() + j * V_X.nb_rows(), V_X.nb_rows(), new_V.data() + (j + col_offset) * new_V.nb_rows() + V_Y.nb_rows());
+            }
+
+            // Set C
+            Y_lrmat.get_U() = new_U;
+            Y_lrmat.get_V() = new_V;
+            recompression(Y_lrmat);
         }
-        for (int j = 0; j < V_R.nb_cols(); j++) {
-            std::copy_n(V_R.data() + j * V_R.nb_rows(), V_R.nb_rows(), V_C.data() + (j + col_offset) * V_C.nb_rows());
-        }
+    } else if (left_cluster_contains_right_cluster(X_target_cluster, Y_target_cluster) && left_cluster_contains_right_cluster(X_source_cluster, Y_source_cluster)) { // restrict X and add to Y
+        int row_offset = Y_target_cluster.get_offset() - X_target_cluster.get_offset();
+        int col_offset = Y_source_cluster.get_offset() - X_source_cluster.get_offset();
 
+        bool C_is_overwritten = (Y_lrmat.rank_of() == 0);
+
+        auto &U_X = X_lrmat.get_U();
+        auto &V_X = X_lrmat.get_V();
+        auto &U_Y = Y_lrmat.get_U();
+        auto &V_Y = Y_lrmat.get_V();
+
+        if (C_is_overwritten) {
+            U_Y.resize(Y_lrmat.nb_rows(), X_lrmat.rank_of());
+            V_Y.resize(X_lrmat.rank_of(), Y_lrmat.nb_cols());
+
+            for (int i = 0; i < U_X.nb_cols(); i++) {
+                std::copy_n(U_X.data() + U_X.nb_rows() * i + row_offset, U_Y.nb_rows(), U_Y.data() + i * U_Y.nb_rows());
+            }
+            for (int j = 0; j < V_Y.nb_cols(); j++) {
+                std::copy_n(V_X.data() + (j + col_offset) * V_X.nb_rows(), V_X.nb_rows(), V_Y.data() + j * V_Y.nb_rows());
+            }
+        } else {
+            // Concatenate U_X and U_Y
+            Matrix<CoefficientPrecision> new_U(Y_lrmat.nb_rows(), U_X.nb_cols() + U_Y.nb_cols());
+            std::copy_n(U_Y.data(), U_Y.nb_cols() * U_Y.nb_rows(), new_U.data());
+
+            for (int i = 0; i < U_X.nb_cols(); i++) {
+                std::copy_n(U_X.data() + U_X.nb_rows() * i + row_offset, U_Y.nb_rows(), new_U.data() + U_Y.nb_cols() * Y_lrmat.nb_rows() + i * new_U.nb_rows());
+            }
+            // Concatenate V_C and V_R
+            Matrix<CoefficientPrecision> new_V(V_Y.nb_rows() + V_X.nb_rows(), Y_lrmat.nb_cols());
+
+            for (int j = 0; j < new_V.nb_cols(); j++) {
+                std::copy_n(V_Y.data() + j * V_Y.nb_rows(), V_Y.nb_rows(), new_V.data() + j * new_V.nb_rows());
+            }
+            for (int j = 0; j < V_Y.nb_cols(); j++) {
+                std::copy_n(V_X.data() + (j + col_offset) * V_X.nb_rows(), V_X.nb_rows(), new_V.data() + j * new_V.nb_rows() + V_Y.nb_rows());
+            }
+
+            // Set C
+            Y_lrmat.get_U() = new_U;
+            Y_lrmat.get_V() = new_V;
+            recompression(Y_lrmat);
+        }
     } else {
-
-        // Concatenate U_C and U_R
-        Matrix<CoefficientPrecision> new_U(C.nb_rows(), U_R.nb_cols() + U_C.nb_cols());
-        std::copy_n(U_C.data(), U_C.nb_cols() * U_C.nb_rows(), new_U.data());
-
-        for (int i = 0; i < U_R.nb_cols(); i++) {
-            std::copy_n(U_R.data() + U_R.nb_rows() * i, U_R.nb_rows(), new_U.data() + U_C.nb_cols() * C.nb_rows() + i * new_U.nb_rows() + row_offset);
-        }
-        // Concatenate V_C and V_R
-        Matrix<CoefficientPrecision> new_V(V_C.nb_rows() + V_R.nb_rows(), C.nb_cols());
-
-        for (int j = 0; j < new_V.nb_cols(); j++) {
-            std::copy_n(V_C.data() + j * V_C.nb_rows(), V_C.nb_rows(), new_V.data() + j * new_V.nb_rows());
-        }
-        for (int j = 0; j < V_R.nb_cols(); j++) {
-            std::copy_n(V_R.data() + j * V_R.nb_rows(), V_R.nb_rows(), new_V.data() + (j + col_offset) * new_V.nb_rows() + V_C.nb_rows());
-        }
-
-        // Set C
-        C.get_U() = new_U;
-        C.get_V() = new_V;
-        recompression(C);
+        Logger::get_instance().log(LogLevel::ERROR, "Operation not implemented in add_lrmat_lrmat.");
     }
 }
 
