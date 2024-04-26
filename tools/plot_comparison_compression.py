@@ -1,5 +1,5 @@
 import numpy as np
-from mpl_toolkits.mplot3d import Axes3D 
+# from mpl_toolkits.mplot3d import Axes3D 
 import matplotlib.pyplot as plt
 import matplotlib.colors as colors
 import pandas as pd
@@ -25,7 +25,7 @@ ax.set_xlabel("Rank")
 ax.set_ylabel("Relative error in Frobenius norm")
 for compression in compressions:
     ax.semilogy(data["Rank"],data[compression],"x")
-ax.legend(compressions)
+# ax.legend(compressions)
 
 
 

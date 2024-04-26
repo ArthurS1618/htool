@@ -226,175 +226,179 @@ int main() {
     //////
     /// RECUPERATION CLUSTER
     ///////////
-    vector<double> points = to_mesh("/work/sauniear/Documents/matrice_test/Freefem/CD/mesh_CD3067.txt");
+    for (int eps = 0; eps < 7; ++eps) {
+        // vector<double> points = to_mesh("/work/sauniear/Documents/matrice_test/Freefem/CD/mesh_CD3067.txt");
+        vector<double> points = to_mesh("/work/sauniear/Documents/matrice_test/Freefem/CD_hole/size_3227_b10/mesh_withhole_CD3227.txt");
 
-    std::cout << std::endl;
-    std::cout << "taille du maillage : " << points.size() / 3 << std::endl;
-    int size = points.size() / 3;
-    /////
-    /// CLUSTER TREE
-    ///////
-    std::vector<int> depth(7);
-    for (int k = 1; k < 8; ++k) {
-        depth[k] = k;
-    }
-    // normal build ------------------> Cluster pour matrice de reference , regular splitting + PCA
-    ClusterTreeBuilder<double, ComputeLargestExtent<double>, RegularSplitting<double>> normal_build(points.size() / 3, 3, points.data(), 2, 2);
-    std::shared_ptr<Cluster<double>> root_normal = make_shared<Cluster<double>>(normal_build.create_cluster_tree());
-
-    // alternate build -----------------------------> Cluster pour notre méthode
-
-    //////////////////// Méthode alternate
-    std::vector<double> bb(3);
-    bb[0] = 1;
-    bb[1] = -1;
-    std::vector<double> bperp(3);
-    bperp[0] = 1;
-    bperp[1] = 1;
-    ClusterTreeBuilder<double, ComputeLargestExtent<double>, RegularSplitting<double>> alternate_build(points.size() / 3, 3, points.data(), 2, 2);
-    std::shared_ptr<Cluster<double>> root_alternate = make_shared<Cluster<double>>(alternate_build.create_alternate_tree(bb, bperp));
-
-    /////////////////// Méthode fixe direction
-    // std::vector<double> bperp(3);
-    // bperp[1] = 1;
-    ClusterTreeBuilder<double, ComputeLargestExtent<double>, RegularSplitting<double>> directional_build(points.size() / 3, 3, points.data(), 2, 2);
-    std::shared_ptr<Cluster<double>> root_directional = make_shared<Cluster<double>>(directional_build.create_directional_tree(bperp));
-
-    ///////////////////
-    /// save cluster
-    ///////////////
-
-    // save_clustered_geometry(*root_normal, 3, points.data(), "b11_geometry_normal_clustering", depth);
-    save_clustered_geometry(*root_alternate, 3, points.data(), "b11_geomerty_alternate_clustering", depth);
-    // save_clustered_geometry(*root_directional, 3, points.data(), "b11_geomerty_directional_clustering", depth);
-
-    ///////
-    /// RECUPERATION MATRICE
-    //////////
-    Matgenerator<double, double> m(size, size, *root_normal, *root_normal, "/work/sauniear/Documents/matrice_test/Freefem/CD/Vertices_3067_b10_eps6.txt");
-
-    Matrix<double> LU = m.get_mat();
-    auto M            = LU;
-
-    std::cout << "matrice et mesh recupérée" << std::endl;
-    /////
-    /// LU
-    ///////
-
-    std::vector<int> ipiv(size, 0.0);
-    int info = -1;
-    Lapack<double>::getrf(&size, &size, LU.data(), &size, ipiv.data(), &info);
-    std::cout << "LU ok " << std::endl;
-    int infoo = -1;
-    Matrix<double> id(size, size);
-    Matrix<double> U(size, size);
-    Matrix<double> L(size, size);
-    // Demande de calculer la taille requise pour le travail
-    for (int k = 0; k < size; ++k) {
-        id(k, k) = 1;
-    }
-    for (int k = 0; k < size; ++k) {
-        L(k, k) = 1;
-        U(k, k) = LU(k, k);
-        for (int l = 0; l < k; ++l) {
-            L(k, l) = LU(k, l);
-            U(l, k) = LU(l, k);
+        std::cout << "eps = " << eps << std::endl;
+        std::cout << "taille du maillage : " << points.size() / 3 << std::endl;
+        int size = points.size() / 3;
+        /////
+        /// CLUSTER TREE
+        ///////
+        std::vector<int> depth(7);
+        for (int k = 1; k < 8; ++k) {
+            depth[k] = k;
         }
+        // normal build ------------------> Cluster pour matrice de reference , regular splitting + PCA
+        ClusterTreeBuilder<double, ComputeLargestExtent<double>, RegularSplitting<double>> normal_build(points.size() / 3, 3, points.data(), 2, 2);
+        std::shared_ptr<Cluster<double>> root_normal = make_shared<Cluster<double>>(normal_build.create_cluster_tree());
+
+        // alternate build -----------------------------> Cluster pour notre méthode
+
+        //////////////////// Méthode alternate
+        std::vector<double> bb(3);
+        bb[0] = 1;
+        bb[1] = 0;
+        std::vector<double> bperp(3);
+        bperp[0] = 0;
+        bperp[1] = 1;
+        ClusterTreeBuilder<double, ComputeLargestExtent<double>, RegularSplitting<double>> alternate_build(points.size() / 3, 3, points.data(), 2, 2);
+        std::shared_ptr<Cluster<double>> root_alternate = make_shared<Cluster<double>>(alternate_build.create_alternate_tree(bb, bperp));
+
+        /////////////////// Méthode fixe direction
+        // std::vector<double> bperp(3);
+        // bperp[1] = 1;
+        ClusterTreeBuilder<double, ComputeLargestExtent<double>, RegularSplitting<double>> directional_build(points.size() / 3, 3, points.data(), 2, 2);
+        std::shared_ptr<Cluster<double>> root_directional = make_shared<Cluster<double>>(directional_build.create_directional_tree(bperp));
+
+        ///////////////////
+        /// save cluster
+        ///////////////
+
+        // save_clustered_geometry(*root_normal, 3, points.data(), "b11_geometry_normal_clustering", depth);
+        // save_clustered_geometry(*root_alternate, 3, points.data(), "b11_geomerty_alternate_clustering", depth);
+        // save_clustered_geometry(*root_directional, 3, points.data(), "b10_hole_geomerty_directional_clustering", depth);
+
+        ///////
+        /// RECUPERATION MATRICE
+        //////////
+        std::string epsString = std::to_string(eps);
+        // Matgenerator<double, double> m(size, size, *root_normal, *root_normal, "/work/sauniear/Documents/matrice_test/Freefem/CD/Vertices_3067_b10_eps6.txt");
+        Matgenerator<double, double> m(size, size, *root_normal, *root_normal, "/work/sauniear/Documents/matrice_test/Freefem/CD_hole/size_3227_b10/Vertices_3227_b10_withhole_eps" + epsString + ".txt");
+
+        Matrix<double> LU = m.get_mat();
+        auto M            = LU;
+
+        std::cout << "matrice et mesh recupérée" << std::endl;
+        /////
+        /// LU
+        ///////
+
+        std::vector<int> ipiv(size, 0.0);
+        int info = -1;
+        Lapack<double>::getrf(&size, &size, LU.data(), &size, ipiv.data(), &info);
+        std::cout << "LU ok " << std::endl;
+        int infoo = -1;
+        Matrix<double> id(size, size);
+        Matrix<double> U(size, size);
+        Matrix<double> L(size, size);
+        // Demande de calculer la taille requise pour le travail
+        for (int k = 0; k < size; ++k) {
+            id(k, k) = 1;
+        }
+        for (int k = 0; k < size; ++k) {
+            L(k, k) = 1;
+            U(k, k) = LU(k, k);
+            for (int l = 0; l < k; ++l) {
+                L(k, l) = LU(k, l);
+                U(l, k) = LU(l, k);
+            }
+        }
+
+        std::cout << "erreur decomposition LU " << normFrob((L * U) - M) / normFrob(M) << std::endl;
+
+        // Alloue le tableau de travail avec la taille requise
+        std::vector<int> ipivo(size);
+        int lwork = size * size;
+        std::vector<double> work(lwork);
+        // Effectue l'inversion
+        Lapack<double>::getri(&size, LU.data(), &size, ipiv.data(), work.data(), &lwork, &info);
+        std::cout << "inversion ok" << std::endl;
+
+        auto p    = M * LU;
+        auto norm = normFrob(LU);
+        std::cout << "ereur sur l'inverse " << std::endl;
+        std::cout << info << "," << normFrob(p - id) / sqrt(size) << std::endl;
+
+        // H martrices
+        double epsilon = 0.000001;
+
+        Matgenerator<double, double> mat(LU, *root_normal, *root_normal);
+        Matgenerator<double, double> matd(LU, *root_directional, *root_directional);
+        Matgenerator<double, double> mata(LU, *root_alternate, *root_alternate);
+
+        // /////////////////////:
+        // // Tests pour grandes matrices
+        // //////////////////////
+        // // normal build -----------------------> Matrices de reference
+        // double epsilon0 = 0.001;
+        // double eta      = 10.0;
+        double epsilon0 = 0.000000000001;
+        double eta      = 100.0;
+
+        HMatrixTreeBuilder<double, double> hmatrix_normal_builder(root_normal, root_normal, epsilon0, eta, 'N', 'N');
+        auto hmatrix_normal(hmatrix_normal_builder.build(mat));
+        std::cout << "normal build ok" << std::endl;
+
+        // // directional builder -------------------------> Avec notre condition d'adissibilité et tree builder
+        // double epsilon1 = 0.0005;
+        // double eta1     = 13.0;
+        double epsilon1 = 0.000000000001;
+        double eta1     = 100.0;
+        HMatrixTreeBuilder<double, double> hmatrix_directional_builder(root_directional, root_directional, epsilon1, eta1, 'N', 'N');
+        std::shared_ptr<Bande<double>> directional_admissibility = std::make_shared<Bande<double>>(bb, root_directional->get_permutation());
+        hmatrix_directional_builder.set_admissibility_condition(directional_admissibility);
+        auto hmatrix_directional(hmatrix_directional_builder.build(matd));
+        std::cout << "directional build ok" << std::endl;
+
+        // // Alternate Builder
+        // double epsilon2 = 0.0000001;
+        // HMatrixTreeBuilder<double, double> hmatrix_alternate_builder(root_alternate, root_alternate, epsilon0, eta, 'N', 'N');
+        // std::shared_ptr<Bande<double>> alternate_admissibility = std::make_shared<Bande<double>>(bb, root_alternate->get_permutation());
+        // hmatrix_alternate_builder.set_admissibility_condition(alternate_admissibility);
+        // auto hmatrix_alternate(hmatrix_alternate_builder.build(mata));
+        // std::cout << "aternate build ok" << std::endl;
+
+        Matrix<double> normal_dense(size, size);
+        copy_to_dense(hmatrix_normal, normal_dense.data());
+        auto nd = get_unperm_mat(normal_dense, hmatrix_normal.get_target_cluster(), hmatrix_normal.get_source_cluster());
+
+        Matrix<double> directional_dense(size, size);
+        copy_to_dense(hmatrix_directional, directional_dense.data());
+        auto dd = get_unperm_mat(directional_dense, hmatrix_directional.get_target_cluster(), hmatrix_directional.get_source_cluster());
+
+        // Matrix<double> alternate_dense(size, size);
+        // copy_to_dense(hmatrix_alternate, alternate_dense.data());
+        // auto ad = get_unperm_mat(alternate_dense, hmatrix_alternate.get_target_cluster(), hmatrix_alternate.get_source_cluster());
+
+        std::cout << "_________________________________" << std::endl;
+        std::cout << "info normal " << std::endl;
+        std::cout << "comrpession : " << hmatrix_normal.get_compression() << std::endl;
+        std::cout << "erreur : " << normFrob(LU - nd) / norm << std::endl;
+        std::cout << "rank info :  " << hmatrix_normal.get_rank_info() << std::endl;
+        std::cout << "_________________________________" << std::endl;
+
+        std::cout << "info directional " << std::endl;
+        std::cout << "compression : " << hmatrix_directional.get_compression() << std::endl;
+        std::cout << "erreur : " << normFrob(dd - LU) / norm << std::endl;
+        std::cout << "rank info :" << hmatrix_directional.get_rank_info() << std::endl;
+        std::cout << "_________________________________" << std::endl;
+
+        // std::cout << "info alternate " << std::endl;
+        // std::cout << "compression : " << hmatrix_alternate.get_compression() << std::endl;
+        // std::cout << "erreur : " << normFrob(ad - LU) / norm << std::endl;
+        // std::cout << "rank info :" << hmatrix_alternate.get_rank_info() << std::endl;
+        // std::cout << "_________________________________" << std::endl;
+
+        ///////////////////////
+        ///// save hmat
+        //////////////////////
+        // hmatrix_normal.save_plot("hmatrix7_b11_eps6_normal_3067");
+        // hmatrix_directional.save_plot("hmatrix7_b11_eps6_directional_3067");
+        // hmatrix_alternate.save_plot("hmatrix6_b11_eps1_alternate_3067");
+        std::cout << "save hmatrix done" << std::endl;
     }
-
-    std::cout << "erreur decomposition LU " << normFrob((L * U) - M) / normFrob(M) << std::endl;
-
-    // Alloue le tableau de travail avec la taille requise
-    std::vector<int> ipivo(size);
-    int lwork = size * size;
-    std::vector<double> work(lwork);
-    // Effectue l'inversion
-    Lapack<double>::getri(&size, LU.data(), &size, ipiv.data(), work.data(), &lwork, &info);
-    std::cout << "inversion ok" << std::endl;
-
-    auto p    = M * LU;
-    auto norm = normFrob(LU);
-    std::cout << "ereur sur l'inverse " << std::endl;
-    std::cout << info << "," << normFrob(p - id) / sqrt(size) << std::endl;
-
-    // H martrices
-    double epsilon = 0.0000001;
-
-    Matgenerator<double, double> mat(LU, *root_normal, *root_normal);
-    Matgenerator<double, double> matd(LU, *root_directional, *root_directional);
-    Matgenerator<double, double> mata(LU, *root_alternate, *root_alternate);
-
-    // /////////////////////:
-    // // Tests pour grandes matrices
-    // //////////////////////
-    // // normal build -----------------------> Matrices de reference
-    // double epsilon0 = 0.001;
-    // double eta      = 10.0;
-    double epsilon0 = 0.000001;
-    double eta      = 100.0;
-
-    HMatrixTreeBuilder<double, double> hmatrix_normal_builder(root_normal, root_normal, epsilon0, eta, 'N', 'N');
-    auto hmatrix_normal(hmatrix_normal_builder.build(mat));
-    std::cout << "normal build ok" << std::endl;
-
-    // // directional builder -------------------------> Avec notre condition d'adissibilité et tree builder
-    // double epsilon1 = 0.0005;
-    // double eta1     = 13.0;
-    double epsilon1 = 0.000001;
-    double eta1     = 100.0;
-    HMatrixTreeBuilder<double, double> hmatrix_directional_builder(root_directional, root_directional, epsilon1, eta1, 'N', 'N');
-    std::shared_ptr<Bande<double>> directional_admissibility = std::make_shared<Bande<double>>(bb, root_directional->get_permutation());
-    hmatrix_directional_builder.set_admissibility_condition(directional_admissibility);
-    auto hmatrix_directional(hmatrix_directional_builder.build(matd));
-    std::cout << "directional build ok" << std::endl;
-
-    // // Alternate Builder
-    double epsilon2 = 0.0000001;
-    HMatrixTreeBuilder<double, double> hmatrix_alternate_builder(root_alternate, root_alternate, epsilon0, eta, 'N', 'N');
-    std::shared_ptr<Bande<double>> alternate_admissibility = std::make_shared<Bande<double>>(bb, root_alternate->get_permutation());
-    hmatrix_alternate_builder.set_admissibility_condition(alternate_admissibility);
-    auto hmatrix_alternate(hmatrix_alternate_builder.build(mata));
-    std::cout << "aternate build ok" << std::endl;
-
-    Matrix<double> normal_dense(size, size);
-    copy_to_dense(hmatrix_normal, normal_dense.data());
-    auto nd = get_unperm_mat(normal_dense, hmatrix_normal.get_target_cluster(), hmatrix_normal.get_source_cluster());
-
-    Matrix<double> directional_dense(size, size);
-    copy_to_dense(hmatrix_directional, directional_dense.data());
-    auto dd = get_unperm_mat(directional_dense, hmatrix_directional.get_target_cluster(), hmatrix_directional.get_source_cluster());
-
-    Matrix<double> alternate_dense(size, size);
-    copy_to_dense(hmatrix_alternate, alternate_dense.data());
-    auto ad = get_unperm_mat(alternate_dense, hmatrix_alternate.get_target_cluster(), hmatrix_alternate.get_source_cluster());
-
-    std::cout << "_________________________________" << std::endl;
-    std::cout << "info normal " << std::endl;
-    std::cout << "comrpession : " << hmatrix_normal.get_compression() << std::endl;
-    std::cout << "erreur : " << normFrob(LU - nd) / norm << std::endl;
-    std::cout << "rank info :  " << hmatrix_normal.get_rank_info() << std::endl;
-    std::cout << "_________________________________" << std::endl;
-
-    std::cout << "info directional " << std::endl;
-    std::cout << "compression : " << hmatrix_directional.get_compression() << std::endl;
-    std::cout << "erreur : " << normFrob(dd - LU) / norm << std::endl;
-    std::cout << "rank info :" << hmatrix_directional.get_rank_info() << std::endl;
-    std::cout << "_________________________________" << std::endl;
-
-    std::cout << "info alternate " << std::endl;
-    std::cout << "compression : " << hmatrix_alternate.get_compression() << std::endl;
-    std::cout << "erreur : " << normFrob(ad - LU) / norm << std::endl;
-    std::cout << "rank info :" << hmatrix_alternate.get_rank_info() << std::endl;
-    std::cout << "_________________________________" << std::endl;
-
-    ///////////////////////
-    ///// save hmat
-    //////////////////////
-    // hmatrix_normal.save_plot("hmatrix7_b11_eps6_normal_3067");
-    // hmatrix_directional.save_plot("hmatrix7_b11_eps6_directional_3067");
-    // hmatrix_alternate.save_plot("hmatrix6_b11_eps1_alternate_3067");
-    std::cout << "save hmatrix done" << std::endl;
-
     ///////////////////
     /// save cluster
     ///////////////

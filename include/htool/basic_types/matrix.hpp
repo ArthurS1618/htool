@@ -213,18 +213,37 @@ class Matrix {
         if (row == m_number_of_rows && col == m_number_of_cols) {
             res = *this;
         } else {
-            for (int k = 0; k < row; ++k) {
-                for (int l = 0; l < col; ++l) {
-                    // res(k, l) = m_data[(k + row_offset) + (l + col_offset) * this->nb_rows()];
-                    // if (k + row_offset > this->nb_rows() or l + col_offset > this->nb_cols()) {
-                    //     std::cout << "!!!!!!!!!!!!!!!!!!!!!!!!!" << std::endl;
-                    //     std::cout << row << ',' << row_offset << ',' << m_number_of_rows << '!' << col << ',' << col_offset << ',' << m_number_of_cols << std::endl;
-                    // }
-                    res(k, l) = temp(k + row_offset, l + col_offset);
+            if (row == 1) {
+                auto roww = this->get_row(row);
+                std::vector<T> r(col);
+                std::copy(roww.begin() + col_offset, roww.begin() + col + col_offset, r.begin());
+                res.assign(row, col, r.data(), false);
+            } else if (col == 1) {
+                auto coll = this->get_col(col);
+                std::vector<T> r(row);
+                std::copy(coll.begin() + row_offset, coll.begin() + row + row_offset, r.begin());
+                res.assign(row, col, r.data(), false);
+            } else {
+                for (int k = 0; k < row; ++k) {
+                    for (int l = 0; l < col; ++l) {
+                        // res(k, l) = m_data[(k + row_offset) + (l + col_offset) * this->nb_rows()];
+                        // if (k + row_offset > this->nb_rows() or l + col_offset > this->nb_cols()) {
+                        //     std::cout << "!!!!!!!!!!!!!!!!!!!!!!!!!" << std::endl;
+                        //     std::cout << row << ',' << row_offset << ',' << m_number_of_rows << '!' << col << ',' << col_offset << ',' << m_number_of_cols << std::endl;
+                        // }
+                        res(k, l) = temp(k + row_offset, l + col_offset);
+                    }
                 }
             }
         }
         return res;
+    }
+
+    void copy_submatrix(int row, int col, int row_offset, int col_offset, T *ptr) {
+        // on va chercher les colonnes
+        for (int l = 0; l < col; ++l) {
+            std::copy(data() + (l + col_offset) * m_number_of_rows + row_offset, data() + (l + col_offset) * m_number_of_rows + row_offset + row, ptr + l * row);
+        }
     }
 
     //! ### Access operator
@@ -791,13 +810,8 @@ class Matrix {
 
     Matrix<T> trunc_row(const int &k) {
         Matrix<T> res(k, m_number_of_cols);
-        for (int l = 0; l < m_number_of_cols; ++l) {
-            std::vector<T> el(m_number_of_rows);
-            el[l] = 1;
-            std::vector<T> rowtemp(m_number_of_cols);
-            this->add_vector_product('T', 1.0, el.data(), 1.0, rowtemp.data());
-            rowtemp.resize(k); // on enlève tout ce qu'il y a en dessous de la ligne k
-            std::copy(rowtemp.begin(), rowtemp.begin() + k, res.data() + l * k);
+        for (int l = 0; l < k; ++l) {
+            res.set_row(l, this->get_row(l));
         }
         return res;
     }
@@ -980,6 +994,195 @@ std::pair<Matrix<T>, Matrix<T>> get_lu(const Matrix<T> &M) {
     res.first  = L;
     res.second = U;
     return res;
+}
+
+template <typename CoefficientPrecision>
+void ACA(const Matrix<CoefficientPrecision> &A, const int &offset_t, const int &offset_s, const CoefficientPrecision &epsilon, const int &rank, Matrix<CoefficientPrecision> &U, Matrix<CoefficientPrecision> &V) {
+
+    int n1, n2;
+    int i1;
+    int i2;
+    // const double *x1;
+
+    if (offset_t >= offset_s) {
+
+        n1 = A.nb_rows();
+        n2 = A.nb_cols();
+        i1 = offset_t;
+        i2 = offset_s;
+        // x1        = xt;
+        // cluster_1 = &t;
+    } else {
+        n1 = A.nb_cols();
+        n2 = A.nb_rows();
+        i1 = offset_s;
+        i2 = offset_t;
+        // x1        = xs;
+        // cluster_1 = &s;
+    }
+
+    //// Choice of the first row (see paragraph 3.4.3 page 151 Bebendorf)
+    // double dist = 1e30;
+    int I1 = 0;
+    // for (int i = 0; i < n1; i++) {
+    //     double aux_dist = std::sqrt(std::inner_product(x1 + (cluster_1->get_space_dim() * i1[i]), x1 + (cluster_1->get_space_dim() * i1[i]) + cluster_1->get_space_dim(), cluster_1->get_ctr().begin(), double(0), std::plus<double>(), [](double u, double v) { return (u - v) * (u - v); }));
+
+    //     if (dist > aux_dist) {
+    //         dist = aux_dist;
+    //         I1   = i;
+    //     }
+    // }
+    // Partial pivot
+    int I2      = 0;
+    int q       = 0;
+    int reqrank = rank;
+    std::vector<std::vector<CoefficientPrecision>> uu, vv;
+    std::vector<bool> visited_1(n1, false);
+    std::vector<bool> visited_2(n2, false);
+
+    underlying_type<CoefficientPrecision> frob = 0;
+    underlying_type<CoefficientPrecision> aux  = 0;
+
+    underlying_type<CoefficientPrecision> pivot, tmp;
+    CoefficientPrecision coef;
+    int incx(1), incy(1);
+    std::vector<CoefficientPrecision> u1(n2), u2(n1);
+    // Either we have a required rank
+    // Or it is negative and we have to check the relative error between two iterations.
+    // But to do that we need a least two iterations.
+    while (((reqrank > 0) && (q < std::min(reqrank, std::min(n1, n2)))) || ((reqrank < 0) && (q == 0 || sqrt(aux / frob) > epsilon))) {
+
+        // Next current rank
+        q += 1;
+
+        if (q * (n1 + n2) > (n1 * n2)) { // the next current rank would not be advantageous
+            q = -1;
+            break;
+        } else {
+            std::fill(u1.begin(), u1.end(), CoefficientPrecision(0));
+            if (offset_t >= offset_s) {
+                // u1 = A.get_block(1, n2, i1 + I1, i2);
+                auto uu = A.get_row(i1 + I1);
+                std::copy(uu.begin() + i2, uu.begin() + i2 + n2, u1.begin());
+            } else {
+                auto uu = A.get_col(i1 + I1);
+                std::copy(uu.begin() + i2, uu.begin() + i2 + n2, u1.begin());
+                // A.copy_submatrix(n2, 1, i2, i1 + I1, u1.data());
+            }
+
+            for (int j = 0; j < uu.size(); j++) {
+                coef = -uu[j][I1];
+                Blas<CoefficientPrecision>::axpy(&(n2), &(coef), vv[j].data(), &incx, u1.data(), &incy);
+            }
+
+            pivot = 0.;
+            tmp   = 0;
+            for (int k = 0; k < n2; k++) {
+                if (visited_2[k])
+                    continue;
+                tmp = std::abs(u1[k]);
+                if (tmp < pivot)
+                    continue;
+                pivot = tmp;
+                I2    = k;
+            }
+            visited_1[I1]              = true;
+            CoefficientPrecision gamma = CoefficientPrecision(1.) / u1[I2];
+
+            //==================//
+            // Look for a line
+            if (std::abs(u1[I2]) > 1e-15) {
+                std::fill(u2.begin(), u2.end(), CoefficientPrecision(0));
+                if (offset_t >= offset_s) {
+                    // A.copy_submatrix(n1, 1, i1, i2 + I2, u2.data());
+                    auto vv = A.get_col(i2 + I2);
+                    std::copy(vv.begin() + i1, vv.begin() + i1 + n1, u2.begin());
+                } else {
+                    auto vv = A.get_row(i2 + I2);
+                    std::copy(vv.begin() + i1, vv.begin() + i1 + n1, u2.begin());
+                    // A.copy_submatrix(1, n1, i2 + I2, i1, u2.data());
+                }
+                for (int k = 0; k < uu.size(); k++) {
+                    coef = -vv[k][I2];
+                    Blas<CoefficientPrecision>::axpy(&(n1), &(coef), uu[k].data(), &incx, u2.data(), &incy);
+                }
+                u2 *= gamma;
+                pivot = 0.;
+                tmp   = 0;
+                for (int k = 0; k < n1; k++) {
+                    if (visited_1[k])
+                        continue;
+                    tmp = std::abs(u2[k]);
+                    if (tmp < pivot)
+                        continue;
+                    pivot = tmp;
+                    I1    = k;
+                }
+                visited_2[I2] = true;
+
+                // Test if no given rank
+                if (reqrank < 0) {
+                    // Error estimator
+                    CoefficientPrecision frob_aux = 0.;
+                    aux                           = std::abs(Blas<CoefficientPrecision>::dot(&(n1), u2.data(), &incx, u2.data(), &incx)) * std::abs(Blas<CoefficientPrecision>::dot(&(n2), u1.data(), &incx, u1.data(), &incx));
+
+                    // aux: terme quadratiques du developpement du carre' de la norme de Frobenius de la matrice low rank
+                    for (int j = 0; j < uu.size(); j++) {
+                        frob_aux += Blas<CoefficientPrecision>::dot(&(n2), u1.data(), &incx, vv[j].data(), &incy) * Blas<CoefficientPrecision>::dot(&(n1), u2.data(), &(incx), uu[j].data(), &(incy));
+                    }
+                    // frob_aux: termes croises du developpement du carre' de la norme de Frobenius de la matrice low rank
+                    frob += aux + 2 * std::real(frob_aux); // frob: Frobenius norm of the low rank matrix
+                                                           //==================//
+                }
+                // Matrix<T> M=A.get_submatrix(this->ir,this->ic);
+                // uu.push_back(M.get_col(J));
+                // vv.push_back(M.get_row(I)/M(I,J));
+                // New cross added
+                uu.push_back(u2);
+                vv.push_back(u1);
+
+            } else {
+                q -= 1;
+                if (q == 0) { // corner case where first row is zero, ACA fails, we build a dense block instead
+                    q = -1;
+                }
+                htool::Logger::get_instance().log(Logger::LogLevel::WARNING, "ACA found a zero row in a " + std::to_string(A.nb_rows()) + "x" + std::to_string(A.nb_cols()) + " block. Final rank is " + std::to_string(q)); // LCOV_EXCL_LINE
+                // std::cout << "[Htool warning] ACA found a zero row in a " + std::to_string(t.get_size()) + "x" + std::to_string(s.get_size()) + " block. Final rank is " + std::to_string(q) << std::endl;
+                break;
+            }
+        }
+    }
+
+    // Final rank
+    int rankk = q;
+    if (rankk > 0) {
+        U.resize(A.nb_rows(), rankk);
+        V.resize(rankk, A.nb_cols());
+
+        if (offset_t >= offset_s) {
+            for (int k = 0; k < rankk; k++) {
+                std::move(uu[k].begin(), uu[k].end(), U.data() + k * A.nb_rows());
+                for (int j = 0; j < A.nb_cols(); j++) {
+                    V(k, j) = vv[k][j];
+                }
+            }
+        } else {
+            for (int k = 0; k < rankk; k++) {
+                std::move(vv[k].begin(), vv[k].end(), U.data() + k * A.nb_rows());
+                for (int j = 0; j < A.nb_cols(); j++) {
+                    V(k, j) = uu[k][j];
+                }
+            }
+        }
+    }
+}
+template <typename T>
+void plus(const int size, T *ptr_a, T *ptr_b, T *ptr_c) {
+    std::transform(ptr_a, ptr_a + size, ptr_b, ptr_c, [](double a, double b) { return a + b; });
+}
+template <typename T>
+void moins(const int size, T *ptr_a, T *ptr_b, T *ptr_c) {
+    std::transform(ptr_a, ptr_a + size, ptr_b, ptr_c, [](double a, double b) { return a - b; });
 }
 
 } // namespace htool

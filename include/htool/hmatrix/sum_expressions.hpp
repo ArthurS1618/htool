@@ -80,6 +80,7 @@ class SumExpression : public VirtualGenerator<CoefficientPrecision> {
     int source_size;
     int source_offset;
     bool restrictible = true;
+    double epsilon;
 
   public:
     SumExpression(const HMatrixType *A, const HMatrixType *B) {
@@ -122,7 +123,9 @@ class SumExpression : public VirtualGenerator<CoefficientPrecision> {
     int get_source_offset() const { return source_offset; }
     int get_target_size() const { return target_size; }
     int get_source_size() const { return source_size; }
+    double get_epsilon() { return epsilon; }
     const std::vector<int> get_offset() const { return offset; }
+    void set_epsilon(const double &epsilon0) { epsilon = epsilon0; }
     void set_sr(const std::vector<Matrix<CoefficientPrecision>> &sr) {
         Sr = sr;
     }
@@ -359,104 +362,13 @@ class SumExpression : public VirtualGenerator<CoefficientPrecision> {
             auto U = Sr[0];
             auto V = Sr[1];
             // on concatène
-            Matrix<CoefficientPrecision> big_U(U.nb_rows(), U.nb_cols() + A.nb_cols());
-            Matrix<CoefficientPrecision> big_V(V.nb_rows() + B.nb_rows(), V.nb_cols());
-            // big_U c'est facile
-            for (int i = 0; i < U.nb_rows; ++i) {
-                std::copy(U.begin() + i * U.nb_cols(), U.begin() + (i + 1) * U.nb_cols(), big_U.begin() + i * (U.nb_cols() + A.nb_cols()));
-                std::copy(A.begin() + i * A.nb_cols(), A.begin() + (i + 1) * A.nb_cols(), big_V.begin() + i * (U.nb_cols() + A.nb_cols()) + U.nb_cols());
-            }
-            // big_V , peut être en concaténant la transposé on peut raccourcir mais ca veut dire qu'il faut changer tot le code
-            for (int l = 0; l < V.nb_cols(); ++l) {
-                for (int k = 0; k < V.nb_rows(); ++k) {
-                    big_V(k, l) = V(k, l);
-                }
-                for (int k = 0; k < B.nb_rows(); ++k) {
-                    big_V(k + V.nb_rows(), l);
-                }
-            }
-            // QR sur big_U
-            int lda_u   = target_size;
-            int lwork_u = 10 * target_size;
-            int info_u;
-
-            int N = U.nb_cols() + A.nb_cols();
-            std::vector<double> work_u(lwork_u);
-            std::vector<double> tau_u(N);
-            Lapack<double>::geqrf(&target_size, &N, big_U.data(), &lda_u, tau_u.data(), work_u.data(), &lwork_u, &info_u);
-            Matrix<double> R_u(N, N);
-            for (int k = 0; k < N; ++k) {
-                for (int l = k; l < N; ++l) {
-                    R_u(k, l) = big_U(k, l);
-                }
-            }
-            std::vector<double> workU(lwork_u);
-            Lapack<double>::orgqr(&target_size, &N, &N, big_U.data(), &lda_u, tau_u.data(), workU.data(), &lwork_u, &info_u);
-
-            // QR sur big_V    -------> je suis presque sure qu'il réécrit par dessus mais dans le doute on réinitialise
-            int lda_v   = source_size;
-            int lwork_v = 10 * source_size;
-            int info_v;
-            int M = V.nb_rows() + B.nb_rows(); // normelement c'est égale a N ;
-            std::vector<double> work_v(lwork_v);
-            std::vector<double> tau_v(M);
-            Lapack<double>::geqrf(&M, &source_size, big_V.data(), &lda_v, tau_v.data(), work_v.data(), &lwork_v, &info_v);
-            Matrix<double> R_v(M, M);
-            for (int k = 0; k < M; ++k) {
-                for (int l = k; l < M; ++l) {
-                    R_v(k, l) = big_V(k, l);
-                }
-            }
-            std::vector<double> workV(lwork_v);
-            Lapack<CoefficientPrecision>::orgqr(&M, &source_size, &M, big_V.data(), &lda_v, tau_v.data(), workV.data(), &lwork_v, &info_v);
-
-            // Ru*Rv
-            Matrix<CoefficientPrecision> RuRv(N, N);
-            R_u.add_matrix_product('N', 1.0, R_v.data(), 1.0, RuRv.data(), N);
-            // truncated SVD sur R_uR_v
-            std::vector<CoefficientPrecision> S(N, 0.0);
-            Matrix<CoefficientPrecision> Uu(N, N);
-            Matrix<CoefficientPrecision> VT(N, N);
-            int info;
-            int lwork = 10 * N;
-            std::vector<CoefficientPrecision> work(lwork);
-            Lapack<CoefficientPrecision>::gesvd('A', 'A', &N, &N, RuRv.data(), &N, S.data(), Uu.data(), &N, VT.data(), &N, work.data(), &lwork, &info);
-            // truncation index
-            int trunc = 0;
-            if (rk == -1) {
-                while (S[trunc] > epsilon) {
-                    trunc += 1;
-                }
-            } else if (epsilon == -1) {
-                trunc = rk;
+            auto update = formatted_addition(U, V, A, B, 0, 0);
+            if (update.size() == 1) {
+                std::cout << "somme de low rank qui n'est plus low rank...." << std::endl;
             } else {
-                std::cout << "il faut un critère rank ou epsilon , pas encore implémenter rk && epsilon" << std::endl;
+                Sr[0] = update[0];
+                Sr[1] = update[1];
             }
-            // on tronque U S et V
-            Matrix<CoefficientPrecision> Strunc(trunc, trunc);
-            for (int k = 0; k < trunc; ++k) {
-                Strunc(k, k) = S[k];
-            }
-            Matrix<CoefficientPrecision> Utrunc(target_size, trunc);
-            Matrix<CoefficientPrecision> Vtrunc(trunc, source_size);
-            for (int k = 0; k < target_size; ++k) {
-                for (int l = 0; l < trunc; ++l) {
-                    Utrunc(k, l) = Uu(k, l);
-                }
-            }
-            for (int l = 0; l < source_size; ++l) {
-                for (int k = 0; k < trunc; ++k) {
-                    Vtrunc(k, l) = VT(k, l);
-                }
-            }
-            // U = big_U Utrunc Strunc     --------------   V= VT big_V ;
-            Matrix<CoefficientPrecision> temp(target_size, trunc);
-            big_U.add_matrix_product('N', 1.0, Utrunc.data(), 1.0, temp.data(), &trunc);
-            temp.add_matrix_product('N', 1.0, Strunc.data(), 0.0, temp.data(), &trunc);
-            VT.add_matrix_product('N', 1.0, big_V.data(), 0.0, VT.data(), &source_size);
-            //////
-            Sr.push_back(temp);
-            Sr.push_back(VT);
         }
     }
     //////////////////////
@@ -604,6 +516,126 @@ class SumExpression : public VirtualGenerator<CoefficientPrecision> {
     }
     ////////////////////
     /// Pas mal mais il reste toujours des gros blocs dense qui nous frocent a tout densifier
+    // void copy_submatrix(int M, int N, int row_offset, int col_offset, CoefficientPrecision *ptr) const override { // on regarde si il faut pas juste une ligne ou une collonne
+    //     Matrix<CoefficientPrecision> mat(M, N);
+    //     mat.assign(M, N, ptr, false);
+    //     int ref_row = row_offset - target_offset;
+    //     int ref_col = col_offset - source_offset;
+    //     if (M == 1) {
+    //         auto row = this->get_row(ref_row);
+    //         if (N == source_size) {
+    //             std::copy(row.begin(), row.begin() + N, ptr);
+
+    //         } else {
+    //             for (int l = 0; l < N; ++l) {
+    //                 ptr[l] = row[l + ref_col];
+    //             }
+    //         }
+    //     } else if (N == 1) {
+    //         auto col = this->get_col(ref_col);
+    //         if (M == target_size) {
+    //             std::copy(col.begin(), col.begin() + M, ptr);
+    //             // ptr = col.data();
+    //             // std::cout << normFrob(mat) << std::endl;
+
+    //         } else {
+    //             for (int k = 0; k < M; ++k) {
+    //                 mat(k, 0) = col[k + ref_row];
+    //             }
+    //         }
+    //     }
+
+    //     else {
+    //         // donc la on veut un bloc, on va faire un choix arbitraire pour appeller copy_to_dense
+    //         if ((M + N) > (target_size + source_size) / 2) {
+    //             // std::cout << "énorme bloc densifié : " << M << ',' << N << " dans un bloc de taille :  " << target_size << ',' << source_size << "|" << target_offset << ',' << source_offset << std::endl;
+
+    //             for (int k = 0; k < Sh.size() / 2; ++k) {
+    //                 auto &H = Sh[2 * k];
+    //                 auto &K = Sh[2 * k + 1];
+    //                 Matrix<CoefficientPrecision> hdense(H->get_target_cluster().get_size(), H->get_source_cluster().get_size());
+    //                 Matrix<CoefficientPrecision> kdense(K->get_target_cluster().get_size(), K->get_source_cluster().get_size());
+    //                 copy_to_dense(*H, hdense.data());
+    //                 copy_to_dense(*K, kdense.data());
+    //                 // hdense.add_matrix_product('N', 1.0, kdense.data(), 0.0, hdense.data(), hdense.nb_cols());
+    //                 Matrix<CoefficientPrecision> hk;
+    //                 if ((H->get_target_cluster().get_size() == target_size) && (K->get_source_cluster().get_size() == source_size) && (H->get_source_cluster().get_size() == K->get_target_cluster().get_size())) {
+    //                     hk = hdense * kdense;
+    //                     // auto hrestr = hdense.get_block(M, hdense.nb_cols(), row_offset - target_offset, 0);
+    //                     // auto krestr = kdense.get_block(kdense.nb_rows(), N, 0, col_offset - source_offset);
+    //                     // Lapack<CoefficientPrecision>::gemm('N', 'N', M, N, hdense.nb_cols(), 1.0, hrestr.data(), std::max(M, hdense.nb_cols()), krestr.data(), std::max(N, krestr.nb_cols()), 1.0, mat.data(), std::max(M, N));
+    //                 } else {
+    //                     if (H->get_source_cluster().get_size() < K->get_target_cluster().get_size()) {
+    //                         auto &r     = H->get_source_cluster();
+    //                         auto hrestr = hdense.get_block(target_size, r.get_size(), target_offset - H->get_target_cluster().get_offset(), 0);
+    //                         auto krestr = kdense.get_block(r.get_size(), source_size, r.get_offset() - K->get_target_cluster().get_offset(), source_offset - H->get_source_cluster().get_offset());
+    //                         hk          = hrestr * krestr;
+    //                     } else {
+    //                         auto &r     = K->get_target_cluster();
+    //                         auto hrestr = hdense.get_block(target_size, r.get_size(), target_offset - H->get_target_cluster().get_offset(), r.get_offset() - H->get_source_cluster().get_offset());
+    //                         auto krestr = kdense.get_block(r.get_size(), source_size, 0, K->get_source_cluster().get_offset() - source_offset);
+    //                         hk          = hrestr * hrestr;
+    //                     }
+    //                 }
+    //                 for (int i = 0; i < M; ++i) {
+    //                     for (int j = 0; j < N; ++j) {
+    //                         // mat(i, j) += hk(i + row_offset - H->get_target_cluster().get_offset(), j + col_offset - K->get_source_cluster().get_offset());
+    //                         mat(i, j) += hk(i + row_offset - target_offset, j + col_offset - source_offset);
+    //                         // mat(i, j) += hdense(i + row_offset - target_offset, j + col_offset - source_offset);
+    //                     }
+    //                 }
+    //             }
+    //             //
+    //             // if (Sr.size() > 0) {
+    //             //     auto res_U = Sr[0];
+    //             //     auto res_V = Sr[1];
+    //             //     Matrix<CoefficientPrecision> resU_restr(target_size, res_U.nb_cols());
+    //             //     Matrix<CoefficientPrecision> resV_restr(res_V.nb_rows(), source_size);
+    //             //     for (int i = 0; i < target_size; ++i) {
+    //             //         resU_restr.set_row(i, res_U.get_row(i + target_offset - offset[0]));
+    //             //     }
+    //             //     for (int j = 0; j < source_size; ++j) {
+    //             //         resV_restr.set_col(j, res_V.get_col(j + source_offset - offset[+1]));
+    //             //     }
+    //             //
+    //             for (int k = 0; k < Sr.size() / 2; ++k) {
+    //                 // for (int k = 1; k < Sr.size() / 2; ++k) {
+
+    //                 auto U = Sr[2 * k];
+    //                 auto V = Sr[2 * k + 1];
+    //                 Matrix<CoefficientPrecision> U_restr(target_size, U.nb_cols());
+    //                 Matrix<CoefficientPrecision> V_restr(V.nb_rows(), source_size);
+    //                 for (int i = 0; i < target_size; ++i) {
+    //                     U_restr.set_row(i, U.get_row(i + target_offset - offset[2 * k]));
+    //                 }
+    //                 for (int j = 0; j < source_size; ++j) {
+    //                     V_restr.set_col(j, V.get_col(j + source_offset - offset[2 * k + 1]));
+    //                 }
+    //                 auto uv = U_restr * V_restr;
+    //                 for (int i = 0; i < M; ++i) {
+    //                     for (int j = 0; j < N; ++j) {
+    //                         mat(i, j) += uv(i + row_offset - target_offset, j + col_offset - source_offset);
+    //                     }
+    //                 }
+    //                 // auto ress = formatted_addition(resU_restr, resV_restr, U_restr, V_restr, epsilon, target_offset, source_offset);
+    //                 // if (ress.size() == 2) {
+    //                 //     res_U = ress[0];
+    //                 //     res_V = ress[1];
+    //                 // } else {
+    //                 // }
+    //                 // }
+    //             }
+    //         } else {
+    //             for (int k = 0; k < M; ++k) {
+    //                 auto row = this->get_row(ref_row + k);
+    //                 for (int l = 0; l < N; ++l) {
+    //                     mat(k, l) = row[l + ref_col];
+    //                 }
+    //             }
+    //         }
+    //     }
+    // }
+
     void copy_submatrix(int M, int N, int row_offset, int col_offset, CoefficientPrecision *ptr) const override { // on regarde si il faut pas juste une ligne ou une collonne
         Matrix<CoefficientPrecision> mat(M, N);
         mat.assign(M, N, ptr, false);
@@ -615,9 +647,10 @@ class SumExpression : public VirtualGenerator<CoefficientPrecision> {
                 std::copy(row.begin(), row.begin() + N, ptr);
 
             } else {
-                for (int l = 0; l < N; ++l) {
-                    ptr[l] = row[l + ref_col];
-                }
+                std::copy(row.begin() + ref_col, row.begin() + ref_col + N, ptr);
+                // for (int l = 0; l < N; ++l) {
+                //     ptr[l] = row[l + ref_col];
+                // }
             }
         } else if (N == 1) {
             auto col = this->get_col(ref_col);
@@ -627,33 +660,36 @@ class SumExpression : public VirtualGenerator<CoefficientPrecision> {
                 // std::cout << normFrob(mat) << std::endl;
 
             } else {
-                for (int k = 0; k < M; ++k) {
-                    mat(k, 0) = col[k + ref_row];
-                }
+                std::copy(col.begin() + ref_row, col.begin() + ref_row + M, ptr);
+                // for (int k = 0; k < M; ++k) {
+                //     mat(k, 0) = col[k + ref_row];
+                // }
             }
         }
 
         else {
-            // donc la on veut un bloc, on va faire un choix arbitraire pour appeller copy_to_dense
+            // donc la on veut un bloc, c'est pas normal qu'on ait des
             if ((M + N) > (target_size + source_size) / 2) {
+                // std::cout << "!!!!!!!!!!!!!!!!!!" << std::endl;
                 // std::cout << "énorme bloc densifié : " << M << ',' << N << " dans un bloc de taille :  " << target_size << ',' << source_size << "|" << target_offset << ',' << source_offset << std::endl;
 
                 for (int k = 0; k < Sh.size() / 2; ++k) {
                     auto &H = Sh[2 * k];
                     auto &K = Sh[2 * k + 1];
+                    // std::cout << "on densifie des hmatrices qui ont cb de sons ? :" << H->get_children().size() << ',' << K->get_children().size() << std::endl;
+
                     Matrix<CoefficientPrecision> hdense(H->get_target_cluster().get_size(), H->get_source_cluster().get_size());
                     Matrix<CoefficientPrecision> kdense(K->get_target_cluster().get_size(), K->get_source_cluster().get_size());
                     copy_to_dense(*H, hdense.data());
                     copy_to_dense(*K, kdense.data());
-                    // hdense.add_matrix_product('N', 1.0, kdense.data(), 0.0, hdense.data(), hdense.nb_cols());
-                    Matrix<CoefficientPrecision> hk = hdense * kdense;
-                    for (int i = 0; i < M; ++i) {
-                        for (int j = 0; j < N; ++j) {
-                            // mat(i, j) += hk(i + row_offset - H->get_target_cluster().get_offset(), j + col_offset - K->get_source_cluster().get_offset());
-                            mat(i, j) += hk(i + row_offset - target_offset, j + col_offset - source_offset);
-                            // mat(i, j) += hdense(i + row_offset - target_offset, j + col_offset - source_offset);
-                        }
-                    }
+                    // auto hrestr = hdense.get_block(M, hdense.nb_cols(), row_offset - target_offset, 0);
+                    // auto krestr = kdense.get_block(kdense.nb_rows(), N, 0, col_offset - source_offset);
+                    // hrestr.add_matrix_product('N', 1.0, krestr.data(), 1.0, mat.data(), N);
+                    Matrix<CoefficientPrecision> hrestr(M, hdense.nb_cols());
+                    Matrix<CoefficientPrecision> krestr(kdense.nb_rows(), N);
+                    hdense.copy_submatrix(M, hdense.nb_cols(), row_offset - target_offset, 0, hrestr.data());
+                    kdense.copy_submatrix(kdense.nb_rows(), N, 0, col_offset - source_offset, krestr.data());
+                    hrestr.add_matrix_product('N', 1.0, krestr.data(), 1.0, mat.data(), N);
                 }
                 for (int k = 0; k < Sr.size() / 2; ++k) {
                     auto U = Sr[2 * k];
@@ -666,25 +702,28 @@ class SumExpression : public VirtualGenerator<CoefficientPrecision> {
                     for (int j = 0; j < source_size; ++j) {
                         V_restr.set_col(j, V.get_col(j + source_offset - offset[2 * k + 1]));
                     }
-                    auto uv = U_restr * V_restr;
-                    for (int i = 0; i < M; ++i) {
-                        for (int j = 0; j < N; ++j) {
-                            mat(i, j) += uv(i + row_offset - target_offset, j + col_offset - source_offset);
-                        }
-                    }
+                    U_restr.add_matrix_product('N', 1.0, V_restr.data(), 1.0, mat.data(), N);
                 }
-
+                // auto uu     = Sr[0];
+                // auto vv     = Sr[1];
+                // auto urestr = uu.get_block() for (int k = 1; Sr.size(); ++k) {
+                // }
             } else {
-                for (int k = 0; k < M; ++k) {
-                    auto row = this->get_row(ref_row + k);
-                    for (int l = 0; l < N; ++l) {
-                        mat(k, l) = row[l + ref_col];
-                    }
+                /// c'est faux mais de toute facon ce cas n'est pas possible , soit on appelle copy_submatrix pour avoir une ligne/colonne ou bien toute la sum expression du coup si M et N \neq 1 on a forcemment M+N > target+source/2
+                // for (int k = 0; k < M; ++k) {
+                //     auto row = this->get_row(ref_row + k);
+                //     for (int l = 0; l < N; ++l) {
+                //         mat(k, l) = row[l + ref_col];
+                //     }
+                // }
+                for (int l = 0; l < N; ++l) {
+                    auto col = this->get_col(ref_col + l);
+                    mat.set_col(l, col);
+                    // std::copy(data().begin()+(ref_col+l)*tar()
                 }
             }
         }
     }
-
     // void copy_submatrix(int M, int N, int row_offset, int col_offset, CoefficientPrecision *ptr) const override {
     //     Matrix<CoefficientPrecision> mat(M, N);
     //     mat.assign(M, N, ptr, false);
@@ -1168,26 +1207,30 @@ class SumExpression : public VirtualGenerator<CoefficientPrecision> {
                                     and (K_child->get_target_cluster().get_offset() == H_child->get_source_cluster().get_offset())) {
                                     if (H_child->is_low_rank() or K_child->is_low_rank()) {
                                         if (H_child->is_low_rank() and K_child->is_low_rank()) {
-                                            auto v1 = H_child->get_low_rank_data()->Get_V();
-                                            auto v2 = K_child->get_low_rank_data()->Get_U();
-                                            auto v3 = K_child->get_low_rank_data()->Get_V();
+                                            // auto v1 = H_child->get_low_rank_data()->Get_V();
+                                            // auto v2 = K_child->get_low_rank_data()->Get_U();
+                                            // auto v3 = K_child->get_low_rank_data()->Get_V();
 
-                                            auto v = H_child->get_low_rank_data()->Get_V() * K_child->get_low_rank_data()->Get_U() * K_child->get_low_rank_data()->Get_V();
+                                            // auto v = H_child->get_low_rank_data()->Get_V() * K_child->get_low_rank_data()->Get_U() * K_child->get_low_rank_data()->Get_V();
+                                            Matrix<CoefficientPrecision> temp(H_child->get_low_rank_data()->Get_V().nb_rows(), K_child->get_low_rank_data()->Get_U().nb_cols());
+                                            Matrix<CoefficientPrecision> v(H_child->get_low_rank_data()->Get_V().nb_rows(), K_child->get_low_rank_data()->Get_V().nb_cols());
+                                            H_child->get_low_rank_data()->Get_V().add_matrix_product('N', 1.0, K_child->get_low_rank_data()->Get_U().data(), 1.0, temp.data(), temp.nb_cols());
+                                            temp.add_matrix_product('N', 1.0, K_child->get_low_rank_data()->Get_V().data(), 1.0, v.data(), v.nb_cols());
                                             sr.push_back(H_child->get_low_rank_data()->Get_U());
                                             sr.push_back(v);
                                             of.push_back(H_child->get_target_cluster().get_offset());
                                             of.push_back(K_child->get_source_cluster().get_offset());
                                         } else if ((H_child->is_low_rank()) and !(K_child->is_low_rank())) {
-                                            auto vK = K_child->mat_hmat(H_child->get_low_rank_data()->Get_V());
-                                            // auto vK = K_child->matrix_hmatrix(H_child->get_low_rank_data()->Get_V());
+                                            // auto vK = K_child->mat_hmat(H_child->get_low_rank_data()->Get_V());
+                                            auto vK = K_child->matrix_hmatrix(H_child->get_low_rank_data()->Get_V());
 
                                             sr.push_back(H_child->get_low_rank_data()->Get_U());
                                             sr.push_back(vK);
                                             of.push_back(H_child->get_target_cluster().get_offset());
                                             of.push_back(K_child->get_source_cluster().get_offset());
                                         } else if (!(H_child->is_low_rank()) and (K_child->is_low_rank())) {
-                                            auto Hu = H_child->hmat_mat(K_child->get_low_rank_data()->Get_U());
-                                            // auto Hu = H_child->hmatrix_matrix(K_child->get_low_rank_data()->Get_U());
+                                            // auto Hu = H_child->hmat_mat(K_child->get_low_rank_data()->Get_U());
+                                            auto Hu = H_child->hmatrix_matrix(K_child->get_low_rank_data()->Get_U());
 
                                             sr.push_back(Hu);
                                             sr.push_back(K_child->get_low_rank_data()->Get_V());
@@ -1237,6 +1280,165 @@ class SumExpression : public VirtualGenerator<CoefficientPrecision> {
                 } else {
                     for (int l = 0; l < H_children.size(); ++l) {
                         auto &H_child = H_children[l];
+                        if (H_child->get_target_cluster().get_size() == target_size0 and H_child->get_target_cluster().get_offset() == target_offset0) {
+                            if (H_child->is_low_rank()) {
+                                // auto vK = K->mat_hmat(H_child->get_low_rank_data()->Get_V());
+                                auto vK = K->matrix_hmatrix(H_child->get_low_rank_data()->Get_V());
+
+                                sr.push_back(H_child->get_low_rank_data()->Get_U());
+                                sr.push_back(vK);
+
+                                of.push_back(H_child->get_target_cluster().get_offset());
+                                of.push_back(K->get_source_cluster().get_offset());
+                            } else {
+                                sh.push_back(H_child.get());
+                                sh.push_back(K);
+                            }
+                        }
+                    }
+                }
+            } else if ((H_children.size() == 0) and (K_children.size() == 0)) {
+                std::cout << " mauvaise restriction : matrice insécable a gauche et a droite" << std::endl;
+            }
+        }
+
+        SumExpression res(sr, sh, of, target_size0, target_offset0, source_size0, source_offset0, flag);
+        return res;
+    }
+    //////////////////////////////////
+    /// restrict pour des H et K possiblement triangulaires
+    ////
+    const SumExpression
+    Restrict_triangular(const char L, const char U, int target_size0, int target_offset0, int source_size0, int source_offset0) const {
+
+        std::vector<const HMatrixType *> sh;
+        auto of   = offset;
+        auto sr   = Sr;
+        bool flag = true;
+        for (int rep = 0; rep < Sh.size() / 2; ++rep) {
+            auto &H          = Sh[2 * rep];
+            auto &K          = Sh[2 * rep + 1];
+            auto &H_children = H->get_children();
+            auto &K_children = K->get_children();
+            if ((H_children.size() > 0) and (K_children.size() > 0)) {
+                for (auto &H_child : H_children) {
+                    if (L == 'U') {
+                        if (H_child->get_target_cluster().get_offset() > H_child->get_source_cluster().get_offset()) {
+                            continue;
+                        }
+                    }
+                    if (L == 'L') {
+                        if (H_child->get_target_cluster().get_offset() < H_child->get_source_cluster().get_offset()) {
+                            continue;
+                        }
+                    }
+
+                    if ((H_child->get_target_cluster().get_size() == target_size0) and (H_child->get_target_cluster().get_offset() == target_offset0)) {
+                        for (auto &K_child : K_children) {
+                            if (U == 'U') {
+                                if (K_child->get_target_cluster().get_offset() > K_child->get_source_cluster().get_offset()) {
+                                    continue;
+                                }
+                            }
+                            if (U == 'L') {
+                                if (K_child->get_target_cluster().get_offset() < K_child->get_source_cluster().get_offset()) {
+                                    continue;
+                                }
+                            }
+                            if ((K_child->get_source_cluster().get_size() == source_size0) and (K_child->get_source_cluster().get_offset() == source_offset0)) {
+                                if ((K_child->get_target_cluster().get_size() == H_child->get_source_cluster().get_size())
+                                    and (K_child->get_target_cluster().get_offset() == H_child->get_source_cluster().get_offset())) {
+                                    if (H_child->is_low_rank() or K_child->is_low_rank()) {
+                                        if (H_child->is_low_rank() and K_child->is_low_rank()) {
+                                            // auto v1 = H_child->get_low_rank_data()->Get_V();
+                                            // auto v2 = K_child->get_low_rank_data()->Get_U();
+                                            // auto v3 = K_child->get_low_rank_data()->Get_V();
+
+                                            auto v = H_child->get_low_rank_data()->Get_V() * K_child->get_low_rank_data()->Get_U() * K_child->get_low_rank_data()->Get_V();
+                                            sr.push_back(H_child->get_low_rank_data()->Get_U());
+                                            sr.push_back(v);
+                                            of.push_back(H_child->get_target_cluster().get_offset());
+                                            of.push_back(K_child->get_source_cluster().get_offset());
+                                        } else if ((H_child->is_low_rank()) and !(K_child->is_low_rank())) {
+                                            auto vK = K_child->mat_hmat(H_child->get_low_rank_data()->Get_V());
+                                            // auto vK = K_child->matrix_hmatrix(H_child->get_low_rank_data()->Get_V());
+
+                                            sr.push_back(H_child->get_low_rank_data()->Get_U());
+                                            sr.push_back(vK);
+                                            of.push_back(H_child->get_target_cluster().get_offset());
+                                            of.push_back(K_child->get_source_cluster().get_offset());
+                                        } else if (!(H_child->is_low_rank()) and (K_child->is_low_rank())) {
+                                            auto Hu = H_child->hmat_mat(K_child->get_low_rank_data()->Get_U());
+                                            // auto Hu = H_child->hmatrix_matrix(K_child->get_low_rank_data()->Get_U());
+
+                                            sr.push_back(Hu);
+                                            sr.push_back(K_child->get_low_rank_data()->Get_V());
+                                            of.push_back(H_child->get_target_cluster().get_offset());
+                                            of.push_back(K_child->get_source_cluster().get_offset());
+                                        }
+                                    } else {
+                                        sh.push_back(H_child.get());
+                                        sh.push_back(K_child.get());
+                                        // if (H_child->get_children().size == 0 && K_child->get_children().size() == 0) {
+                                        //     flag = false;
+                                        // }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            // } else {
+            //     std::cout << "cas pas possible ->  soit tout les fils soit aucun" << std::endl;
+            // }
+            else if (H_children.size() == 0 and K_children.size() > 0) {
+                if (target_size0 < H->get_target_cluster().get_size()) {
+                    std::cout << " mauvais restrict , bloc dense insécablble a gauche" << std::endl;
+                } else {
+                    for (int l = 0; l < K_children.size(); ++l) {
+                        auto &K_child = K_children[l];
+                        if (U == 'U') {
+                            if (K_child->get_target_cluster().get_offset() > K_child->get_source_cluster().get_offset()) {
+                                continue;
+                            }
+                        }
+                        if (U == 'L') {
+                            if (K_child->get_target_cluster().get_offset() < K_child->get_source_cluster().get_offset()) {
+                                continue;
+                            }
+                        }
+                        if ((K_child->get_source_cluster().get_size() == source_size0) and (K_child->get_source_cluster().get_offset() == source_offset0)) {
+                            if (K_child->is_low_rank()) {
+                                // auto Hu = H->hmat_mat(K_child->get_low_rank_data()->Get_U());
+                                auto Hu = H->hmatrix_matrix(K_child->get_low_rank_data()->Get_U());
+                                sr.push_back(Hu);
+                                sr.push_back(K_child->get_low_rank_data()->Get_V());
+                                of.push_back(H->get_target_cluster().get_offset());
+                                of.push_back(K_child->get_source_cluster().get_offset());
+                            } else {
+                                sh.push_back(H);
+                                sh.push_back(K_child.get());
+                            }
+                        }
+                    }
+                }
+            } else if (H_children.size() > 0 and K_children.size() == 0) {
+                if (source_size0 < K->get_source_cluster().get_size()) {
+                    std::cout << "mauvais restric , bloc dense insécable à doite" << std::endl;
+                } else {
+                    for (int l = 0; l < H_children.size(); ++l) {
+                        auto &H_child = H_children[l];
+                        if (L == 'U') {
+                            if (H_child->get_target_cluster().get_offset() > H_child->get_source_cluster().get_offset()) {
+                                continue;
+                            }
+                        }
+                        if (L == 'L') {
+                            if (H_child->get_target_cluster().get_offset() < H_child->get_source_cluster().get_offset()) {
+                                continue;
+                            }
+                        }
                         if (H_child->get_target_cluster().get_size() == target_size0 and H_child->get_target_cluster().get_offset() == target_offset0) {
                             if (H_child->is_low_rank()) {
                                 // auto vK = K->mat_hmat(H_child->get_low_rank_data()->Get_V());

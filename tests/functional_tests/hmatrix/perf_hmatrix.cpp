@@ -425,15 +425,20 @@ int main() {
     std::vector<double> sizee;
 
     std::cout << "____________________________" << std::endl;
-    for (int k = 6; k < 30; ++k) {
-
-        int size = 111 + std::pow(2.0, k / 30.0 * 12.0);
+    for (int k = 6; k < 7; ++k) {
+        // int size = 1000;
+        // int size = 455 + std::pow(2.0, k / 30.0 * 12.0);
+        // // 600 + 133 * k;
+        // if (size == 2807) {
+        //     size = 2800;
+        // }
+        // int size = 2800;
+        int size = 1500;
         sizee.push_back(size);
-        // 600 + 133 * k;
 
         std::cout << "_________________________________________" << std::endl;
         std::cout << "HMATRIX" << std::endl;
-        double epsilon = 1e-7;
+        double epsilon = 1e-6;
         double eta     = 10;
         std::cout << "size =" << size << std::endl;
         ////// GENERATION MAILLAGE
@@ -472,6 +477,74 @@ int main() {
         err_mat.push_back(er_b);
         std::cout << "asmbl ok " << root_hmatrix.get_compression() << std::endl;
 
+        ///////////////
+        // ///// fast get_block
+        // Matrix<double> restr(10, 20);
+        // reference_num_htool.copy_submatrix(10, 20, 100, 15, restr.data());
+        // for (int k = 0; k < 10; ++k) {
+        //     for (int l = 0; l < 20; ++l) {
+        //         std::cout << restr(k, l) - reference_num_htool(k + 100, l + 15) << ',';
+        //     }
+        //     std::cout << std::endl;
+        // }
+
+        //// TEST formaated addidtion
+        // auto leaves = root_hmatrix.get_leaves();
+        // std::vector<Matrix<double>> lr;
+        // for (auto &l : leaves) {
+        //     if (l->is_low_rank()) {
+        //         lr.push_back(l->get_low_rank_data()->Get_U());
+        //         lr.push_back(l->get_low_rank_data()->Get_V());
+        //     }
+        // }
+        // auto U1     = lr[0];
+        // auto U2     = lr[2];
+        // auto V1     = lr[1];
+        // auto V2     = lr[3];
+        // auto reffff = U1 * V1;
+        // int nr      = U1.nb_rows();
+        // int nc      = U1.nb_cols();
+        // int nl      = V1.nb_cols();
+        // Matrix<double> res_prod(nr, nl);
+
+        // char transa = 'N';
+        // char transb = 'N';
+        // int lda     = nr;
+        // int M       = nr;
+        // int N       = nl;
+        // int K       = nc;
+        // int ldb     = nc;
+        // int ldc     = nr;
+
+        // double alpha = 1.0;
+        // double beta  = 0.0;
+        // Blas<double>::gemm(&transa, &transb, &M, &N, &K, &alpha, U1.data(), &lda, V1.data(), &ldb, &beta, res_prod.data(), &ldc);
+
+        // std::cout << U1.nb_rows() << ',' << U1.nb_cols() << "    ,     " << V1.nb_rows() << ',' << V1.nb_cols() << std::endl;
+        // Blas<double>::gemm("N", "N", &nr, &nc, &nl, &alpha, U1.data(), &nr, V1.data(), &nc, &beta, res_prod.data(), &nr);
+        // U1.add_matrix_product('N', alpha, V1.data(), beta, res_prod.data(), K);
+
+        // std::cout << " erreur gemm " << normFrob((reffff)-res_prod) / normFrob(reffff) << std::endl;
+        // // auto res = formatted_addition(U1, V1, U2, V2, epsilon, 0, 0);
+        // // // if (res.size() == 2) {
+        // // //     auto Ures = res[0];
+        // // //     auto Vres = res[1];
+        // // //     auto reff = U1 * V1 + U2 * V2;
+        // // //     auto uv   = Ures * Vres;
+
+        // // //     std::cout << "formated :::" << normFrob(reff - Ures * Vres) / normFrob(reff) << std::endl;
+        // // //     ;
+        // // // }
+        // auto resm = formatted_soustraction(U1, V1, U2, V2, epsilon, 0, 0);
+        // if (resm.size() == 2) {
+        //     auto Ures = resm[0];
+        //     auto Vres = resm[1];
+        //     auto reff = U1 * V1 - U2 * V2;
+        //     auto uv   = Ures * Vres;
+
+        //     std::cout << "formated :::" << normFrob(reff - Ures * Vres) / normFrob(reff);
+        // }
+        //////////////////////////////////////////////////////////////
         // Matrice vecteur
         // auto x               = generate_random_vector(size);
         // auto start_time_vect = std::chrono::high_resolution_clock::now();
@@ -566,7 +639,7 @@ int main() {
         // std::cout << "info " << info << std::endl;
         // Matrix<double> R(size, size);
         // for (int k = 0; k < size; ++k) {
-        //     for (int l = k; l < size; ++l) {
+        //     for (int l = k; l ValueError: Argument Z must be 2-dimensional.< size; ++l) {
         //         R(k, l) = A(k, l);
         //     }
         // }
@@ -593,8 +666,9 @@ int main() {
         // int info = -1;
         // Lapack<double>::getrf(&size, &size, A.data(), &size, ipiv.data(), &info);
         // std::cout << "LU ok " << std::endl;
-        ///////////////////////
-        // Matrice Matrice
+        // ///// BEGIN //////////////
+        // ///////////////////////
+        // // Matrice Matrice
         auto start_time_mat = std::chrono::high_resolution_clock::now();
         std::cout << "mat " << std::endl;
         auto prodd = root_hmatrix.hmatrix_product(root_hmatrix);
@@ -611,7 +685,9 @@ int main() {
         compr_prod.push_back(compr);
         std::cout << "erreur :" << er_m << "    , compr" << compr << std::endl;
         std::cout << "_______________________________________________" << std::endl;
-
+        root_hmatrix.save_plot("profil_reference");
+        std::cout << duration_mat << std::endl;
+        ///////////////////////////////////////////////////
         Matrix<double> L(size, size);
         Matrix<double> U(size, size);
         std::vector<int> ipiv(size, 0.0);
@@ -648,9 +724,48 @@ int main() {
 
         Lh.set_epsilon(epsilon);
         Uh.set_epsilon(epsilon);
-        auto produit_LU = Lh.hmatrix_product(Uh);
+
+        // std::cout << Lh.get_compression() << ',' << Uh.get_compression() << std::endl;
+        // Lh.save_plot("lh_ref_0");
+        // Lh.format();
+        // Lh.save_plot("lh_format");
+
+        // Uh.format();
+        // std::cout << "aprés formattage " << std::endl;
+        // copy_to_dense(Lh, ldense.data());
+        // copy_to_dense(Uh, udense.data());
+        // std::cout << normFrob(L - ldense) / normFrob(L) << ',' << normFrob(U - udense) / normFrob(U) << std::endl;
+        // std::cout << Lh.get_compression() << ',' << Uh.get_compression() << std::endl;
+        // std::cout << "tests sur les maxdepth et min depth" << std::endl;
+        // std::cout << root_cluster_1->get_maximal_depth() << ',' << root_cluster_1->get_minimal_depth() << ',' << root_cluster_1->get_depth() << std::endl;
+        // std::cout << root_cluster_1->get_children()[0]->get_maximal_depth() << ',' << root_cluster_1->get_children()[0]->get_minimal_depth() << ',' << root_cluster_1->get_children()[0]->get_depth() << std::endl;
+
+        auto produit_LU = Lh.hmatrix_triangular_product(Uh, 'L', 'U');
+        // auto produit_LU = Lh.hmatrix_product(Uh);
+
+        Matrix<double> temp(size, size);
+        Matrix<double> tempp(size, size);
+
+        // copy_to_dense(produit_LU, temp.data());
+        // // produit_LU.format();
+        // // auto &b = produit_LU.get_children()[0]->get_children()[2]->get_children()[2];
+        // // b->split(*b->get_dense_data());
+        // produit_LU.get_children()[0]->get_children()[2]->format();
+        // copy_to_dense(produit_LU, tempp.data());
+        // std::cout << " erreur format : " << normFrob(temp - tempp) / normFrob(tempp) << std::endl;
+        // produit_LU.get_children()[1]->format();
+        // produit_LU.save_plot("profil_lu_ref");
         Matrix<double> ref_lu(size, size);
         copy_to_dense(produit_LU, ref_lu.data());
+        std::cout << "norme de produit_LU = " << normFrob(ref_lu) << " compression " << produit_LU.get_compression() << std::endl;
+        produit_LU.save_plot("profil_LU_ref");
+
+        // auto LM = Lh.hmatrix_product(root_hmatrix);
+        // HMatrix<double, double> resFM(root_cluster_1, root_cluster_1);
+        // resFM.copy_zero(LM);
+        // FM(Lh, *root_cluster_1, *root_cluster_1, LM, resFM);
+        // resFM.save_plot("FM");
+        // root_hmatrix.save_plot("root");
 
         produit_LU.set_epsilon(epsilon);
         HMatrix<double, double> Llh(root_cluster_1, root_cluster_1);
@@ -669,18 +784,58 @@ int main() {
         HLU_noperm(produit_LU, *root_cluster_1, Llh, Uuh);
         auto end_time_lu = std::chrono::high_resolution_clock::now();
         auto duration_lu = std::chrono::duration_cast<std::chrono::duration<double>>(end_time_lu - start_time_lu).count();
+        std::cout << "time lu " << duration_lu << std::endl;
         time_lu.push_back(duration_lu);
         Matrix<double> uuu(size, size);
         Matrix<double> lll(size, size);
+        Uuh.save_plot("profil_U_unformat");
+        // HMatrix<double, double> LHformat(root_cluster_1, root_cluster_1);
+        // HMatrix<double, double> UHformat(root_cluster_1, root_cluster_1);
+        // LHformat.format(Llh);
+        // UHformat.format(Uuh);
+        // // Llh.format();
+        // // Uuh.format();
+        Uh.save_plot("profil_U_ref");
+        // UHformat.save_plot("profil_U_format");
         copy_to_dense(Llh, lll.data());
+        std::cout << "l ok" << std::endl;
         copy_to_dense(Uuh, uuu.data());
+        std::cout << "u ok " << std::endl;
         auto erlu = normFrob(lll * uuu - ref_lu) / normFrob(ref_lu);
         std::cout << "erreur LU : " << erlu << std::endl;
         err_lu.push_back(erlu);
-        auto compru = Uuh.get_compression_triang('U');
-        auto comprl = Llh.get_compression_triang('T');
+        auto compru = Uuh.get_compression();
+        auto comprl = Llh.get_compression();
         compr_L.push_back(comprl);
         compr_U.push_back(compru);
+        std::cout << "compression reference" << Lh.get_compression() << ',' << Uh.get_compression() << std::endl;
+        std::cout << "compression :" << comprl << ',' << compru << std::endl;
+        auto lhuh = Llh.hmatrix_product(Uuh);
+        Matrix<double> lluu(size, size);
+        copy_to_dense(lhuh, lluu.data());
+        std::cout << "erreur produit hmat LU :" << normFrob(lluu - ref_lu) / normFrob(ref_lu) << std::endl;
+        ////// END
+
+        // /////////////////////////
+        // //// test avec une matrice quelcoonque
+        // HMatrix<double, double> Lhrd(root_cluster_1, root_cluster_1);
+        // HMatrix<double, double> Uhrd(root_cluster_1, root_cluster_1);
+        // Lhrd.set_admissibility_condition(root_hmatrix.get_admissibility_condition());
+        // Lhrd.set_epsilon(epsilon);
+        // Lhrd.set_low_rank_generator(root_hmatrix.get_low_rank_generator());
+        // Uhrd.set_admissibility_condition(root_hmatrix.get_admissibility_condition());
+        // Uhrd.set_epsilon(epsilon);
+        // Uhrd.set_low_rank_generator(root_hmatrix.get_low_rank_generator());
+        // Lhrd.copy_zero(root_hmatrix);
+        // Uhrd.copy_zero(root_hmatrix);
+
+        // HLU_noperm(root_hmatrix, *root_cluster_1, Lhrd, Uhrd);
+        // auto testrd = Lhrd.hmatrix_triangular_product(Uhrd, 'L', 'U');
+        // Matrix<double> denserd(size, size);
+        // copy_to_dense(testrd, denserd.data());
+        // std::cout << "erreur no perm sur rd : " << normFrob(denserd - reference_num_htool) / normFrob(reference_num_htool) << std::endl;
+        //////////////////////////////////////////////////
+        //// save matrice triangulaires
 
         // HMatrix<double, double> test_new(root_cluster_1, root_cluster_1);
         // test_new.set_admissibility_condition(root_hmatrix.get_admissibility_condition());
@@ -955,14 +1110,14 @@ int main() {
     // saveVectorToFile(compr_U, "compr_U_eps4.txt");
     // saveVectorToFile(compr_L, "compr_L_eps4.txt");
 
-    // // // saveVectorToFile(time_lu, "time_lu_eps4.txt");
+    // saveVectorToFile(time_lu, "time_lu_eps6.txt");
 
     // // // saveVectorToFile(err_asmbl, "error_assemble_eps4.txt");
     // // // saveVectorToFile(err_vect, "error_vect_eps4.txt");
     // saveVectorToFile(err_prod, "error_prod_mat_eps4.txt");
     // saveVectorToFile(err_lu, "error_lu_eps4.txt");
 
-    // saveVectorToFile(err_lu, "error_lu_eps4.txt");
+    // saveVectorToFile(err_lu, "error_lu_eps6.txt");
 
     // saveVectorToFile(compr_ratio, "compression_ratio_eps4.txt");
 }
