@@ -1,3 +1,6 @@
+#ifndef HTOOL_TESTING_DENSE_BLOCKS_GENERATOR_TEST_HPP
+#define HTOOL_TESTING_DENSE_BLOCKS_GENERATOR_TEST_HPP
+
 #include "../hmatrix/interfaces/virtual_dense_blocks_generator.hpp"
 #include "../hmatrix/interfaces/virtual_generator.hpp"
 #include <vector>
@@ -17,3 +20,5 @@ class DenseBlocksGeneratorTest : public VirtualDenseBlocksGenerator<CoefficientP
     }
 };
 } // namespace htool
+
+#endif
