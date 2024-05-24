@@ -405,7 +405,17 @@ void saveVectorToFile(const std::vector<double> &data, const std::string &filena
 }
 
 ///////////////////////////////////////////////////////////////////
-int main() {
+//// sizemax, nb tests , epsilon , eta
+int main(int argc, char *argv[]) {
+    if (argc != 5) {
+        std::cerr << "Wrong parameters : sizemax, nb_tests, epsilon , eta" << std::endl;
+        return 1;
+    }
+    int sizemax, nb, epsilon, eta;
+    sizemax = std::stoi(argv[1]);
+    nb      = std::stoi(argv[2]);
+    epsilon = std::stod(argv[3]);
+    eta     = std::stod(argv[4]);
     std::vector<double> time_assmbl;
     std::vector<double> time_vect;
     std::vector<double> time_mat;
@@ -415,7 +425,6 @@ int main() {
     std::vector<double> err_vect;
     std::vector<double> err_mat;
     std::vector<double> err_prod;
-
     std::vector<double> err_lu;
 
     std::vector<double> compr_mat;
@@ -423,9 +432,10 @@ int main() {
     std::vector<double> compr_L;
     std::vector<double> compr_U;
     std::vector<double> sizee;
-
+    std::cout << "entries : " << sizemax << ',' << nb << ',' << epsilon << ',' << eta << std::endl;
     std::cout << "____________________________" << std::endl;
-    for (int k = 6; k < 7; ++k) {
+    for (int k = 1; k < nb; ++k) {
+        int size = sizemax * k / (nb - 1);
         // int size = 1000;
         // int size = 455 + std::pow(2.0, k / 30.0 * 12.0);
         // // 600 + 133 * k;
@@ -433,13 +443,13 @@ int main() {
         //     size = 2800;
         // }
         // int size = 2800;
-        int size = 1500;
+        // int size = 1500;
         sizee.push_back(size);
 
         std::cout << "_________________________________________" << std::endl;
         std::cout << "HMATRIX" << std::endl;
-        double epsilon = 1e-6;
-        double eta     = 10;
+        // double epsilon = 1e-6;
+        // double eta     = 10;
         std::cout << "size =" << size << std::endl;
         ////// GENERATION MAILLAGE
         std::vector<double> p1(3 * size);

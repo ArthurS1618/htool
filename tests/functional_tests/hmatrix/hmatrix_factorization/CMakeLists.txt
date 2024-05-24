@@ -1,0 +1,4 @@
+add_executable(Test_Hmatrix_factorization test_hlu.cpp)
+target_link_libraries(Test_Hmatrix_factorization htool)
+add_dependencies(build-tests-hmatrix-factorization Test_Hmatrix_factorization)
+add_test(Test_Hmatrix_factorization Test_Hmatrix_factorization)

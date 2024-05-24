@@ -199,7 +199,7 @@ class GeneratorFromMatrix : public VirtualGeneratorWithPermutation<T> {
 };
 
 ////////////////
-// ARTHUR----> Je rajoute ca pour avoir un générateur su p1xp1 et pas p1xp2
+// ARTHUR----> Je rajoute ca pour avoir un générateur sur p1xp1 et pas p1xp2
 class GeneratorDouble : public GeneratorTest<double> {
   public:
     using GeneratorTest::GeneratorTest;

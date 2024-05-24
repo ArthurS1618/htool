@@ -33,7 +33,9 @@ add_test(Perf_Hmatrix Perf_Hmatrix)
 # target_link_libraries(Test_HLU htool)
 # add_test(Test_HLU Test_HLU)
 
-
+add_custom_target(build-tests-hmatrix-factorization)
+add_dependencies(build-tests-hmatrix build-tests-hmatrix-factorization)
+add_subdirectory(hmatrix_factorization)
 
 add_executable(Test_HMULT test_hmult.cpp)
 target_link_libraries(Test_HMULT htool)
