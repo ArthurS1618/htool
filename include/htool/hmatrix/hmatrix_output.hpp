@@ -3,6 +3,7 @@
 
 #include <array>
 #include <fstream>
+#include <iostream>
 #include <map>
 #include <vector>
 #if defined(_OPENMP)
