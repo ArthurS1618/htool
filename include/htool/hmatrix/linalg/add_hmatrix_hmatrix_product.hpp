@@ -7,6 +7,8 @@
 #include "../lrmat/linalg/add_lrmat_lrmat_product.hpp"
 #include "../lrmat/linalg/add_matrix_lrmat_product.hpp"
 #include "../lrmat/linalg/add_matrix_matrix_product.hpp"
+#include "./add_hmatrix_lrmat_product.hpp"
+#include "./add_lrmat_hmatrix_product.hpp"
 #include "scale.hpp"
 
 namespace htool {

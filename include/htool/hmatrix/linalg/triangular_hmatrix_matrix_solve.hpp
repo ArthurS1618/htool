@@ -3,6 +3,7 @@
 
 #include "../../matrix/linalg/factorization.hpp"
 #include "../hmatrix.hpp"
+#include "./add_hmatrix_matrix_product_row_major.hpp"
 
 // -------------------------------------------------------------------
 // --- Reversed iterable

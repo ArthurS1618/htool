@@ -3,7 +3,6 @@
 
 #include "../../matrix/linalg/factorization.hpp"
 #include "add_hmatrix_hmatrix_product.hpp"
-#include "rank_k_update.hpp"
 #include "triangular_hmatrix_hmatrix_solve.hpp"
 
 namespace htool {
@@ -120,19 +119,19 @@ void cholesky_factorization(char UPLO, HMatrix<CoefficientPrecision, CoordinateP
                         HMatrix<CoefficientPrecision, CoordinatePrecision> *A_child = hmatrix.get_sub_hmatrix(*output_cluster_child, *input_cluster_child);
                         const HMatrix<CoefficientPrecision, CoordinatePrecision> *L = hmatrix.get_sub_hmatrix(*output_cluster_child, *cluster_child);
 
-                        if (*output_cluster_child == *input_cluster_child) {
-                            symmetric_rank_k_update(UPLO, 'N', CoefficientPrecision(-1), *L, CoefficientPrecision(1), *A_child);
-                        } else {
-                            add_hmatrix_hmatrix_product('N', 'C', CoefficientPrecision(-1), *L, *L, CoefficientPrecision(1), *A_child);
-                        }
+                        // if (*output_cluster_child == *input_cluster_child) {
+                        //     symmetric_rank_k_update(UPLO, 'N', CoefficientPrecision(-1), *L, CoefficientPrecision(1), *A_child);
+                        // } else {
+                        add_hmatrix_hmatrix_product('N', 'C', CoefficientPrecision(-1), *L, *L, CoefficientPrecision(1), *A_child);
+                        // }
                     } else if (UPLO == 'U' && output_cluster_child->get_offset() > cluster_child->get_offset() && input_cluster_child->get_offset() > cluster_child->get_offset() && input_cluster_child->get_offset() >= output_cluster_child->get_offset()) {
                         HMatrix<CoefficientPrecision, CoordinatePrecision> *A_child = hmatrix.get_sub_hmatrix(*output_cluster_child, *input_cluster_child);
                         const HMatrix<CoefficientPrecision, CoordinatePrecision> *U = hmatrix.get_sub_hmatrix(*cluster_child, *input_cluster_child);
-                        if (*output_cluster_child == *input_cluster_child) {
-                            symmetric_rank_k_update(UPLO, 'C', CoefficientPrecision(-1), *U, CoefficientPrecision(1), *A_child);
-                        } else {
-                            add_hmatrix_hmatrix_product('C', 'N', CoefficientPrecision(-1), *U, *U, CoefficientPrecision(1), *A_child);
-                        }
+                        // if (*output_cluster_child == *input_cluster_child) {
+                        //     symmetric_rank_k_update(UPLO, 'C', CoefficientPrecision(-1), *U, CoefficientPrecision(1), *A_child);
+                        // } else {
+                        add_hmatrix_hmatrix_product('C', 'N', CoefficientPrecision(-1), *U, *U, CoefficientPrecision(1), *A_child);
+                        // }
                     }
                 }
             }

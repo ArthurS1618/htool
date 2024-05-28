@@ -229,7 +229,7 @@ bool HMatrixTreeBuilder<CoefficientPrecision, CoordinatePrecision>::build_block_
             }
 
             // All sons are non admissible and not pushed to tasks -> the current block is not pushed
-            if ((block_size <= m_maxblocksize)
+            if (false && (block_size <= m_maxblocksize)
                 && std::all_of(Blocks_not_pushed.begin(), Blocks_not_pushed.end(), [](bool i) { return i; })
                 && is_target_cluster_in_target_partition(target_cluster)
                 && target_cluster.get_depth() >= m_mintargetdepth
@@ -264,7 +264,7 @@ bool HMatrixTreeBuilder<CoefficientPrecision, CoordinatePrecision>::build_block_
                 }
             }
 
-            if ((block_size <= m_maxblocksize)
+            if (false && (block_size <= m_maxblocksize)
                 && std::all_of(Blocks_not_pushed.begin(), Blocks_not_pushed.end(), [](bool i) { return i; })
                 && is_target_cluster_in_target_partition(target_cluster)
                 && target_cluster.get_depth() >= m_mintargetdepth
@@ -296,7 +296,7 @@ bool HMatrixTreeBuilder<CoefficientPrecision, CoordinatePrecision>::build_block_
                         Blocks_not_pushed.push_back(build_block_tree(child_blocks.back()));
                     }
                 }
-                if ((block_size <= m_maxblocksize)
+                if (false && (block_size <= m_maxblocksize)
                     && std::all_of(Blocks_not_pushed.begin(), Blocks_not_pushed.end(), [](bool i) { return i; })
                     && is_target_cluster_in_target_partition(target_cluster)
                     && target_cluster.get_depth() >= m_mintargetdepth
@@ -327,7 +327,7 @@ bool HMatrixTreeBuilder<CoefficientPrecision, CoordinatePrecision>::build_block_
                         Blocks_not_pushed.push_back(build_block_tree(child_blocks.back()));
                     }
                 }
-                if ((block_size <= m_maxblocksize)
+                if (false && (block_size <= m_maxblocksize)
                     && std::all_of(Blocks_not_pushed.begin(), Blocks_not_pushed.end(), [](bool i) { return i; })
                     && is_target_cluster_in_target_partition(target_cluster)
                     && target_cluster.get_depth() >= m_mintargetdepth
@@ -360,7 +360,7 @@ bool HMatrixTreeBuilder<CoefficientPrecision, CoordinatePrecision>::build_block_
                         }
                     }
                 }
-                if ((block_size <= m_maxblocksize)
+                if (false && (block_size <= m_maxblocksize)
                     && std::all_of(Blocks_not_pushed.begin(), Blocks_not_pushed.end(), [](bool i) { return i; })
                     && is_target_cluster_in_target_partition(target_cluster)
                     && target_cluster.get_depth() >= m_mintargetdepth

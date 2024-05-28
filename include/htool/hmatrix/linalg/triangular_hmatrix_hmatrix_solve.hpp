@@ -3,6 +3,7 @@
 
 #include "../../matrix/linalg/factorization.hpp"
 #include "../hmatrix.hpp"
+#include "./triangular_hmatrix_lrmat_solve.hpp"
 
 namespace htool {
 template <typename CoefficientPrecision, typename CoordinatePrecision>
