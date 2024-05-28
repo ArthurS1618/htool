@@ -1,6 +1,7 @@
 #ifndef HTOOL_HMATRIX_OUTPUT_HPP
 #define HTOOL_HMATRIX_OUTPUT_HPP
 
+#include <algorithm>
 #include <array>
 #include <fstream>
 #include <iomanip>
