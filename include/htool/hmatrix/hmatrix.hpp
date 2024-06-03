@@ -6726,7 +6726,7 @@ void HMatrix<CoefficientPrecision, CoordinatePrecision>::recursive_build_hmatrix
         //  this->compute_low_rank_data(sum_expr, *this->get_lr(), this->get_rk(), this->get_epsilon());
         // auto &temp = *this;
         // Je dois rajouter ca sinon ca plante avec forward_T_M...
-        LowRankMatrix<CoefficientPrecision, CoordinatePrecision> lr(sum_expr, *this->m_tree_data->m_low_rank_generator, this->get_target_cluster(), this->get_source_cluster(), -1, 0.0001);
+        LowRankMatrix<CoefficientPrecision, CoordinatePrecision> lr(sum_expr, *this->m_tree_data->m_low_rank_generator, this->get_target_cluster(), this->get_source_cluster(), -1, this->get_epsilon());
         if ((lr.Get_U().nb_rows() == 0) or (lr.Get_U().nb_cols() == 0) or (lr.Get_V().nb_rows() == 0) or (lr.Get_V().nb_cols() == 0)) {
             // this->compute_dense_data(sum_expr);
             if ((target_children.size() > 0) and (source_children.size() > 0)) {
