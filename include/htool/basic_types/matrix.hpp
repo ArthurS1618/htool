@@ -815,16 +815,27 @@ class Matrix {
         }
         return res;
     }
-
-    //////////////////// Arthur :  triangular_solver      trans(A)X = alpha B
-    void triangular_solver(const char &side, const char &UPLO, const char *trans, const char &diag, const T* alpha, Matrix<T> &X  ,  Matrix<T> &B) {
-        auto m = this->nb_rows();
-        auto n = this->nb_cols();
-
-        Lapack<T>::trsm(side, UPLO , trans , diag ,&m , &n  , alpha , this->data , &std::max(m,n) , B.data() , &std::max(B.nb_rows() , B.nb_cols())  ) ; 
-    }
 };
+//////////////////// Arthur, fonction de Pierre :  triangular_solver      trans(A)X = alpha B
+template <typename T>
+void triangular_matrix_matrix_solve(char side, char UPLO, char transa, char diag, T alpha, const Matrix<T> &A, Matrix<T> &B) {
+    int m   = B.nb_rows();
+    int n   = B.nb_cols();
+    int lda = side == 'L' ? m : n;
+    int ldb = m;
 
+    Blas<T>::trsm(&side, &UPLO, &transa, &diag, &m, &n, &alpha, A.data(), &lda, B.data(), &ldb);
+}
+
+template <typename T>
+void triangular_matrix_vec_solve(char side, char UPLO, char transa, char diag, T alpha, const Matrix<T> &A, std::vector<T> &B) {
+    int m   = B.size();
+    int n   = 1;
+    int lda = side == 'L' ? m : n;
+    int ldb = m;
+
+    Blas<T>::trsm(&side, &UPLO, &transa, &diag, &m, &n, &alpha, A.data(), &lda, B.data(), &ldb);
+}
 // template <typename T>
 // Matrix<T> trunc_row(const Matrix<T> *M, const int &k) {
 //     Matrix<T> res(k, M->nb_cols());

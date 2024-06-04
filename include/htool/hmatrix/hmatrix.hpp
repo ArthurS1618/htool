@@ -1897,6 +1897,173 @@ class HMatrix : public TreeNode<HMatrix<CoefficientPrecision, CoordinatePrecisio
             }
         }
     }
+    /////////////////////////////////
+    ///// FORWARD ET BACKWARD avec lapack
+    ////  On resout AX=B , A triangulaire
+    ///// on met un offset 0 au cas ou comme ca X n'est pas forcemment de taille root(t)
+    void hmatrix_vector_triangular_L(std::vector<CoefficientPrecision> &X, std::vector<CoefficientPrecision> &B, const Cluster<CoordinatePrecision> &t, const int &offset0) {
+        auto Ltt = this->get_block(t.get_size(), t.get_size(), t.get_offset(), t.get_offset());
+        if (Ltt->get_children().size() == 0) {
+            if (Ltt->is_dense()) {
+                auto ldense = *Ltt->get_dense_data();
+                std::vector<CoefficientPrecision> target(t.get_size());
+                std::copy(B.begin() + t.get_offset(), B.begin() + t.get_offset() + t.get_size(), target.begin());
+                auto bb = target;
+                triangular_matrix_vec_solve('L', 'L', 'N', 'U', 1.0, ldense, target);
+                std::copy(target.begin(), target.end(), X.begin() + t.get_offset());
+            }
+        } else {
+            for (int j = 0; j < t.get_children().size(); ++j) {
+                auto &tj = t.get_children()[j];
+                Ltt->hmatrix_vector_triangular_L(X, B, *tj, offset0);
+                for (int i = j + 1; i < t.get_children().size(); ++i) {
+                    auto &ti = t.get_children()[i];
+                    std::vector<CoefficientPrecision> bi(ti->get_size());
+                    // std::copy(B.begin() + ti->get_offset(), B.begin() + ti->get_offset(), bi.begin());
+                    for (int k = 0; k < ti->get_size(); ++k) {
+                        bi[k] = B[k + ti->get_offset()];
+                    }
+                    std::vector<CoefficientPrecision> xj(tj->get_size());
+                    for (int k = 0; k < tj->get_size(); ++k) {
+                        xj[k] = X[k + tj->get_offset()];
+                    }
+                    // std::copy(X.begin() + tj->get_offset(), X.begin() + tj->get_offset(), xj.begin());
+                    Ltt->get_block(ti->get_size(), tj->get_size(), ti->get_offset(), tj->get_offset())->add_vector_product('N', -1.0, xj.data(), 1.0, bi.data());
+                    // std::copy(bi.begin(), bi.end(), B.begin() + ti->get_size());
+                    for (int k = 0; k < ti->get_size(); ++k) {
+                        B[k + ti->get_offset()] = bi[k];
+                    }
+                }
+            }
+        }
+    }
+    void hmatrix_triangular_L(HMatrix &X, HMatrix &B, const Cluster<CoordinatePrecision> &t, const Cluster<CoordinatePrecision> &s) {
+        auto Bts = B.get_block(t.get_size(), s.gety_size(), t.get_offset(), s.get_offset());
+        auto Ltt = this->get_block(t.get_size(), t.get_size(), t.get_offset(), t.get_offset());
+        if (Bts->get_chidlren().size() > 0) {
+            for (auto &t_child : t.get_children()) {
+                for (auto s_child : s.get_children()) {
+                    auto Xchild = X.add_child(t_child.get(), s_child.get());
+                    Ltt->hmatrix_triangular_L(Xchild, Bts, *t_child, *s_child);
+                    for (auto &tt_child : t.get_children()) {
+                        if (tt_child->get_offset() > t_child->get_offset()) {
+                            auto btemp = Bts->get_block(tt_child->get_size(), s_child->get_size(), tt_child->get_offset(), s_child->get_offset());
+                            auto ltemp = Ltt->get_block(tt_child->get_size(), t_child->get_size(), tt_child->get_offset(), t_child->get_offset());
+                            btemp->Moins(ltemp->hmatrix_product(Xchild));
+                        }
+                    }
+                }
+            }
+        } else {
+            if (Bts->is_dense()) {
+                if (Bts->is_dense() && !Ltt->is_dense()) {
+                    std::cout << " cas pas normal , bloc dense plus grand que nmin = NOT HMATRIX" << std::endl;
+                }
+                Matrix<CoefficientPrecision> Xts = *Bts->get_dense_data();
+                triangular_matrix_matrix_solve('L', 'L', 'N', 'U', 1.0, *Ltt->get_dense_data(), Xts);
+                X.set_dense_data(Xts);
+            } else {
+                auto lr_U = Bts->get_low_rank_data()->Get_U();
+                auto lr_V = Bts->get_low_rank_data()->Get_V();
+                Matrix<CoefficientPrecision> lr_U_X(t.get_size(), lr_U.nb_cols());
+                for (int k = 0; k < lr_U.nb_cols(); ++k) {
+                    auto uk = lr_U.get_col(k);
+                    std::vector<CoefficientPrecision> xk(t.get_size());
+                    Ltt->hmatrix_vector_triangular_L(xk, uk, t, t.get_offset);
+                    lr_U_X.set_col(k, xk);
+                }
+                LowRankMatrix<CoefficientPrecision, CoordinatePrecision> Xlr(lr_U_X, lr_V);
+                X.set_low_rank_data(Xlr);
+            }
+        }
+    }
+
+    ///////////////////////: Ux = y
+    void hmatrix_vector_triangular_U(std::vector<CoefficientPrecision> &X, std::vector<CoefficientPrecision> &B, const Cluster<CoordinatePrecision> &t, const int &offset0) {
+        auto Utt = this->get_block(t.get_size(), t.get_size(), t.get_offset(), t.get_offset());
+        if (Utt->get_children().size() == 0) {
+            if (Utt->is_dense()) {
+                auto udense = Utt->get_dense_data();
+                std::vector<CoefficientPrecision> target(t.get_size());
+                std::copy(B.begin() + t.get_offset(), B.begin() + t.get_offset() + t.get_size(), target.begin());
+                triangular_matrix_vec_solve('L', 'U', 'N', 'N', 1.0, *udense, target);
+                std::copy(target.begin(), target.end(), X.begin() + t.get_offset());
+            }
+        } else {
+            for (int j = t.get_children().size() - 1; j > -1; --j) {
+                auto &tj = t.get_children()[j];
+                Utt->hmatrix_vector_triangular_U(X, B, *tj, offset0);
+                for (int i = 0; i < j; ++i) {
+                    auto &ti = t.get_children()[i];
+                    std::vector<CoefficientPrecision> bi(ti->get_size());
+                    std::vector<CoefficientPrecision> xj(tj->get_size());
+
+                    for (int k = 0; k < ti->get_size(); ++k) {
+                        bi[k] = B[k + ti->get_offset()];
+                    }
+                    for (int k = 0; k < tj->get_size(); ++k) {
+                        xj[k] = X[k + tj->get_offset()];
+                    }
+                    // std::copy(B.begin() + ti->get_offset() - offset0, B.begin() + ti->get_offset() - offset0, bi.begin());
+                    // std::copy(X.begin() + tj->get_offset() - offset0, X.begin() + tj->get_offset() - offset0, xj.begin());
+                    Utt->get_block(ti->get_size(), tj->get_size(), ti->get_offset(), tj->get_offset())->add_vector_product('N', -1.0, xj.data(), 1.0, bi.data());
+                    // std::copy(bi.begin(), bi.end(), B.begin() + ti->get_size());
+                    for (int k = 0; k < ti->get_size(); ++k) {
+                        B[k + ti->get_offset()] = bi[k];
+                    }
+                }
+            }
+        }
+    }
+    void hmatrix_triangular_U(HMatrix &X, HMatrix &B, const Cluster<CoordinatePrecision> &t, const Cluster<CoordinatePrecision> &s) {
+        auto Bts = B.get_block(t.get_size(), s.gety_size(), t.get_offset(), s.get_offset());
+        auto Utt = this->get_block(t.get_size(), t.get_size(), t.get_offset(), t.get_offset());
+        if (Bts->get_chidlren().size() > 0) {
+            for (auto &t_child : t.get_children()) {
+                for (auto s_child : s.get_children()) {
+                    auto Xchild = X.add_child(t_child.get(), s_child.get());
+                    Utt->hmatrix_triangular_L(Xchild, Bts, *t_child, *s_child);
+                    for (auto &tt_child : t.get_children()) {
+                        if (tt_child->get_offset() < t_child->get_offset()) {
+                            auto btemp = Bts->get_block(tt_child->get_size(), s_child->get_size(), tt_child->get_offset(), s_child->get_offset());
+                            auto utemp = Utt->get_block(tt_child->get_size(), t_child->get_size(), tt_child->get_offset(), t_child->get_offset());
+                            btemp->Moins(utemp->hmatrix_product(Xchild));
+                        }
+                    }
+                }
+            }
+        } else {
+            if (Bts->is_dense()) {
+                if (Bts->is_dense() && !Utt->is_dense()) {
+                    std::cout << " cas pas normal , bloc dense plus grand que nmin = NOT HMATRIX" << std::endl;
+                }
+                Matrix<CoefficientPrecision> Xts = *Bts->get_dense_data();
+                triangular_matrix_matrix_solve('L', 'L', 'N', 'U', 1.0, *Utt->get_dense_data(), Xts);
+                X.set_dense_data(Xts);
+            } else {
+                auto lr_U = Bts->get_low_rank_data()->Get_U();
+                auto lr_V = Bts->get_low_rank_data()->Get_V();
+                Matrix<CoefficientPrecision> lr_U_X(t.get_size(), lr_U.nb_cols());
+                for (int k = 0; k < lr_U.nb_cols(); ++k) {
+                    auto uk = lr_U.get_col(k);
+                    std::vector<CoefficientPrecision> xk(t.get_size());
+                    Utt->hmatrix_vector_triangular_L(xk, uk, t, t.get_offset);
+                    lr_U_X.set_col(k, xk);
+                }
+                LowRankMatrix<CoefficientPrecision, CoordinatePrecision> Xlr(lr_U_X, lr_V);
+                X.set_low_rank_data(Xlr);
+            }
+        }
+    }
+
+    std::vector<CoefficientPrecision> solve_LU_triangular(HMatrix &L, HMatrix &U, std::vector<CoefficientPrecision> &z) {
+        auto &t = L.get_target_cluster();
+        std::vector<CoefficientPrecision> temp(t.get_size());
+        L.hmatrix_vector_triangular_L(temp, z, t, 0);
+        std::vector<CoefficientPrecision> res(t.get_size());
+        U.hmatrix_vector_triangular_U(res, temp, t, 0);
+        return res;
+    }
     //////////////////////////////////////
     /// FORWARD T : x^T U = y^T --------------------------------------------------> OK (05/12)
     ////////////////////////////////////////

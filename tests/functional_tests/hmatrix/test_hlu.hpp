@@ -242,12 +242,31 @@ bool test_hlu(int size, htool::underlying_type<T> epsilon, htool::underlying_typ
 
     // std::cout << "stabilité avec HMAT profdd , erreur relative perm_reference-dense (Lh*Uh):" << normFrob(lluu - ref_lu) / normFrob(ref_lu) << std::endl;
 
-    auto rand  = generate_random_vector(size);
-    auto ytemp = L * (U * rand);
+    auto rand   = generate_random_vector(size);
+    auto ytempl = L * rand;
+    std::vector<double> resl(L.nb_rows());
+    Llh.hmatrix_vector_triangular_L(resl, ytempl, Llh.get_target_cluster(), 0);
+    std::cout << "erreur forward : " << norm2(rand - resl) / norm2(resl) << std::endl;
 
-    std::vector<double> test_lu(size);
-    Llh.solve_LU(Llh, Uuh, ytemp, test_lu);
-    std::cout << "erreur solve LU :  ---------------------------------> " << norm2(rand - test_lu) / norm2(rand) << std::endl;
+    auto ytempu = U * rand;
+    std::vector<double> resu(U.nb_rows());
+    Uuh.hmatrix_vector_triangular_U(resu, ytempu, Llh.get_target_cluster(), 0);
+    std::cout << "erreur backward: " << norm2(rand - resu) / norm2(resl) << std::endl;
 
+    // std::vector<double> test_lu(size);
+    // Llh.solve_LU(Llh, Uuh, ytemp, test_lu);
+    // std::cout << "erreur solve LU :  ---------------------------------> " << norm2(rand - test_lu) / norm2(rand) << std::endl;
+    auto ytemp      = (L * U) * rand;
+    auto res_triang = Llh.solve_LU_triangular(Llh, Uuh, ytemp);
+    std::cout << "erreur solve LU avec Lapack:  ---------------------------------> " << norm2(rand - res_triang) / norm2(rand) << std::endl;
+
+    ////////////////////////////////////////////////
+    // mini test pour triangular solver
+    /// la matrice qu'on cherche a retrouver :
+    auto aa     = reference_num_htool * reference_num_htool;
+    auto output = L * aa;
+    auto alpha  = 1.0;
+    triangular_matrix_matrix_solve('L', 'L', 'N', 'U', alpha, L, output);
+    std::cout << "erreur triagulaire : " << normFrob(aa - output) / normFrob(aa) << std::endl;
     return is_error;
 }
