@@ -815,6 +815,14 @@ class Matrix {
         }
         return res;
     }
+
+    //////////////////// Arthur :  triangular_solver      trans(A)X = alpha B
+    void triangular_solver(const char &side, const char &UPLO, const char *trans, const char &diag, const T* alpha, Matrix<T> &X  ,  Matrix<T> &B) {
+        auto m = this->nb_rows();
+        auto n = this->nb_cols();
+
+        Lapack<T>::trsm(side, UPLO , trans , diag ,&m , &n  , alpha , this->data , &std::max(m,n) , B.data() , &std::max(B.nb_rows() , B.nb_cols())  ) ; 
+    }
 };
 
 // template <typename T>
@@ -962,20 +970,20 @@ double normFrob(const Matrix<T> &A) {
     return sqrt(norm);
 }
 
-template <typename T>
-Matrix<T> LU(const Matrix<T> &M) {
-    Matrix<T> mat = M;
-    int n         = mat.nb_cols();
-    for (int j = 0; j < n; ++j) {
-        for (int i = j + 1; i < n; ++i) {
-            mat(i, j) = mat(i, j) / mat(j, j);
-            for (int k = j + 1; k < n; ++k) {
-                mat(i, k) = mat(i, k) - mat(i, j) * mat(j, k);
-            }
-        }
-    }
-    return mat;
-}
+// template <typename T>
+// Matrix<T> LU(const Matrix<T> &M) {
+//     Matrix<T> mat = M;
+//     int n         = mat.nb_cols();
+//     for (int j = 0; j < n; ++j) {
+//         for (int i = j + 1; i < n; ++i) {
+//             mat(i, j) = mat(i, j) / mat(j, j);
+//             for (int k = j + 1; k < n; ++k) {
+//                 mat(i, k) = mat(i, k) - mat(i, j) * mat(j, k);
+//             }
+//         }
+//     }
+//     return mat;
+// }
 
 template <typename T>
 std::pair<Matrix<T>, Matrix<T>> get_lu(const Matrix<T> &M) {

@@ -86,6 +86,9 @@ bool test_hlu(int size, htool::underlying_type<T> epsilon, htool::underlying_typ
     bool is_error = false;
 
     std::cout << "_________________________________________" << std::endl;
+    std::cout << "_________________________________________" << std::endl;
+    std::cout << "_________________________________________" << std::endl;
+
     std::cout << "HLU factortisation , size =" << size << std::endl;
     ///////////////////////
     ////// GENERATION MAILLAGE  :  size points en 3 dimensions
@@ -190,6 +193,7 @@ bool test_hlu(int size, htool::underlying_type<T> epsilon, htool::underlying_typ
     Matrix<double> tempp(size, size);
     Matrix<double> ref_lu(size, size);
     copy_to_dense(produit_LU, ref_lu.data());
+    auto ref_compr = produit_LU.get_compression();
     std::cout << "Compression Hmatrix dans la bonne numérotation (Lh*Uh ) : " << produit_LU.get_compression() << "   et sans le pivot :    " << root_hmatrix.get_compression() << std::endl;
 
     /// On initialise les matrices Llh et Uuh avec le bon block cluster tree
@@ -213,7 +217,7 @@ bool test_hlu(int size, htool::underlying_type<T> epsilon, htool::underlying_typ
     HLU_noperm(produit_LU, *root_cluster_1, Llh, Uuh);
     auto end_time_lu = std::chrono::high_resolution_clock::now();
     auto duration_lu = std::chrono::duration_cast<std::chrono::duration<double>>(end_time_lu - start_time_lu).count();
-    std::cout << "Time HLU " << duration_lu << std::endl;
+
     Matrix<double> uuu(size, size);
     Matrix<double> lll(size, size);
     std::cout << "Passage en dense pour tester l'erreur" << std::endl;
@@ -221,16 +225,29 @@ bool test_hlu(int size, htool::underlying_type<T> epsilon, htool::underlying_typ
     std::cout << "l ok" << std::endl;
     copy_to_dense(Uuh, uuu.data());
     std::cout << "u ok " << std::endl;
-    auto erlu = normFrob(lll * uuu - ref_lu) / normFrob(ref_lu);
-    std::cout << "erreur perm_reference-l*u : " << erlu << std::endl;
-    auto compru = Uuh.get_compression();
-    auto comprl = Llh.get_compression();
-    std::cout << "compression des L et U de dgetrf au format hiérarchique" << Lh.get_compression() << ',' << Uh.get_compression() << std::endl;
-    std::cout << "compression des L et U de  HLU :" << comprl << ',' << compru << std::endl;
-    auto lhuh = Llh.hmatrix_product(Uuh);
+    auto erlu = normFrob(lll * uuu - L * U) / normFrob(L * U);
+    std::cout << "erreur dense(HLU[0])*dense(HLU[1]) -reference  :  : " << erlu << std::endl;
+    auto lhuh = Llh.hmatrix_triangular_product(Uuh, 'L', 'U');
     Matrix<double> lluu(size, size);
     copy_to_dense(lhuh, lluu.data());
-    std::cout << "stabilité avec HMAT profdd , erreur relative perm_reference-dense (Lh*Uh):" << normFrob(lluu - ref_lu) / normFrob(ref_lu) << std::endl;
+    std::cout << "erreur dense(HLU[0]*HLU[1]) -reference  :  : " << normFrob(lluu - (L * U)) / normFrob(L * U) << std::endl;
+
+    auto compru = Uuh.get_compression();
+    auto comprl = Llh.get_compression();
+    std::cout << "compression des L et U de dgetrf au format hiérarchique     " << Lh.get_compression() << ',' << Uh.get_compression() << std::endl;
+    std::cout << std::endl;
+    std::cout << std::endl;
+    std::cout << "Time HLU ------------------------------>" << duration_lu << std::endl;
+    std::cout << "compression des L et U de  HLU :------------------------>" << comprl + compru << " sur une Hmatrix compressée de : " << ref_compr << std::endl;
+
+    // std::cout << "stabilité avec HMAT profdd , erreur relative perm_reference-dense (Lh*Uh):" << normFrob(lluu - ref_lu) / normFrob(ref_lu) << std::endl;
+
+    auto rand  = generate_random_vector(size);
+    auto ytemp = L * (U * rand);
+
+    std::vector<double> test_lu(size);
+    Llh.solve_LU(Llh, Uuh, ytemp, test_lu);
+    std::cout << "erreur solve LU :  ---------------------------------> " << norm2(rand - test_lu) / norm2(rand) << std::endl;
 
     return is_error;
 }

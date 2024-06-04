@@ -1545,6 +1545,8 @@ class HMatrix : public TreeNode<HMatrix<CoefficientPrecision, CoordinatePrecisio
     //         }
     //     }
     // }
+    ////////////////////////////////////////////
+    ////// forward substitution
     void forward_substitution_s(const Cluster<CoordinatePrecision> &t, const int &offset_0, std::vector<CoefficientPrecision> &y_in, std::vector<CoefficientPrecision> &x_out) const {
         auto Lt = this->get_block(t.get_size(), t.get_size(), t.get_offset(), t.get_offset());
         if ((Lt->get_target_cluster().get_size() == t.get_size()) and (Lt->get_source_cluster().get_size() == t.get_size())) {
@@ -1602,6 +1604,38 @@ class HMatrix : public TreeNode<HMatrix<CoefficientPrecision, CoordinatePrecisio
                     }
                 }
             }
+        }
+    }
+
+    void backward_substitution_s(const Cluster<CoordinatePrecision> &t, const int &offset_0, std::vector<CoefficientPrecision> &y_in, std::vector<CoefficientPrecision> &x_out) const {
+        auto Ut = this->get_block(t.get_size(), t.get_size(), t.get_offset(), t.get_offset());
+        if ((Ut->get_target_cluster().get_size() == t.get_size()) and (Ut->get_source_cluster().get_size() == t.get_size())) {
+            if (Ut->is_dense()) {
+                auto udense = *Ut->get_dense_data();
+                for (int j = t.get_size() - 1; j > -1; --j) {
+                    x_out[j + t.get_offset() - offset_0] = y_in[j + t.get_offset() - offset_0] / udense(j, j);
+                    for (int i = 0; i < j; ++i) {
+                        y_in[i + t.get_offset() - offset_0] = y_in[i + t.get_offset() - offset_0] - udense(i, j) * x_out[j + t.get_offset() - offset_0];
+                    }
+                }
+            } else {
+                auto &t_children = t.get_children();
+                for (int j = t_children.size() - 1; j > -1; --j) {
+                    int offset_j = t_children[j]->get_offset() - offset_0;
+                    Ut->backward_substitution_s(*t_children[j], offset_0, y_in, x_out);
+                    std::vector<CoefficientPrecision> x_j(x_out.begin() + offset_j, x_out.begin() + offset_j + t_children[j]->get_size());
+                    for (int i = 0; i < j; ++i) {
+                        int offset_i = t_children[i]->get_offset() - offset_0;
+                        std::vector<CoefficientPrecision> y_i(y_in.begin() + offset_i, y_in.begin() + offset_i + t_children[i]->get_size());
+                        Ut->get_block(t_children[i]->get_size(), t_children[j]->get_size(), t_children[i]->get_offset(), t_children[j]->get_offset())->add_vector_product('N', -1.0, x_j.data(), 1.0, y_i.data());
+                        std::copy(y_i.begin(), y_i.end(), y_in.begin() + offset_i);
+                    }
+                }
+            }
+        } else {
+            std::cout << "noooooooooooooooooooooo" << std::endl;
+            std::cout << this->get_target_cluster().get_size() << ',' << Ut->get_target_cluster().get_size() << ',' << t.get_size() << std::endl;
+            std::cout << Ut->get_children().size() << std::endl;
         }
     }
 
@@ -1906,8 +1940,8 @@ class HMatrix : public TreeNode<HMatrix<CoefficientPrecision, CoordinatePrecisio
     //////////////////////////////:
     void solve_LU(const HMatrix &L, const HMatrix &U, std::vector<CoefficientPrecision> &y, std::vector<CoefficientPrecision> &x) const {
         std::vector<CoefficientPrecision> xtemp(L.get_target_cluster().get_size());
-        L.forward_substitution(L.get_target_cluster(), y, xtemp);
-        U.backward_substitution(U.get_target_cluster(), xtemp, x);
+        L.forward_substitution_s(L.get_target_cluster(), 0, y, xtemp);
+        U.backward_substitution_s(U.get_target_cluster(), 0, xtemp, x);
     }
 
     //////////////////////////////////////////////////////////
@@ -2726,6 +2760,24 @@ class HMatrix : public TreeNode<HMatrix<CoefficientPrecision, CoordinatePrecisio
             }
         }
     }
+    ////////////////////////////////////////////////////////////
+    /////// Backward matrix : Find Xts such that UttXts= Yts //////////////
+    ///////////////////////////////////////////////////////////
+    ///// ca sert a rien c'est juste pour les tests
+
+    // friend void BM(const HMatrix &U, const cluster<CoordinatePrecision> &t, const cluster<CoordinatePrecision> &s, HMatrix &Y, HMatrix &X) {
+    //     auto Yts = Y.get_block(t.get_size(), s.get_size(), t.get_offset(), s.get_offset());
+    //     if (Yts->is_dense()) {
+    //         for (int k = 0; k < s.get_size(); ++k) {
+    //             std::vector<CoefficientPrecision> col_k(U.get_target_cluster().get_size(), U.get_target_cluster().get_size());
+    //             auto data = Yts->get_dense_data()->get_col(k).data().begin();
+    //             std::copy(data.begin(), data.end(), col_k.begin() + t.get_offset());
+    //             std::vector<CoefficientPrecision> res(t.get_size());
+    //             auto U.backward_substitution(t, col_k, res) ;
+
+    //         }
+    //     }
+    // }
 
     friend void FM_build(const HMatrix &L, const Cluster<CoordinatePrecision> &t, const Cluster<CoordinatePrecision> &s, HMatrix &Z, HMatrix &X) {
         auto Zts = Z.get_block(t.get_size(), s.get_size(), t.get_offset(), s.get_offset());
