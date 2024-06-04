@@ -21,3 +21,7 @@ add_subdirectory(hmatrix_triangular_solve)
 add_custom_target(build-tests-hmatrix-factorization)
 add_dependencies(build-tests-hmatrix build-tests-hmatrix-factorization)
 add_subdirectory(hmatrix_factorization)
+
+# add_custom_target(build-tests-hmatrix-factorization-comparaison)
+# add_dependencies(build-tests-hmatrix build-tests-hmatrix-factorization-comparaison)
+# add_subdirectory(hmatrix_factorization)
