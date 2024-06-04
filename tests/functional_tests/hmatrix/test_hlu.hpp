@@ -220,17 +220,17 @@ bool test_hlu(int size, htool::underlying_type<T> epsilon, htool::underlying_typ
 
     Matrix<double> uuu(size, size);
     Matrix<double> lll(size, size);
-    std::cout << "Passage en dense pour tester l'erreur" << std::endl;
-    copy_to_dense(Llh, lll.data());
-    std::cout << "l ok" << std::endl;
-    copy_to_dense(Uuh, uuu.data());
-    std::cout << "u ok " << std::endl;
-    auto erlu = normFrob(lll * uuu - L * U) / normFrob(L * U);
-    std::cout << "erreur dense(HLU[0])*dense(HLU[1]) -reference  :  : " << erlu << std::endl;
-    auto lhuh = Llh.hmatrix_triangular_product(Uuh, 'L', 'U');
-    Matrix<double> lluu(size, size);
-    copy_to_dense(lhuh, lluu.data());
-    std::cout << "erreur dense(HLU[0]*HLU[1]) -reference  :  : " << normFrob(lluu - (L * U)) / normFrob(L * U) << std::endl;
+    // std::cout << "Passage en dense pour tester l'erreur" << std::endl;
+    // copy_to_dense(Llh, lll.data());
+    // std::cout << "l ok" << std::endl;
+    // copy_to_dense(Uuh, uuu.data());
+    // std::cout << "u ok " << std::endl;
+    // auto erlu = normFrob(lll * uuu - L * U) / normFrob(L * U);
+    // std::cout << "erreur dense(HLU[0])*dense(HLU[1]) -reference  :  : " << erlu << std::endl;
+    // auto lhuh = Llh.hmatrix_triangular_product(Uuh, 'L', 'U');
+    // Matrix<double> lluu(size, size);
+    // copy_to_dense(lhuh, lluu.data());
+    // std::cout << "erreur dense(HLU[0]*HLU[1]) -reference  :  : " << normFrob(lluu - (L * U)) / normFrob(L * U) << std::endl;
 
     auto compru = Uuh.get_compression();
     auto comprl = Llh.get_compression();
