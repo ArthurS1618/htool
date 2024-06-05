@@ -3,26 +3,47 @@
 
 using namespace std;
 using namespace htool;
+void save_vectors_to_csv(const std::vector<double> &x, const std::string &filename) {
+    std::ofstream file(filename);
 
+    if (file.is_open()) {
+        for (size_t i = 0; i < x.size() - 1; ++i) {
+            file << x[i] << ",";
+        }
+        file << x[x.size() - 1];
+        file.close();
+        std::cout << "Data saved to " << filename << std::endl;
+    } else {
+        std::cerr << "Unable to open file: " << filename << std::endl;
+    }
+}
 int main(int argc, char *argv[]) {
-    bool is_error = false;
 
     MPI_Init(&argc, &argv);
-    if (argc = !5) {
+    if (argc != 5) {
         std::cerr << " PARAMETERS : SIZEMAX, nb iteration, EPSILON ETA" << std::endl;
     }
     int size_max   = std::stoi(argv[1]);
     int nb         = std::stoi(argv[2]);
     double epsilon = std::stod(argv[3]);
     double eta     = std::stod(argv[4]);
+    std::vector<double> sizes(nb);
+    std::vector<double> time(nb);
+    std::vector<double> compr(nb);
+    std::vector<double> error(nb);
+    for (int k = 1; k < nb + 1; ++k) {
+        int size     = size_max * k / nb;
+        auto data    = test_hlu<double, GeneratorTestDoubleSymmetric>(size, epsilon, eta);
+        sizes[k - 1] = data[0];
+        time[k - 1]  = data[1];
+        compr[k - 1] = data[2];
+        error[k - 1] = data[3];
+    }
+    save_vectors_to_csv(sizes, "Size_Art_test_eps6_eta10.csv");
+    save_vectors_to_csv(time, "Time_Art_test_eps6_eta10.csv");
+    save_vectors_to_csv(compr, "Compr_Art_test_eps6_eta10.csv");
+    save_vectors_to_csv(error, "Error_Art_test_eps6_eta10.csv");
 
-    for (int k = 1; k < nb; ++k) {
-        int size = size_max * k / (nb - 1);
-        is_error = is_error || test_hlu<double, GeneratorTestDoubleSymmetric>(size, epsilon, eta);
-    }
     MPI_Finalize();
-    if (is_error) {
-        return 1;
-    }
     return 0;
 }

@@ -173,8 +173,8 @@ class HMatrix : public TreeNode<HMatrix<CoefficientPrecision, CoordinatePrecisio
             if (Hk->is_dense()) {
                 compr += Hk->get_target_cluster().get_size() * Hk->get_source_cluster().get_size();
             } else if (Hk->is_low_rank()) {
-                auto temp = (Hk->m_low_rank_data->rank_of() * (Hk->get_target_cluster().get_size() + Hk->get_source_cluster().get_size()));
-                compr     = compr + temp;
+                double temp = (Hk->m_low_rank_data->rank_of() * (Hk->get_target_cluster().get_size() + Hk->get_source_cluster().get_size()));
+                compr       = compr + temp;
             }
         }
         compr = compr * 1.0 / (this->get_target_cluster().get_size() * this->get_source_cluster().get_size());
