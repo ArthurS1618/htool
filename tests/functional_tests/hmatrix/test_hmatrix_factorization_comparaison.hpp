@@ -1,3 +1,5 @@
+#include <chrono>
+#include <ctime>
 #include <htool/hmatrix/hmatrix.hpp>
 #include <htool/hmatrix/hmatrix_output.hpp>
 #include <htool/hmatrix/linalg/interface.hpp>
@@ -34,7 +36,7 @@ class Matricegenerator : public VirtualGenerator<CoefficientPrecision> {
     const Cluster<CoordinatePrecision> &source;
 
   public:
-    Matricegenerator(Matrix<CoefficientPrecision> &mat0, const Cluster<CoordinatePrecision> &target0, const Cluster<CoordinatePrecision> &source0) : mat(mat0), target(target0), source(source0){};
+    Matricegenerator(Matrix<CoefficientPrecision> &mat0, const Cluster<CoordinatePrecision> &target0, const Cluster<CoordinatePrecision> &source0) : mat(mat0), target(target0), source(source0) {}
 
     void copy_submatrix(int M, int N, int row_offset, int col_offset, double *ptr) const override {
         const auto &target_permutation = target.get_permutation();
@@ -70,128 +72,86 @@ class Matricegenerator : public VirtualGenerator<CoefficientPrecision> {
     }
 };
 
-//// Pour extraire Lh et Uh de lu_factorisation() on luyiu donne L ou U
-template <class CoefficientPrecision, class CoordinatePrecision>
-HMatrix<CoefficientPrecision, CoordinatePrecision> extract(HMatrix<CoefficientPrecision, CoordinatePrecision> &res, const HMatrix<CoefficientPrecision, CoordinatePrecision> &A, const char trans) {
-    if (trans == 'U') {
-        if (A->get_children().size() > 0) {
-            for (auto &child : A->get_children()) {
-                auto res_child = res.add_child(child->get_target_cluster().get(), child->get_source_cluster().get());
-                if (child->get_source_cluster().get_offset() >= child->get_target_cluster().get_offset()) {
-                    extract(res_child, child, char);
-                } else {
-                    Matrix<CoefficientPrecision> zero(child->get_target_cluster().get_size(), child->get_source_cluster().get_size());
-                    res_child->set_dense_data(zero);
-                }
-            }
-        } else {
-            // la matrice dont on veut extraire est une feuille avec s >=t
-            if (A->get_target_cluster() == A->get_source_cluster()) {
-                // s=t on est dense
-                auto mat = A->get_dense_data();
-                auto udiag(A->get_target_cluster().get_size(), A->get_target_cluster().get_size());
-                for (int k = 0; k < A->get_target_cluster().get_size(); ++k) {
-                    for (int l = k; l < A->get_target_cluster().get_size(); ++l) {
-                        ldiag(k, l) = mat(k, l);
-                    }
-                }
-            } else {
-                if (A->is_dense()) {
-                    res->set_dense_data(*A->get_dense_data());
-                } else {
-                }
-            }
-        }
-    }
-}
+// //// Pour extraire Lh et Uh de lu_factorisation() on luyiu donne L ou U
+// template <class CoefficientPrecision, class CoordinatePrecision>
+// HMatrix<CoefficientPrecision, CoordinatePrecision> extract(HMatrix<CoefficientPrecision, CoordinatePrecision> &res, const HMatrix<CoefficientPrecision, CoordinatePrecision> &A, const char trans) {
+//     if (trans == 'U') {
+//         if (A->get_children().size() > 0) {
+//             for (auto &child : A->get_children()) {
+//                 auto res_child = res.add_child(child->get_target_cluster().get(), child->get_source_cluster().get());
+//                 if (child->get_source_cluster().get_offset() >= child->get_target_cluster().get_offset()) {
+//                     extract(res_child, child, trans);
+//                 } else {
+//                     Matrix<CoefficientPrecision> zero(child->get_target_cluster().get_size(), child->get_source_cluster().get_size());
+//                     res_child->set_dense_data(zero);
+//                 }
+//             }
+//         } else {
+//             // la matrice dont on veut extraire est une feuille avec s >=t
+//             if (A->get_target_cluster() == A->get_source_cluster()) {
+//                 // s=t on est dense
+//                 auto mat = A->get_dense_data();
+//                 auto udiag(A->get_target_cluster().get_size(), A->get_target_cluster().get_size());
+//                 for (int k = 0; k < A->get_target_cluster().get_size(); ++k) {
+//                     for (int l = k; l < A->get_target_cluster().get_size(); ++l) {
+//                         ldiag(k, l) = mat(k, l);
+//                     }
+//                 }
+//             } else {
+//                 if (A->is_dense()) {
+//                     res->set_dense_data(*A->get_dense_data());
+//                 } else {
+//                 }
+//             }
+//         }
+//     }
+// }
 template <typename T, typename GeneratorTestType>
-bool test_hmatrix_lu(int size, htool::underlying_type<T> epsilon, htool::underlying_type<T> eta) {
-    bool is_error = false;
+std::vector<T> test_hlu(int size, htool::underlying_type<T> epsilon, htool::underlying_type<T> eta) {
+    // bool is_error = false;
+    // double eta    = 100;
     htool::underlying_type<T> error;
 
-    ///////////////////////
-    ////// GENERATION MAILLAGE  :  size points en 3 dimensions
-    std::vector<double> p1(3 * size);
-    create_disk(3, 0.0, size, p1.data());
+    // Setup test case
+    htool::TestCaseSolve<T, GeneratorTestType> test_case('L', 'N', size, size, 1, -1);
 
-    std::cout << "création cluster ok" << std::endl;
-    //////////////////////
+    // HMatrix
+    HMatrixTreeBuilder<T, htool::underlying_type<T>> hmatrix_tree_builder_A(*test_case.root_cluster_A_output, *test_case.root_cluster_A_input, epsilon, eta, 'N', 'N', -1, -1, -1);
+    HMatrix<T, htool::underlying_type<T>> A = hmatrix_tree_builder_A.build(*test_case.operator_A);
 
-    //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%//
-    //////////////////////
-    // Clustering
-    ClusterTreeBuilder<double, ComputeLargestExtent<double>, RegularSplitting<double>> recursive_build_strategy_1(size, 3, p1.data(), 2, 2);
-    std::shared_ptr<Cluster<double>> root_cluster_1 = std::make_shared<Cluster<double>>(recursive_build_strategy_1.create_cluster_tree());
-    std::cout << "Cluster tree ok" << std::endl;
-    //////////////////////
+    // Matrix
+    int ni_A = test_case.root_cluster_A_input->get_size();
+    int no_A = test_case.root_cluster_A_output->get_size();
+    // int ni_X = test_case.root_cluster_X_input->get_size();
+    // int no_X = test_case.root_cluster_X_output->get_size();
+    Matrix<T> A_dense(no_A, ni_A), X_dense(ni_A, 1), B_dense(X_dense), densified_hmatrix_test(B_dense), matrix_test;
+    test_case.operator_A->copy_submatrix(no_A, ni_A, test_case.root_cluster_A_output->get_offset(), test_case.root_cluster_A_input->get_offset(), A_dense.data());
+    generate_random_matrix(X_dense);
 
-    //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%//
+    add_matrix_matrix_product('N', 'N', T(1.), A_dense, X_dense, T(0.), B_dense);
 
-    ///////////////////
-    // Generator: donné en argument de la méthode
-    auto permutation = root_cluster_1->get_permutation();
-    GeneratorTestType generator(3, size, size, p1, p1, root_cluster_1, root_cluster_1);
+    // LU factorization
+    matrix_test        = B_dense;
+    auto start_time_lu = std::chrono::high_resolution_clock::now();
+    lu_factorization(A);
+    auto end_time_lu = std::chrono::high_resolution_clock::now();
+    auto duration_lu = std::chrono::duration_cast<std::chrono::duration<double>>(end_time_lu - start_time_lu).count();
 
-    Matrix<double> reference_num_htool(size, size);
-    generator.copy_submatrix(size, size, 0, 0, reference_num_htool.data());
-
-    //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%//
-
-    //////////////
-    /// Hmatrix in the good permutation
-    /////////////
-    std::cout << " Facrotisation dgetrf pourt avoir le pivot" << std::endl;
-    Matrix<double> L(size, size);
-    Matrix<double> U(size, size);
-    std::vector<int> ipiv(size, 0.0);
-    int info = -1;
-    auto A   = reference_num_htool;
-    Lapack<double>::getrf(&size, &size, A->data(), &size, ipiv.data(), &info);
-
-    for (int i = 0; i < size; ++i) {
-        L(i, i) = 1;
-        U(i, i) = A(i, i);
-
-        for (int j = 0; j < i; ++j) {
-            L(i, j) = A(i, j);
-            U(j, i) = A(j, i);
-        }
-    }
-    std::cout << " Pivot obtenue" << std::endl;
-
-    // // Matrice Lh et Uh
-    /// Warning : on peut pas juste donné L et U parce que Htool fais des permutations et la matrice qu'il compresserait serait pas forcemment triangtulaire
-    /// IL faut mettre L et U dans la permutation inverse de clusters
-    std::cout << " Assemblage Lh et Uh " << std::endl;
-    std::cout << "L et U doivent être formatées pour que htool produise des matrices triangulaires" << std::endl;
-    auto ll = get_unperm_mat(L, *root_cluster_1, *root_cluster_1);
-    Matricegenerator<double, double> l_generator(ll, *root_cluster_1, *root_cluster_1);
-    HMatrixTreeBuilder<double, double> lh_builder(root_cluster_1, root_cluster_1, epsilon, eta, 'N', 'N');
-    auto Lh = lh_builder.build(l_generator);
-    Matrix<double> ldense(size, size);
-    copy_to_dense(Lh, ldense.data());
-    std::cout << "Lh assembled, error relative Lh-L  :" << normFrob(L - ldense) / normFrob(L) << std::endl;
-
-    auto uu = get_unperm_mat(U, *root_cluster_1, *root_cluster_1);
-    Matricegenerator<double, double> u_generator(uu, *root_cluster_1, *root_cluster_1);
-    HMatrixTreeBuilder<double, double> uh_builder(root_cluster_1, root_cluster_1, epsilon, eta, 'N', 'N');
-    auto Uh = uh_builder.build(u_generator);
-    Matrix<double> udense(size, size);
-    copy_to_dense(Uh, udense.data());
-    std::cout << "Uh assembled, error relative Uh-U : " << normFrob(U - udense) / normFrob(U) << std::endl;
-
-    // Hmatrice dans la bonne permutation = Lh*Uh
-    // on appelle HLU sur (Lh*Uh) et on aimerait retomber sur Lh et Uh
-    Lh.set_epsilon(epsilon);
-    Uh.set_epsilon(epsilon);
-    HMatrix<double, double> ref_nopivot(root_cluster_1, root_cluster_1);
-    add_hmatrix_hmatrix_product('N', 'N', 1.0, Lh, Uh, 0.0, ref_nopivot);
-    auto produit_LU = Lh.hmatrix_triangular_product(Uh, 'L', 'U');
-    Matrix<double> prod_dense(size, size);
-    auto ref_lu = L * U;
-    copy_to_dense(produit_LU, prod_dense.data());
-    std::cout << "Compression Hmatrix dans la bonne numérotation (Lh*Uh ) : " << produit_LU.get_compression() << "   et l'erreur  : " << normFrob(prod_dense - ref_lu) / normFrob(ref_lu);
-    lu_factorization(produit_LU)
-
-        return is_error;
+    auto compr_A = get_compression(A);
+    lu_solve('N', A, matrix_test);
+    error = normFrob(X_dense - matrix_test) / normFrob(X_dense);
+    std::cout << "______________________________________________" << std::endl;
+    std::cout << "Size : -------------------------------------->" << size << std::endl;
+    std::cout << "time hlu : ---------------------------------->" << duration_lu << std::endl;
+    std::cout << "compression: -------------------------------->" << compr_A << std::endl;
+    std::cout << "error lu solve: ----------------------------->" << error << endl;
+    std::cout << "______________________________________________" << std::endl;
+    std::cout << std::endl;
+    std::cout << std::endl;
+    std::vector<T> res(4);
+    res[0] = size;
+    res[1] = duration_lu;
+    res[2] = compr_A;
+    res[3] = error;
+    return res;
 }

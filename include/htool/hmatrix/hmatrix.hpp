@@ -2025,6 +2025,19 @@ void copy_to_dense(const HMatrix<CoefficientPrecision, CoordinatePrecision> &hma
     // }
 }
 
+////////////// Arthur je rajoute ca pour la compression parce que get_low_rank_data est en private...
+template <class CoefficientPrecision, class CoordinatePrecision>
+CoefficientPrecision get_compression(const HMatrix<CoefficientPrecision, CoordinatePrecision> &A) {
+    CoefficientPrecision sum = 0;
+    for (auto &l : A.get_leaves()) {
+        if (l->is_dense()) {
+            sum += l->get_target_cluster().get_size() * l->get_source_cluster().get_size();
+        } else {
+            sum += l->get_low_rank_data()->rank_of() * (l->get_target_cluster().get_size() + l->get_source_cluster().get_size());
+        }
+    }
+    return (sum / (A.get_target_cluster().get_size() * A.get_source_cluster().get_size()));
+}
 template <typename CoefficientPrecision, typename CoordinatePrecision>
 void copy_diagonal(const HMatrix<CoefficientPrecision, CoordinatePrecision> &hmatrix, CoefficientPrecision *ptr) {
     if (hmatrix.get_target_cluster().get_offset() != hmatrix.get_source_cluster().get_offset() || hmatrix.get_target_cluster().get_size() != hmatrix.get_source_cluster().get_size()) {
