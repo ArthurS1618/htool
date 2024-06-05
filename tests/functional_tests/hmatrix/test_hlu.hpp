@@ -303,35 +303,60 @@ std::vector<T> test_hlu(int size, htool::underlying_type<T> epsilon, htool::unde
     for (auto &l : L0.get_leaves()) {
         if (l->get_target_cluster().get_offset() >= l->get_source_cluster().get_offset()) {
             if (l->is_dense()) {
-                cpt1 = cpt1 + 1.0 * (l->get_target_cluster().get_size() * l->get_source_cluster().get_size());
+                cpt1 = 1.0 * cpt1 + 1.0 * (l->get_target_cluster().get_size() * l->get_source_cluster().get_size());
             } else {
-                cpt1 = cpt1 + l->get_low_rank_data()->rank_of() * 1.0 * (l->get_target_cluster().get_size() + l->get_source_cluster().get_size());
+                // cpt1 = cpt1 + l->get_low_rank_data()->Get_U().nb_cols() * 1.0 * (l->get_target_cluster().get_size() + l->get_source_cluster().get_size());
+                if (l->get_low_rank_data()->rank_of() > 0) {
+                    cpt1 = cpt1 + l->get_low_rank_data()->rank_of() * 1.0 * (l->get_target_cluster().get_size() + l->get_source_cluster().get_size());
+                } else {
+                    cpt1 = cpt1 + 1.0 * (l->get_target_cluster().get_size() * l->get_source_cluster().get_size());
+                }
             }
         }
     }
-    cpt1 = cpt1 / (0.5 * (L0.get_target_cluster().get_size() * L0.get_source_cluster().get_size()));
-    cpt2 = 1.000 - cpt1;
-
-    double cpt11 = 0;
-    double cpt21 = 0;
     for (auto &l : U0.get_leaves()) {
         if (l->get_target_cluster().get_offset() <= l->get_source_cluster().get_offset()) {
             if (l->is_dense()) {
-                cpt11 = cpt11 + 1.0 * (l->get_target_cluster().get_size() * l->get_source_cluster().get_size());
+                cpt1 = 1.0 * cpt1 + 1.0 * (l->get_target_cluster().get_size() * l->get_source_cluster().get_size());
             } else {
-                cpt11 = cpt11 + l->get_low_rank_data()->rank_of() * 1.0 * (l->get_target_cluster().get_size() + l->get_source_cluster().get_size());
+                // cpt1 = cpt1 + l->get_low_rank_data()->Get_U().nb_cols() * 1.0 * (l->get_target_cluster().get_size() + l->get_source_cluster().get_size());
+                if (l->get_low_rank_data()->rank_of() > 0) {
+                    cpt1 = cpt1 + l->get_low_rank_data()->rank_of() * 1.0 * (l->get_target_cluster().get_size() + l->get_source_cluster().get_size());
+                } else {
+                    cpt1 = cpt1 + 1.0 * (l->get_target_cluster().get_size() * l->get_source_cluster().get_size());
+                }
             }
         }
     }
+    cpt1 = cpt1 / ((L0.get_target_cluster().get_size() * L0.get_source_cluster().get_size()));
+    cpt2 = 1.000 - cpt1;
 
-    cpt11 = cpt11 / (0.5 * (L0.get_target_cluster().get_size() * L0.get_source_cluster().get_size()));
-    cpt21 = 1.000 - cpt11;
-    // double compression = L0.get_compression() + U0.get_compression();
-    double cc = cpt2 + cpt21;
+    // double cpt11 = 0;
+    // double cpt21 = 0;
+    // for (auto &l : U0.get_leaves()) {
+    //     if (l->get_target_cluster().get_offset() <= l->get_source_cluster().get_offset()) {
+    //         if (l->is_dense()) {
+    //             cpt11 = cpt11 + 1.0 * (l->get_target_cluster().get_size() * l->get_source_cluster().get_size());
+    //         } else {
+    //             if (l->get_low_rank_data()->rank_of() > 0) {
+    //                 cpt11 = cpt11 + l->get_low_rank_data()->rank_of() * 1.0 * (l->get_target_cluster().get_size() + l->get_source_cluster().get_size());
+    //             } else {
+    //                 std::cout << "!" << std::endl;
+    //                 cpt11 = cpt11 + 1.0 * (l->get_target_cluster().get_size() * l->get_source_cluster().get_size());
+    //             }
+    //             // cpt11 = cpt11 + l->get_low_rank_data()->Get_U().nb_cols() * 1.0 * (l->get_target_cluster().get_size() + l->get_source_cluster().get_size());
+    //         }
+    //     }
+    // }
+
+    // cpt11 = cpt11 / (2 * (U0.get_target_cluster().get_size() * U0.get_source_cluster().get_size()));
+    // cpt21 = 1.000 - cpt11;
+    // // double compression = L0.get_compression() + U0.get_compression();
+    // double cc = cpt2 + cpt21;
     std::cout << "____________________________________________" << std::endl;
     std::cout << " Size : -------------------------------> " << size << std::endl;
     std::cout << " Time : -------------------------------> " << duration_lu0 << std::endl;
-    std::cout << " Compression :-------------------------> " << cc << std::endl;
+    std::cout << " Compression :-------------------------> " << cpt2 << std::endl;
     std::cout << " Error :-------------------------------> " << err << std::endl;
     std::cout << "____________________________________________" << std::endl;
     std::cout << std::endl;
@@ -339,7 +364,7 @@ std::vector<T> test_hlu(int size, htool::underlying_type<T> epsilon, htool::unde
     std::vector<double> res_vec(4);
     res_vec[0] = size;
     res_vec[1] = duration_lu0;
-    res_vec[2] = cc;
+    res_vec[2] = cpt2;
     res_vec[3] = err;
     return res_vec;
 }
