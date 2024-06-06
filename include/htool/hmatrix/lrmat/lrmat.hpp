@@ -309,6 +309,133 @@ class LowRankMatrix {
         auto V = m_V * (B->Get_U()) * (B->Get_V());
         return LowRankMatrix(U, V);
     }
+
+    //////////////////////////////////////
+    //// Somme de deux LR mat
+    std::vector<Matrix<CoefficientPrecision>> compute_lr_update(const Matrix<CoefficientPrecision> &A, const Matrix<CoefficientPrecision> &B, const int &rk, const CoefficientPrecision &epsilon) {
+        int target_size = A.nb_rows();
+        int source_size = B.nb_cols();
+        std::vector<Matrix<CoefficientPrecision>> res;
+        auto &U     = this->Get_U();
+        auto &V     = this->Get_V();
+        const int N = U.nb_cols() + A.nb_cols(); // rank1+rank2
+        // on regarde si c'est interressant de concaténer
+        if (U.nb_rows() > N && V.nb_cols() > N) {
+            // on concatène
+            auto big_VT = conc_row_T(V, B);
+            auto big_U  = conc_col(U, A);
+            std::cout << "size : bigu  " << big_U.nb_rows() << ',' << big_U.nb_cols() << std::endl;
+            std::cout << "size big_V " << big_VT.nb_rows() << ',' << big_VT.nb_cols() << std::endl;
+            std::cout << " n " << N << std::endl;
+            // QR sur big_U
+            std::vector<Matrix<CoefficientPrecision>> QRu;
+            auto tempu = big_U;
+            QRu        = QR_factorisation(big_U.nb_rows(), big_U.nb_cols(), big_U);
+            auto Qu    = QRu[0];
+            auto Ru    = QRu[1];
+            // std::cout << "erreur QR sur U " << normFrob(Qu * Ru - tempu) / normFrob(tempu) << std::endl;
+            // QR sur big_V transposé ----------> WARNING : on est sur big_V^T pas big_V, il faut retranposer après
+            //->on doit transposé
+            auto QRv   = QR_factorisation(big_VT.nb_rows(), big_VT.nb_cols(), big_VT);
+            auto tempv = big_VT;
+            auto Qv    = QRv[0];
+            auto Rv    = QRv[1];
+            // std::cout << "erreur QR sur V " << normFrob(Qv * Rv - big_VT) / normFrob(big_VT) << std::endl;
+            // Ru*Rv
+            Matrix<CoefficientPrecision> R_uR_v(N, N);
+            double alpha_0 = 1.0;
+            double beta_0  = 0.0;
+            R_uR_v         = Ru * Rv.transp(Rv);
+            // Blas<CoefficientPrecision>::gemm("N", "T", &N, &N, &N, &alpha_0, Ru.data(), &N, Rv.data(), &N, &beta_0, R_uR_v.data(), &N); // j'ai besoin du "transb" du coup je prend gemm
+            // truncated SVD sur R_uR_v
+            Matrix<CoefficientPrecision> Uu(N, N);
+            Matrix<CoefficientPrecision> VT(N, N);
+            auto S = compute_svd(R_uR_v, Uu, VT);
+            // truncation index
+            int trunc = 0;
+            while (S[trunc] > epsilon) {
+                trunc += 1;
+            }
+            // on regarde si il y a un rang d'approximation potable (j'ai pris N/2 c'est arbitraire)
+            // ca peut arriver en sommant deux petites lr que le rang soit plus faible
+            if (trunc < N / 2) {
+                Matrix<CoefficientPrecision> Strunc(trunc, trunc);
+                for (int k = 0; k < trunc; ++k) {
+                    Strunc(k, k) = S[k];
+                }
+                ///// truncation of svd vectors
+                auto Utrunc = Uu.trunc_col(trunc);
+                auto Vtrunc = VT.trunc_row(trunc);
+                ///// fast trunc
+                // Matrix<CoefficientPrecision> res_V(trunc, source_size);
+                // Blas<CoefficientPrecision>::gemm("N", "T", &trunc, &N, &source_size, &alpha_0, Vtrunc.data(), &N, Qv.data(), &source_size, &beta_0, res_V.data(), &std::max(trunc, source_size)); // j'ai besoin du "transb" du coup je prend gemm
+                auto res_V = Vtrunc * Qv.transp(Qv);
+                // Blas<CoefficientPrecision>::gemm("N", "T", &trunc, &source_size, &trunc, &alpha_0, Vtrunc.data(), &trunc, big_VT.data(), &source_size, &beta_0, res_V.data(), &source_size);
+                // auto res_V = Vtrunc * Qv.transp(Qv);
+                // auto res_U = Qu * Utrunc * Strunc;
+                Matrix<CoefficientPrecision> Us(N, trunc);
+                // Blas<CoefficientPrecision>::gemm("N", "N", &N, &trunc, &trunc, &alpha_0, Utrunc.data(), &N, Strunc.data(), &trunc, &beta_0, Us.data(), &N);
+                Matrix<CoefficientPrecision> res_U(target_size, trunc);
+                // Blas<CoefficientPrecision>::gemm("N", "N", &target_size, &trunc, &N, &alpha_0, Qu.data(), &target_size, Us.data(), &N, &beta_0, Us.data(), &target_size);
+                res_U = Qu * Utrunc * Strunc;
+                // Finally
+                res.push_back(res_U);
+                res.push_back(res_V);
+                std::cout << "on push U et V de taille " << res_U.nb_rows() << ',' << res_U.nb_cols() << ',' << res_V.nb_rows() << ',' << res_V.nb_cols() << std::endl;
+            }
+        } else {
+            // concaténation pas interressante
+            // on doit differencier nr > nc ..........
+
+            auto big_mat = U * V + A * B;
+            if (big_mat.nb_rows() >= big_mat.nb_cols()) {
+                int ld = std::max(big_mat.nb_rows(), big_mat.nb_cols());
+                int Nn = std::min(big_mat.nb_rows(), big_mat.nb_cols());
+                std::vector<CoefficientPrecision> S(Nn, 0.0);
+                Matrix<CoefficientPrecision> Uu(big_mat.nb_rows(), big_mat.nb_rows());
+                Matrix<CoefficientPrecision> VT(big_mat.nb_cols(), big_mat.nb_cols());
+                int info;
+                int lwork = 10 * ld;
+                std::vector<double> rwork(lwork);
+                std::vector<CoefficientPrecision> work(lwork);
+                int nr = big_mat.nb_rows();
+                int nc = big_mat.nb_cols();
+                Lapack<CoefficientPrecision>::gesvd("A", "A", &nr, &nc, big_mat.data(), &ld, S.data(), Uu.data(), &nr, VT.data(), &nc, work.data(), &lwork, rwork.data(), &info);
+                int trunc      = 0;
+                double alpha_0 = 1.0;
+                double beta_0  = 0.0;
+                while (S[trunc] > epsilon) {
+                    trunc += 1;
+                }
+                if (trunc < Nn / 2) {
+                    Matrix<CoefficientPrecision> Strunc(trunc, trunc);
+                    for (int k = 0; k < trunc; ++k) {
+                        Strunc(k, k) = S[k];
+                    }
+                    ///// truncation of svd vectors
+                    auto Utrunc = Uu.trunc_col(trunc);
+                    auto Vtrunc = VT.trunc_row(trunc);
+
+                    Matrix<CoefficientPrecision> Us(nr, trunc);
+                    // Blas<CoefficientPrecision>::gemm("N", "N", &nr, &nc, &trunc, &alpha_0, Utrunc.data(), &nr, Strunc.data(), &trunc, &beta_0, Us.data(), &std::max(nr, nc)); // j'ai besoin du "transb" du coup je prend gemm
+                    Matrix<CoefficientPrecision> Ss(Us.nb_cols(), Us.nb_cols());
+                    for (int k = 0; k < Us.nb_cols(); ++k) {
+                        Ss(k, k) = S[k];
+                    }
+                    Us = Utrunc * Ss;
+                    res.push_back(Us);
+                    res.push_back(Vtrunc);
+                    std::cout << "on push U et V de taille " << Us.nb_rows() << ',' << Us.nb_cols() << ',' << Vtrunc.nb_rows() << ',' << Vtrunc.nb_cols() << std::endl;
+
+                } else {
+                    // std::cout << "pas de bonne approximation de UV +AB" << std::endl;
+                }
+            } else {
+                std::cout << "nc> nr" << std::endl;
+            }
+        }
+        return res;
+    }
 };
 
 template <typename CoefficientPrecision, typename CoordinatePrecision>
@@ -377,7 +504,8 @@ std::vector<Matrix<CoefficientPrecision>> formatted_addition(const Matrix<Coeffi
         int nr = QRu[1].nb_rows();
         int nc = QRu[1].nb_cols();
         int nl = RuRv.nb_cols();
-        Blas<CoefficientPrecision>::gemm("N", "T", &nr, &nl, &nc, &alpha, QRu[1].data(), &nr, QRv[1].data(), &nc, &alpha, RuRv.data(), &nl);
+        RuRv   = QRu[1] * RuRv.transp(QRv[1]);
+        // Blas<CoefficientPrecision>::gemm("N", "T", &nr, &nl, &nc, &alpha, QRu[1].data(), &nr, QRv[1].data(), &nc, &alpha, RuRv.data(), &nl);
         // std::cout << "erreur RURV^T" << normFrob(RuRv - QRu[1] * QRv[1].transp(QRv[1])) / normFrob(RuRv) << std::endl;
         Matrix<CoefficientPrecision> svdU(RuRv.nb_rows(), std::min(RuRv.nb_rows(), RuRv.nb_cols()));
         Matrix<CoefficientPrecision> svdV(std::min(RuRv.nb_rows(), RuRv.nb_cols()), RuRv.nb_cols());
@@ -426,11 +554,11 @@ std::vector<Matrix<CoefficientPrecision>> formatted_addition(const Matrix<Coeffi
             int nl    = QRv[0].nb_rows();
             auto test = Vrestr * QRv[0].transp(QRv[0]);
 
-            Blas<CoefficientPrecision>::gemm("N", "T", &nr, &nl, &nc, &alpha, Vrestr.data(), &nr, QRv[0].data(), &nl, &alpha, res_V.data(), &nr);
+            // Blas<CoefficientPrecision>::gemm("N", "T", &nr, &nl, &nc, &alpha, Vrestr.data(), &nr, QRv[0].data(), &nl, &alpha, res_V.data(), &nr);
             // std::cout << " erreur VQ^T = " << normFrob(test - res_V) << std::endl;
             // std::cout << " 0   on push U et V de norme : " << normFrob(res_U) << ',' << normFrob(res_V) << std::endl;
             res.push_back(res_U);
-            res.push_back(res_V);
+            res.push_back(test);
         } else {
             // il y a pas de petit rang , c'est pas interresant de faire les restrictions, tout ca servait a rien on fait juste U1V1+U2V2
             res_U.resize(U1.nb_rows(), V1.nb_cols());

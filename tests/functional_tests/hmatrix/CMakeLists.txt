@@ -26,6 +26,8 @@ add_executable(Test_LU test_lu.cpp)
 target_link_libraries(Test_LU htool)
 add_test(Test_LU Test_LU)
 
+
+
 add_executable(Perf_Hmatrix perf_hmatrix.cpp)
 target_link_libraries(Perf_Hmatrix htool)
 add_test(Perf_Hmatrix Perf_Hmatrix)
@@ -36,6 +38,10 @@ add_test(Perf_Hmatrix Perf_Hmatrix)
 add_custom_target(build-tests-hmatrix-factorization)
 add_dependencies(build-tests-hmatrix build-tests-hmatrix-factorization)
 add_subdirectory(hmatrix_factorization)
+
+add_custom_target(build-tests-sum-expression)
+add_dependencies(build-tests-hmatrix build-tests-sum-expression)
+add_subdirectory(sum_expression)
 
 add_executable(Test_HMULT test_hmult.cpp)
 target_link_libraries(Test_HMULT htool)

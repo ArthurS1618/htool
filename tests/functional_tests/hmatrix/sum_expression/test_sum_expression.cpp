@@ -1,7 +1,12 @@
 
+#include "../test_sum_expression.hpp"
+#include <htool/hmatrix/hmatrix.hpp>
 
-#include "../sum_expression_new.hpp"
+int main(int argc, char *argv[]) {
+    int size       = std::stoi(argv[1]);
+    int rank       = std::stoi(argv[2]);
+    double epsilon = std::stod(argv[3]);
+    auto data      = test_sum_expression<double>(size, rank, epsilon);
 
-int main() {
     return 0;
 }
