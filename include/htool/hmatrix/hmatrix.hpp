@@ -2036,7 +2036,7 @@ CoefficientPrecision get_compression(const HMatrix<CoefficientPrecision, Coordin
             sum += l->get_low_rank_data()->rank_of() * (l->get_target_cluster().get_size() + l->get_source_cluster().get_size());
         }
     }
-    return (sum / (A.get_target_cluster().get_size() * A.get_source_cluster().get_size()));
+    return (1.0 - sum / (A.get_target_cluster().get_size() * A.get_source_cluster().get_size()));
 }
 template <typename CoefficientPrecision, typename CoordinatePrecision>
 void copy_diagonal(const HMatrix<CoefficientPrecision, CoordinatePrecision> &hmatrix, CoefficientPrecision *ptr) {

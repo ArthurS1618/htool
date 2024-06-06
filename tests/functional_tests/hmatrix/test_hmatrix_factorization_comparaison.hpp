@@ -118,7 +118,7 @@ std::vector<T> test_hlu(int size, htool::underlying_type<T> epsilon, htool::unde
     // HMatrix
     HMatrixTreeBuilder<T, htool::underlying_type<T>> hmatrix_tree_builder_A(*test_case.root_cluster_A_output, *test_case.root_cluster_A_input, epsilon, eta, 'N', 'N', -1, -1, -1);
     HMatrix<T, htool::underlying_type<T>> A = hmatrix_tree_builder_A.build(*test_case.operator_A);
-
+    std::cout << " compression A " << get_compression(A) << std::endl;
     // Matrix
     int ni_A = test_case.root_cluster_A_input->get_size();
     int no_A = test_case.root_cluster_A_output->get_size();
