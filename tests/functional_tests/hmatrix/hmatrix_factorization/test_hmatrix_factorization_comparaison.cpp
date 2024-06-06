@@ -24,13 +24,14 @@ void save_vectors_to_csv(const std::vector<double> &x, const std::string &filena
 int main(int argc, char *argv[]) {
 
     MPI_Init(&argc, &argv);
-    if (argc != 5) {
-        std::cerr << " PARAMETERS : SIZEMAX, nb iteration, EPSILON ETA" << std::endl;
+    if (argc != 6) {
+        std::cerr << " PARAMETERS : SIZEMAX, nb iteration, EPSILON ETA , save " << std::endl;
     }
     int size_max   = std::stoi(argv[1]);
     int nb         = std::stoi(argv[2]);
     double epsilon = std::stod(argv[3]);
     double eta     = std::stod(argv[4]);
+    int save       = std::stoi(argv[5]);
     std::vector<double> sizes(nb);
     std::vector<double> time(nb);
     std::vector<double> compr(nb);
@@ -43,11 +44,12 @@ int main(int argc, char *argv[]) {
         compr[k - 1] = data[2];
         error[k - 1] = data[3];
     }
-    save_vectors_to_csv(sizes, "Size_Pierre_test_eps6_eta10.csv");
-    save_vectors_to_csv(time, "Time_Pierre_test_eps6_eta10.csv");
-    save_vectors_to_csv(compr, "Compr_Pierre_test_eps6_eta10.csv");
-    save_vectors_to_csv(error, "Error_Pierre_test_eps6_eta10.csv");
-
+    if (save == 1) {
+        save_vectors_to_csv(sizes, "Size_Pierre_big_eps3_eta10.csv");
+        save_vectors_to_csv(time, "Time_Pierre_big_eps3_eta10.csv");
+        save_vectors_to_csv(compr, "Compr_Pierre_big_eps3_eta10.csv");
+        save_vectors_to_csv(error, "Error_Pierre_big_eps3_eta10.csv");
+    }
     MPI_Finalize();
     return 0;
 }
