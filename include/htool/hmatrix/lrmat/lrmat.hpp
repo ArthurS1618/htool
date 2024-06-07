@@ -58,117 +58,65 @@ class LowRankMatrix {
     //////////////////////////
     /// je rajoute l'addition tronqué , ca renvoie U, V avec eventuellement V=0 si il y a pas d'approx de rang faible diponible
     ///////////////////
-    // est ce qu'il y a un moyen simple de concatener ?
-    // std::vector<Matrix<CoefficientPrecision>> formatted_addition(const Matrix<CoefficientPrecision> &U, const Matrix<CoefficientPrecision> &V, const VirtualLowRankGenerator<CoefficientPrecision, CoordinatesPrecision> &LRGenerator, const Cluster<CoordinatesPrecision> &t, const Cluster<CoordinatesPrecision> &s, const CoefficientPrecision &epsilon) {
-    //     Matrix<CoefficientPrecision> res_U, res_V;
-    //     std::vector<Matrix<CoefficientPrecision>> res;
-    //     /// onr egarde si ca vaut le coup de concatener
+    LowRankMatrix formatted_addition(const LowRankMatrix &R, const double &epsilon0, bool flag) {
+        int conc_nc  = this->rank_of() + R.rank_of();
+        int interest = (m_number_of_rows + m_number_of_columns) / 2.0;
+        if (conc_nc > interest) {
+            flag = false;
+            return *this;
+        } else {
+            auto U1 = this->Get_U();
+            auto V1 = this->Get_V();
+            auto U2 = R.Get_U();
+            auto V2 = R.Get_V();
 
-    //     int conc_nc = U.nb_cols() + this->rank_of();
-    //     if (conc_nc < (U.nb_rows() + V.nb_cols()) / 2) {
-    //         // on concatène
-    //         auto Uconc = conc_col(U, this->Get_U());
-    //         auto Vconc = conc_row_T(V, this->Get_V());
-    //         // QR sur U1, U2 et sur (V1, V2)^T ( nr doit être > nc donc on doit faire QR de la transposé pour Vconc )
-    //         auto QRu = QR_factorisation(U.nb_rows(), Uconc.nb_cols(), Uconc);
-    //         auto QRv = QR_factorisation(Vconc.nb_rows(), Vconc.nb_cols());
-    //         Matrix<CoefficientPrecision> RuRv(QRu[1].nb_rows(), QRv[1].nb_rows());
-    //         // Ru*Rv^T
-    //         Lapack<CoefficientPrecision>::gemm('N', 'T', RuRv.nb_rows(), RuRv.nb_cols(), 1.0, QRu[1].nb_cols(), QRu[1].data(), RuRv.nb_rows(), QRv[1].data(), RuRv.nb_cols(), 1.0, RuRv.data(), std::max(RuRv.nb_rows(), RuRv.nb_cols()));
-    //         Matrix<CoefficientPrecision> svdU(RuRv.nb_rows(), std::min(RuRv.nb_rows(), RuRv.nb_cols()));
-    //         Matrix<CoefficientPrecision> svdV(std::min(RuRv.nb_rows(), RuRv.nb_cols()), RuRv.nb_cols());
-    //         // svd sur RuRv
-    //         auto S    = compute_svd(RuRv, svdU, svdV);
-    //         int rep   = 0;
-    //         bool flag = true;
-    //         std::vector<CoefficientPrecision> Srestr;
-    //         // k premières plus grandes que epsilon
-    //         while (flag) {
-    //             for (int k = 0; k < S.size(); ++k) {
-    //                 Srestr.push_back(S[k]);
-    //                 if (S[k] < epsilon) {
-    //                     rep  = k;
-    //                     flag = false;
-    //                 }
-    //             }
-    //             flag = false;
-    //         }
-    //         // on regarde si on a trouvé un petit rang
-    //         if (rep < (U.nbrows() + V.nb_cols()) / 2) {
-    //             auto Urestr = svdU.trunc_col(rep + 1);
-    //             auto Vrestr = svdV.trunc_row(rep + 1);
-    //             Matrix<CoefficientPrecision> srestr(rep + 1, rep + 1);
-    //             for (int k = 0; k < rep + 1; ++k) {
-    //                 srestr(k, k) = Srestr[k];
-    //             }
-    //             Matrix<CoefficientPrecision> temp(Urestr.nb_cols(), rep + 1);
-    //             res_U.resize(QRu[0].nb_rows(), rep + 1);
-    //             Lapack<CoefficientPrecision>::gemm('N', 'N', Urestr.nb_rows(), rep + 1, rep + 1, 1.0, Urestr.data(), Urestr.nb_rows(), srestr.data(), rep + 1, 1.0, temp.data(), Urestr.nb_rows());
-    //             Lapack<CoefficientPrecision>::gemm('N', 'N', QRu[0].nb_rows(), rep + 1, Urestr.nb_rows(), 1.0, QRu[0].data(), std::max(QRu[0].nb_rows(), QRu[0].nb_cols()), temp.data(), Urestr.nb_rows(), 1.0, res_U.data(), res_U.nb_rows());
-    //             res_V.resize(Vrestr.nb_rows(), QRv[0].nb_rows());
-    //             Lapack<CoefficientPrecision>::gemm('N', 'T', Vrestr.nb_rows(), QRv[0].nb_rows(), Vrestr.nb_cols(), 1.0, Vrestr.data(), Vrestr.nb_cols(), QRv[0].data(), std::max(QRv[0].nb_rows(), QRv[0].nb_cols()), 1.0, res_V.data(), res_V.nb_cols());
-    //             res.push_back(res_U);
-    //             res.push_back(res_V);
-    //         } else {
-    //             // il y a pas de petit rang , c'est pas interresant de faire les restrictions, tout ca servait a rien on fait juste U1V1+U2V2
-    //             res_U.resize(U.nb_rows(), V.nb_cols());
-    //             Lapack<CoefficientPrecision>::gemm('N', 'N', U.nb_rows(), V.nb_cols(), U.nb_cols(), 1.0, U.data(), U.nb_rows(), V.data(), V.nb_cols(), 1.0, res_U.data(), std::max(U.nb_rows(), V.nb_cols()));
-    //             Lapack<CoefficientPrecision>::gemm('N', 'N', U.nb_rows(), V.nb_cols(), this->rank_of(), 1.0, this->Get_U().data(), U.nb_rows(), this->Get_V().data(), V.nb_cols(), 1.0, res_U.data(), std::max(U.nb_rows(), V.nb_cols()));
-    //             res.push_back(res_U);
-    //         }
-    //     } else {
-    //         // ca sert a rien de concaténer on fait + dense et on regarde si il y a quand même pas une approx
-    //         Matrix<CoefficientPrecision> temp(U.nb_rows(), V.nb_cols());
-    //         Lapack<CoefficientPrecision>::gemm('N', 'N', U.nb_rows(), V.nb_cols(), U.nb_cols(), 1.0, U.data(), U.nb_rows(), V.data(), V.nb_cols(), 0.0, temp.data(), std::max(temp.nb_rows(), temp.nb_cols()));
-    //         Lapack<CoefficientPrecision>::gemm('N', 'N', this->Get_U().nb_rows(), this->Get_V().nb_cols(), this->Get_U().nb_cols(), 1.0, this->Get_U().data(), U.nb_rows(), this->Get_V().data(), this->Get_V().nb_cols(), 1.0, temp.data(), std::max(temp.nb_rows(), temp.nb_cols()));
-    //         MatrixGenerator<CoefficientPrecision> gen(temp, 0, 0);
-    //         LowRankMatrix lr(gen, lr, t, s, -1, epsilon);
-    //         if (lr.Get_U().nb_cols() == 0) {
-    //             res.push_back(temp);
-    //         } else {
-    //             res.push_back(lr.Get_U());
-    //             res.push_back(lr.Get_V());
-    //         }
-    //     }
-    //     return res;
-    // }
-    // void actualise(const Matrix<CoefficientPrecision> &u, const Matrix<CoefficientPrecision> &v, VirtualLowRankGenerator<CoefficientPrecision, CoordinatesPrecision> &LRGenerator, const Cluster<CoordinatesPrecision> &t, const Cluster<CoordinatesPrecision> &s) {
-    //     if (u.nb_rows() == m_U.nb_rows() and v.nb_cols() == m_V.nb_cols()) {
+            auto Uconc = conc_col(U1, U2);
+            auto Vconc = conc_row_T(V1, V2);
+            auto QRu   = QR_factorisation(U1.nb_rows(), Uconc.nb_cols(), Uconc);
+            auto QRv   = QR_factorisation(Vconc.nb_rows(), Vconc.nb_cols(), Vconc);
+            Matrix<double> RuRv(QRu[0].nb_rows(), QRv[0].nb_cols());
+            int ldu      = QRu[1].nb_rows();
+            int ldv      = QRv[1].nb_cols();
+            int rk       = QRu[1].nb_cols();
+            double alpha = 1.0;
+            double beta  = 1.0;
+            int ldc      = std::max(ldu, ldv);
+            Blas<double>::gemm("N", "T", &ldu, &ldv, &rk, &alpha, QRu[1].data(), &ldu, QRv[1].data(), &ldv, &beta, RuRv.data(), &ldc);
+            Matrix<double> svdU(RuRv.nb_rows(), std::min(RuRv.nb_rows(), RuRv.nb_cols()));
+            Matrix<double> svdV(std::min(RuRv.nb_rows(), RuRv.nb_cols()), RuRv.nb_cols());
+            auto S        = compute_svd(RuRv, svdU, svdV);
+            double margin = S[0];
+            auto it       = std::find_if(S.begin(), S.end(), [epsilon0, margin](double s) {
+                return s < (epsilon0 * (1.0 + margin));
+            });
 
-    //         // Matrix<CoefficientPrecision> Uconc(u.nb_rows(), m_U.nb_cols() + u.nb_cols());
-    //         // Matrix<CoefficientPrecision> Vconc(m_V.nb_rows() + v.nb_rows(), v.nb_cols());
-    //         // // U= (U1, U2) , V= (V1, V2) ;
-    //         // for (int k = 0; k < u.nb_rows(); ++k) {
-    //         //     for (int l = 0; l < this->Get_U().nb_cols(); ++l) {
-    //         //         Uconc(k, l) = m_U(k, l);
-    //         //     }
-    //         //     for (int l = m_U.nb_cols(); l < m_U.nb_cols() + u.nb_cols(); ++l) {
-    //         //         Uconc(k, l) = u(k, l - m_U.nb_cols());
-    //         //     }
-    //         // }
-    //         // for (int l = 0; l < v.nb_cols(); ++l) {
-    //         //     for (int k = 0; k < m_V.nb_rows(); ++k) {
-    //         //         Vconc(k, l) = m_V(k, l);
-    //         //     }
-    //         //     for (int k = m_V.nb_rows(); k < m_V.nb_rows() + v.nb_rows(); ++k) {
-    //         //         Vconc(k, l) = v(k - m_V.nb_rows(), l);
-    //         //     }
-    //         // }
-    //         // LowRankMatrix temp(Uconc, Vconc);
-    //         /// la il faudrait une QRSVD
-    //         // en attendant ACA sur M+N
-    //         Matrix<CoefficientPrecision> mat(m_U.nb_rows(), m_V.nb_cols());
-    //         m_U.add_matrix_product('N', 1.0, m_V.data(), 1.0, mat.data(), m_V.nb_cols());
-    //         u.add_matrix_product('N', 1.0, v.data(), 1.0, mat.data(), v.nb_cols());
-    //         MatrixGenerator<CoefficientPrecision> gen(mat, 0, 0);
-    //         LowRankMatrix lr(gen, LRGenerator, t, s);
-    //         m_U    = lr.Get_U();
-    //         m_V    = lr.Get_V();
-    //         m_rank = lr.rank_of();
-    //     }
-    // }
+            int rep = std::distance(S.begin(), it);
+            if (rep < interest) {
+                Matrix<double> Urestr(svdU.nb_rows(), rep);
+                for (int l = 0; l < rep; ++l) {
+                    Urestr.set_col(l, svdU.get_col(l));
+                }
+                Matrix<double> Vrestr(rep, svdV.nb_cols());
+                for (int k = 0; k < rep; ++k) {
+                    Vrestr.set_row(k, svdV.get_row(k));
+                }
+                Matrix<double> srestr(rep, rep);
+                for (int k = 0; k < rep; ++k) {
+                    srestr(k, k) = S[k];
+                }
+                auto res_U = QRu[0] * Urestr * srestr;
+                auto res_V = Vrestr * Vrestr.transp(QRv[0]);
+                LowRankMatrix res(res_U, res_V);
+                return res;
+            } else {
+                flag = false;
+                return *this;
+            }
+        }
+    }
 
-    LowRankMatrix actualise(const Matrix<CoefficientPrecision> &u, const Matrix<CoefficientPrecision> &v, VirtualLowRankGenerator<CoefficientPrecision, CoordinatesPrecision> &LRGenerator, const Cluster<CoordinatesPrecision> &t, const Cluster<CoordinatesPrecision> &s) const {
+    LowRankMatrix
+    actualise(const Matrix<CoefficientPrecision> &u, const Matrix<CoefficientPrecision> &v, VirtualLowRankGenerator<CoefficientPrecision, CoordinatesPrecision> &LRGenerator, const Cluster<CoordinatesPrecision> &t, const Cluster<CoordinatesPrecision> &s) const {
         if (u.nb_rows() == this->m_U.nb_rows() and v.nb_cols() == this->m_V.nb_cols()) {
 
             // Matrix<CoefficientPrecision> Uconc(u.nb_rows(), m_U.nb_cols() + u.nb_cols());
@@ -246,8 +194,7 @@ class LowRankMatrix {
         }
     }
 
-    void
-    mvprod(const CoefficientPrecision *const in, CoefficientPrecision *const out) const {
+    void mvprod(const CoefficientPrecision *const in, CoefficientPrecision *const out) const {
         if (m_rank == 0) {
             std::fill(out, out + m_U.nb_cols(), 0);
         } else {
@@ -481,111 +428,6 @@ underlying_type<CoefficientPrecision> Frobenius_absolute_error(const Cluster<Coo
         }
     }
     return std::sqrt(err);
-}
-
-template <typename CoefficientPrecision>
-std::vector<Matrix<CoefficientPrecision>> formatted_addition(const Matrix<CoefficientPrecision> &U1, const Matrix<CoefficientPrecision> &V1, const Matrix<CoefficientPrecision> &U2, const Matrix<CoefficientPrecision> &V2, const double &epsilon, const int &offset_t, const int &offset_s) {
-    Matrix<CoefficientPrecision> res_U, res_V;
-    std::vector<Matrix<CoefficientPrecision>> res;
-    /// onr egarde si ca vaut le coup de concatener
-    double alpha = 1.0;
-    double beta  = 0.0;
-
-    int conc_nc = U1.nb_cols() + U2.nb_cols();
-    if (conc_nc < (U1.nb_rows() + V1.nb_cols()) / 2) {
-        // on concatène
-        auto Uconc = conc_col(U1, U2);
-        auto Vconc = conc_row_T(V1, V2);
-        // QR sur U1, U2 et sur (V1, V2)^T ( nr doit être > nc donc on doit faire QR de la transposé pour Vconc )
-        auto QRu = QR_factorisation(U1.nb_rows(), Uconc.nb_cols(), Uconc);
-        auto QRv = QR_factorisation(Vconc.nb_rows(), Vconc.nb_cols(), Vconc);
-        Matrix<CoefficientPrecision> RuRv(QRu[1].nb_rows(), QRv[1].nb_rows());
-        // Ru*Rv^T
-        int nr = QRu[1].nb_rows();
-        int nc = QRu[1].nb_cols();
-        int nl = RuRv.nb_cols();
-        RuRv   = QRu[1] * RuRv.transp(QRv[1]);
-        // Blas<CoefficientPrecision>::gemm("N", "T", &nr, &nl, &nc, &alpha, QRu[1].data(), &nr, QRv[1].data(), &nc, &alpha, RuRv.data(), &nl);
-        // std::cout << "erreur RURV^T" << normFrob(RuRv - QRu[1] * QRv[1].transp(QRv[1])) / normFrob(RuRv) << std::endl;
-        Matrix<CoefficientPrecision> svdU(RuRv.nb_rows(), std::min(RuRv.nb_rows(), RuRv.nb_cols()));
-        Matrix<CoefficientPrecision> svdV(std::min(RuRv.nb_rows(), RuRv.nb_cols()), RuRv.nb_cols());
-        // svd sur RuRv
-        // auto temppp = RuRv;
-        auto S    = compute_svd(RuRv, svdU, svdV);
-        int rep   = 0;
-        bool flag = true;
-        std::vector<CoefficientPrecision> Srestr;
-        // k premières plus grandes que epsilon
-        while (flag) {
-            for (int k = 0; k < S.size(); ++k) {
-                Srestr.push_back(S[k]);
-                if (S[k] < epsilon) {
-                    rep  = k;
-                    flag = false;
-                }
-            }
-            // rep += 1;
-            // std::cout << "onr s'est arreté sur " << S[rep] << "  , aprés : " << S[rep + 1] << std::endl;
-            flag = false;
-        }
-        // Matrix<CoefficientPrecision> SS(S.size(), S.size());
-        // for (int k = 0; k < S.size(); ++k) {
-        //     SS(k, k) = S[k];
-        // }
-        // std::cout << "erreur SVD " << normFrob(svdU * SS * svdV - temppp) / normFrob(temppp) << std::endl;
-        // on regarde si on a trouvé un petit rang
-        if (rep < (U1.nb_rows() + V1.nb_cols()) / 2) {
-            auto Urestr = svdU.trunc_col(rep + 1);
-            auto Vrestr = svdV.trunc_row(rep + 1);
-            Matrix<CoefficientPrecision> srestr(rep + 1, rep + 1);
-            for (int k = 0; k < rep + 1; ++k) {
-                srestr(k, k) = Srestr[k];
-            }
-            // std::cout << "erreur svd tronqué : " << normFrob(Urestr * srestr * Vrestr - temppp) / normFrob(temppp) << std::endl;
-            Matrix<CoefficientPrecision> temp(Urestr.nb_cols(), rep + 1);
-            res_U.resize(QRu[0].nb_rows(), rep + 1);
-            Urestr.add_matrix_product('N', alpha, srestr.data(), beta, temp.data(), rep + 1);
-            QRu[0].add_matrix_product('N', alpha, temp.data(), beta, res_U.data(), rep + 1);
-            // Blas<CoefficientPrecision>::gemm('N', 'N', Urestr.nb_rows(), rep + 1, rep + 1, 1.0, Urestr.data(), Urestr.nb_rows(), srestr.data(), rep + 1, 1.0, temp.data(), Urestr.nb_rows());
-            // Blas<CoefficientPrecision>::gemm('N', 'N', QRu[0].nb_rows(), rep + 1, Urestr.nb_rows(), 1.0, QRu[0].data(), std::max(QRu[0].nb_rows(), QRu[0].nb_cols()), temp.data(), Urestr.nb_rows(), 1.0, res_U.data(), res_U.nb_rows());
-            res_V.resize(Vrestr.nb_rows(), QRv[0].nb_rows());
-            int nr    = Vrestr.nb_rows();
-            int nc    = Vrestr.nb_cols();
-            int nl    = QRv[0].nb_rows();
-            auto test = Vrestr * QRv[0].transp(QRv[0]);
-
-            // Blas<CoefficientPrecision>::gemm("N", "T", &nr, &nl, &nc, &alpha, Vrestr.data(), &nr, QRv[0].data(), &nl, &alpha, res_V.data(), &nr);
-            // std::cout << " erreur VQ^T = " << normFrob(test - res_V) << std::endl;
-            // std::cout << " 0   on push U et V de norme : " << normFrob(res_U) << ',' << normFrob(res_V) << std::endl;
-            res.push_back(res_U);
-            res.push_back(test);
-        } else {
-            // il y a pas de petit rang , c'est pas interresant de faire les restrictions, tout ca servait a rien on fait juste U1V1+U2V2
-            res_U.resize(U1.nb_rows(), V1.nb_cols());
-            U1.add_matrix_product('N', alpha, V1.data(), alpha, res_U.data(), V1.nb_cols());
-            U2.add_matrix_product('N', alpha, V2.data(), alpha, res_U.data(), V2.nb_cols());
-            // Blas<CoefficientPrecision>::gemm('N', 'N', U1.nb_rows(), V1.nb_cols(), U1.nb_cols(), 1.0, U1.data(), U1.nb_rows(), V1.data(), V1.nb_cols(), 1.0, res_U.data(), std::max(U1.nb_rows(), V1.nb_cols()));
-            // Blas<CoefficientPrecision>::gemm('N', 'N', U2.nb_rows(), V2.nb_cols(), U2.nb_cols(), 1.0, U2.data(), U2.nb_rows(), V2.data(), V2.nb_cols(), 1.0, res_U.data(), std::max(U2.nb_rows(), V2.nb_cols()));
-            res.push_back(res_U);
-        }
-    } else {
-        // ca sert a rien de concaténer on fait + dense et on regarde si il y a quand même pas une approx
-        Matrix<CoefficientPrecision> temp(U1.nb_rows(), V1.nb_cols());
-        U1.add_matrix_product('N', alpha, V1.data(), alpha, temp.data(), V1.nb_cols());
-        U2.add_matrix_product('N', alpha, V2.data(), alpha, temp.data(), V2.nb_cols());
-        // Lapack<CoefficientPrecision>::gemm('N', 'N', U1.nb_rows(), V1.nb_cols(), U1.nb_cols(), 1.0, U1.data(), U1.nb_rows(), V1.data(), V1.nb_cols(), 1.0, temp.data(), std::max(temp.nb_rows(), temp.nb_cols()));
-        // Lapack<CoefficientPrecision>::gemm('N', 'N', U2.nb_rows(), V2.nb_cols(), U2.nb_cols(), 1.0, U2.data(), U2.nb_rows(), V2.data(), V2.nb_cols(), 1.0, temp.data(), std::max(temp.nb_rows(), temp.nb_cols()));
-        Matrix<CoefficientPrecision> uu, vv;
-        ACA(temp, offset_t, offset_s, epsilon, -1, uu, vv);
-        if (uu.nb_cols() == 0) {
-            res.push_back(temp);
-        } else {
-            // std::cout << "  1     on push U et V de norme : " << normFrob(uu) << ',' << normFrob(vv) << std::endl;
-            res.push_back(uu);
-            res.push_back(vv);
-        }
-    }
-    return res;
 }
 
 template <typename CoefficientPrecision>

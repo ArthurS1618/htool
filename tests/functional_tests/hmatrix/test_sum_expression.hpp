@@ -38,59 +38,55 @@ std::vector<Matrix<double>> truncation(const Matrix<double> &U1, const Matrix<do
     if (conc_nc > interest) {
         return res;
     } else {
-        // auto Uconc = conc_col(U1, U2);
-        Matrix<double> Uconc(U1.nb_rows(), U1.nb_cols() + U2.nb_cols());
-        for (int l = 0; l < U1.nb_cols(); ++l) {
-            Uconc.set_col(l, U1.get_col(l));
-        }
-        for (int l = U1.nb_cols(); l < U1.nb_cols() + U2.nb_cols(); ++l) {
-            Uconc.set_col(l, U2.get_col(l - U1.nb_cols()));
-        }
+        auto Uconc = conc_col(U1, U2);
         auto Vconc = conc_row_T(V1, V2);
-        // Matrix<double> Vconc(V1.nb_cols(), V1.nb_rows() + V2.nb_rows());
-        // for (int l = 0; l < V1.nb_rows(); ++l) {
-        //     Vconc.set_col(l, V1.get_row(l));
-        // }
-        // for (int l = V1.nb_rows(); l < V1.nb_rows() + V2.nb_rows(); ++l) {
-        //     Vconc.set_col(l, V2.get_row(l - V1.nb_cols()));
-        // }
-        // QR sur U1, U2 et sur (V1, V2)^T ( nr doit être > nc donc on doit faire QR de la transposé pour Vconc )
-        auto QRu = QR_factorisation(U1.nb_rows(), Uconc.nb_cols(), Uconc);
-        auto QRv = QR_factorisation(Vconc.nb_rows(), Vconc.nb_cols(), Vconc);
-        // Matrix<double> RuRv(QRu[1].nb_rows(), QRv[1].nb_rows());
-        // Ru*Rv^T
-        std::cout << "erreur QR U" << normFrob(QRu[0] * QRu[1] - Uconc) / normFrob(Uconc) << std::endl;
-        std::cout << "erreur QR V" << normFrob(QRv[0] * QRv[1] - Vconc) / normFrob(Vconc) << std::endl;
-
-        auto RuRv = QRu[1] * V1.transp(QRv[1]);
-        auto tt   = RuRv;
+        auto QRu   = QR_factorisation(U1.nb_rows(), Uconc.nb_cols(), Uconc);
+        auto QRv   = QR_factorisation(Vconc.nb_rows(), Vconc.nb_cols(), Vconc);
+        Matrix<double> RuRv(QRu[0].nb_rows(), QRv[0].nb_cols());
+        int ldu      = QRu[1].nb_rows();
+        int ldv      = QRv[1].nb_cols();
+        int rk       = QRu[1].nb_cols();
+        double alpha = 1.0;
+        double beta  = 1.0;
+        int ldc      = std::max(ldu, ldv);
+        Blas<double>::gemm("N", "T", &ldu, &ldv, &rk, &alpha, QRu[1].data(), &ldu, QRv[1].data(), &ldv, &beta, RuRv.data(), &ldc);
         Matrix<double> svdU(RuRv.nb_rows(), std::min(RuRv.nb_rows(), RuRv.nb_cols()));
         Matrix<double> svdV(std::min(RuRv.nb_rows(), RuRv.nb_cols()), RuRv.nb_cols());
-        // svd sur RuRv^T
-        auto S = compute_svd(RuRv, svdU, svdV);
-        auto s = S[0];
-        Matrix<double> ss(RuRv.nb_rows(), RuRv.nb_cols());
-        for (int k = 0; k < RuRv.nb_rows(); ++k) {
-            ss(k, k) = S[k];
-        }
-        std::cout << "erreur SVD " << normFrob(svdU * ss * svdV - tt) / normFrob(tt) << std::endl;
-        int rep = 0;
-        while (s > epsilon && rep < S.size()) {
-            rep += 1;
-            s = S[rep];
-        }
-        rep = rep - 1;
-        // std::cout << " rep et interest :" << rep << ',' << interest << " s= " << s << ',' << S[rep - 1] << std::endl;
+        auto S        = compute_svd(RuRv, svdU, svdV);
+        double margin = S[0];
+        auto it       = std::find_if(S.begin(), S.end(), [epsilon, margin](double s) {
+            return s < (epsilon * (1.0 + margin));
+        });
+
+        int rep = std::distance(S.begin(), it);
         if (rep < interest) {
-            int nr      = U1.nb_rows();
-            int nc      = V1.nb_cols();
-            auto Urestr = svdU.trunc_col(rep);
-            auto Vrestr = svdV.trunc_row(rep);
+            Matrix<double> Urestr(svdU.nb_rows(), rep);
+            for (int l = 0; l < rep; ++l) {
+                Urestr.set_col(l, svdU.get_col(l));
+            }
+            Matrix<double> Vrestr(rep, svdV.nb_cols());
+            for (int k = 0; k < rep; ++k) {
+                Vrestr.set_row(k, svdV.get_row(k));
+            }
             Matrix<double> srestr(rep, rep);
             for (int k = 0; k < rep; ++k) {
                 srestr(k, k) = S[k];
             }
+            // int ldq = QRu[0].nb_rows();
+            // int dd  = QRu[0].nb_cols();
+            // rk      = Urestr.nb_cols();
+            // Matrix<double> temp(ldq, rk);
+            // Blas<double>::gemm("N", "N", &ldq, &rk, &dd, &alpha, QRu[0].data(), &ldq, Urestr.data(), &ldq, &beta, temp.data(), &ldq);
+            // int ldq = QRu[0].nb_rows();
+            // int dd  = QRu[0].nb_cols();
+            // rk      = Urestr.nb_cols();
+
+            // Matrix<double> temp(ldq, rk); // Matrice résultante 100x30
+
+            // Blas<double>::gemm("N", "N", &ldq, &rk, &dd, &alpha, QRu[0].data(), &ldq, Urestr.data(), &ldq, &beta, temp.data(), &ldq);
             auto res_U = QRu[0] * Urestr * srestr;
+            // auto res_U = temp * srestr;
+
             auto res_V = Vrestr * Vrestr.transp(QRv[0]);
             res.push_back(res_U);
             res.push_back(res_V);
@@ -114,7 +110,7 @@ int test_sum_expression(int size, int rank, htool::underlying_type<T> epsilon) {
     // }
     Matrix<double> smart(rank, rank);
     for (int k = 0; k < rank; ++k) {
-        smart(k, k) = 1.0 / (rank * rank * 1.0);
+        smart(k, k) = 1.0 / std::pow(2.718, k);
     }
     A1       = A1 * smart;
     A2       = A2 * smart;
@@ -131,6 +127,40 @@ int test_sum_expression(int size, int rank, htool::underlying_type<T> epsilon) {
         double error = normFrob(ref - res[0] * res[1]) / normFrob(ref);
         std::cout << "error : " << error << " avec epsilon = " << epsilon << std::endl;
         std::cout << "rank : " << res[0].nb_cols() << " au lieu de " << 2 * rank << std::endl;
+
+        std ::cout << "_________________________________" << std::endl;
+        std ::cout << "_________________________________" << std::endl;
+
+        std ::cout << "_________________________________" << std::endl;
+        LowRankMatrix<double, double> LR1(A1, B1);
+        LowRankMatrix<double, double> LR2(A2, B2);
+        bool flag    = false;
+        auto test_lr = LR1.formatted_addition(LR2, 1e-6, flag);
+        std::cout << normFrob(ref - (test_lr.Get_U() * test_lr.Get_V())) / normFrob(ref) << std::endl;
+
+        std ::cout << "_________________________________" << std::endl;
+        std ::cout << "_________________________________" << std::endl;
+
+        std ::cout << "_________________________________" << std::endl;
+
+        std::cout << "________________TEST SUMEXPRESSION_______________" << std::endl;
+        std::cout << std::endl;
+        std::vector<double> p1(3 * size);
+        create_disk(3, 0.0, size, p1.data());
+        ClusterTreeBuilder<double, ComputeLargestExtent<double>, RegularSplitting<double>> recursive_build_strategy_1(size, 3, p1.data(), 2, 2);
+        std::shared_ptr<Cluster<double>> root_cluster_1 = std::make_shared<Cluster<double>>(recursive_build_strategy_1.create_cluster_tree());
+        GeneratorTestDoubleSymmetric generator(3, size, size, p1, p1, root_cluster_1, root_cluster_1);
+        Matrix<double> reference_num_htool(size, size);
+        generator.copy_submatrix(size, size, 0, 0, reference_num_htool.data());
+        HMatrixTreeBuilder<double, double> hmatrix_tree_builder(root_cluster_1, root_cluster_1, epsilon, 10, 'N', 'N');
+
+        // build
+        auto root_hmatrix = hmatrix_tree_builder.build(generator);
+        Matrix<double> ref(size, size);
+        copy_to_dense(root_hmatrix, ref.data());
+        auto comprr = root_hmatrix.get_compression();
+        std::cout << "hmatrix compression : " << comprr << std::endl;
+        SumExpression_fast<double, double> sum_expr(&root_hmatrix, &root_hmatrix);
     }
     return 0;
 }

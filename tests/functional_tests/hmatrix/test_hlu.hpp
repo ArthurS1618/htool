@@ -126,7 +126,7 @@ std::vector<T> test_hlu(int size, htool::underlying_type<T> epsilon, htool::unde
     auto duration_asmbl   = std::chrono::duration_cast<std::chrono::duration<double>>(end_time_asmbl - start_time_asmbl).count();
     Matrix<double> ref(size, size);
     copy_to_dense(root_hmatrix, ref.data());
-    // auto comprr = root_hmatrix.get_compression();
+    auto comprr = root_hmatrix.get_compression();
 
     // auto er_b = normFrob(reference_num_htool - ref) / normFrob(reference_num_htool);
     // // std::cout << "assemblage ok, compression:" << root_hmatrix.get_compression() << "  , time ;  " << duration_asmbl << std::endl;
@@ -353,6 +353,7 @@ std::vector<T> test_hlu(int size, htool::underlying_type<T> epsilon, htool::unde
     // cpt21 = 1.000 - cpt11;
     // // double compression = L0.get_compression() + U0.get_compression();
     // double cc = cpt2 + cpt21;
+    std::cout << "compression de A " << comprr << std::endl;
     std::cout << "____________________________________________" << std::endl;
     std::cout << " Size : -------------------------------> " << size << std::endl;
     std::cout << " Time : -------------------------------> " << duration_lu0 << std::endl;
