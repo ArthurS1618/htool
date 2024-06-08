@@ -2428,7 +2428,7 @@ class SumExpression_fast : public VirtualGenerator<CoefficientPrecision> {
 
     // one to rule theim all
     std::vector<Matrix<CoefficientPrecision>> Sr;
-    std::vector<const HMatrixType *> Sh; //// sum (HK)
+    std::vector<HMatrixType *> Sh; //// sum (HK)
     int target_size;
     int target_offset;
     int source_size;
@@ -2440,7 +2440,7 @@ class SumExpression_fast : public VirtualGenerator<CoefficientPrecision> {
     }
     // SumExpression_fast() {
     // }
-    SumExpression_fast(const HMatrixType *A, const HMatrixType *B) {
+    SumExpression_fast(HMatrixType *A, HMatrixType *B) {
         Sh.push_back(A);
         Sh.push_back(B);
         target_size   = A->get_target_cluster().get_size();
@@ -2460,7 +2460,7 @@ class SumExpression_fast : public VirtualGenerator<CoefficientPrecision> {
     ////////////////////////////
     //// Getter
     const std::vector<Matrix<CoefficientPrecision>> get_sr() const { return Sr; }
-    const std::vector<const HMatrixType *> get_sh() const { return Sh; }
+    const std::vector<HMatrixType *> get_sh() const { return Sh; }
     int get_nr() const { return target_size; }
     int get_nc() const { return source_size; }
     int get_target_offset() const { return target_offset; }
@@ -2471,58 +2471,117 @@ class SumExpression_fast : public VirtualGenerator<CoefficientPrecision> {
     /////////////////////////
     //// Setter
 
-    void set_sr(const std::vector<Matrix<CoefficientPrecision>> &sr) {
-        Sr = sr;
+    void set_sr(std::vector<Matrix<CoefficientPrecision>> &sr, const int &target_0, const int &source_0) {
+        Sr            = sr;
+        target_offset = target_0;
+        source_offset = source_0;
+        target_size   = sr[0].nb_rows();
+        source_size   = sr[1].nb_cols();
     }
-    void add_HK(const HMatrixType *H, const HMatrixType *K) {
+    void add_HK(HMatrixType *H, HMatrixType *K) {
         Sh.push_back(H);
         Sh.push_back(K);
     }
-
+    void set_sh(std::vector<HMatrixType *> &sh0) { Sh = sh0; }
+    void set_size(const Cluster<CoordinatePrecision> &t, const Cluster<CoordinatePrecision> &s) {
+        target_offset = t.get_offset();
+        source_offset = s.get_offset();
+        target_size   = t.get_size();
+        source_size   = s.get_size();
+    }
     /////////////////////////////////////////////////////////////////////////
     /// PRODUCT SUMEXPR vect
     ////////////////////////////////////////////////////////////
     std::vector<CoefficientPrecision> prod(const char T, const std::vector<CoefficientPrecision> &x) const {
-        if (T == 'N') {
-            std::vector<CoefficientPrecision> y(target_size, 0.0);
-            if (Sr.size() > 0) {
-                auto u = Sr[0];
-                auto v = Sr[1];
-                std::vector<CoefficientPrecision> ytemp(v.nb_rows(), 0.0);
-                v.add_vector_product('N', 1.0, x.data(), 0.0, ytemp.data());
-                u.add_vector_product('N', 1.0, ytemp.data(), 1.0, y.data());
+        if (Sr.size() < 3) {
+            if (T == 'N') {
+                std::vector<CoefficientPrecision> y(target_size, 0.0);
+                if (Sr.size() > 0) {
+                    auto u = Sr[0];
+                    auto v = Sr[1];
+                    std::vector<CoefficientPrecision> ytemp(v.nb_rows(), 0.0);
+                    v.add_vector_product('N', 1.0, x.data(), 0.0, ytemp.data());
+                    u.add_vector_product('N', 1.0, ytemp.data(), 1.0, y.data());
+                }
+
+                for (int k = 0; k < Sh.size() / 2; ++k) {
+                    auto H = Sh[2 * k];
+                    auto K = Sh[2 * k + 1];
+                    std::vector<CoefficientPrecision> y_temp(K->get_target_cluster().get_size(), 0.0);
+                    K->add_vector_product('N', 1.0, x.data(), 0.0, y_temp.data());
+                    H->add_vector_product('N', 1.0, y_temp.data(), 1.0, y.data());
+                }
+                return (y);
             }
 
-            for (int k = 0; k < Sh.size() / 2; ++k) {
-                auto H = Sh[2 * k];
-                auto K = Sh[2 * k + 1];
-                std::vector<CoefficientPrecision> y_temp(K->get_target_cluster().get_size(), 0.0);
-                K->add_vector_product('N', 1.0, x.data(), 0.0, y_temp.data());
-                H->add_vector_product('N', 1.0, y_temp.data(), 1.0, y.data());
-            }
-            return (y);
-        }
+            else {
+                std::vector<CoefficientPrecision> y(source_size, 0.0);
+                if (Sr.size() > 0) {
+                    auto u = Sr[0];
+                    auto v = Sr[1];
+                    std::vector<CoefficientPrecision> ytemp(u.nb_rows(), 0.0);
+                    u.add_vector_product('T', 1.0, x.data(), 0.0, ytemp.data());
+                    v.add_vector_product('T', 1.0, ytemp.data(), 1.0, y.data());
+                }
 
-        else {
-            std::vector<CoefficientPrecision> y(source_size, 0.0);
-            if (Sr.size() > 0) {
-                auto u = Sr[0];
-                auto v = Sr[1];
-                std::vector<CoefficientPrecision> ytemp(u.nb_rows(), 0.0);
-                u.add_vector_product('T', 1.0, x.data(), 0.0, ytemp.data());
-                v.add_vector_product('T', 1.0, ytemp.data(), 1.0, y.data());
+                // y = y +(x* urestr) * vrestrx;
+
+                for (int k = 0; k < Sh.size() / 2; ++k) {
+                    auto H = Sh[2 * k];
+                    auto K = Sh[2 * k + 1];
+                    std::vector<CoefficientPrecision> y_temp(H->get_source_cluster().get_size(), 0.0);
+                    H->add_vector_product('T', 1.0, x.data(), 1.0, y_temp.data());
+                    K->add_vector_product('T', 1.0, y_temp.data(), 1.0, y.data());
+                }
+                return (y);
+            }
+        } else {
+            if (T == 'N') {
+                std::vector<CoefficientPrecision> y(target_size, 0.0);
+                if (Sr.size() > 0) {
+                    for (int k = 0; k < Sr.size() / 2; ++k) {
+                        auto u = Sr[2 * k];
+                        auto v = Sr[2 * k + 1];
+                        std::vector<CoefficientPrecision> ytemp(v.nb_rows(), 0.0);
+                        v.add_vector_product('N', 1.0, x.data(), 0.0, ytemp.data());
+                        u.add_vector_product('N', 1.0, ytemp.data(), 1.0, y.data());
+                    }
+                }
+
+                for (int k = 0; k < Sh.size() / 2; ++k) {
+                    auto H = Sh[2 * k];
+                    auto K = Sh[2 * k + 1];
+                    std::vector<CoefficientPrecision> y_temp(K->get_target_cluster().get_size(), 0.0);
+                    K->add_vector_product('N', 1.0, x.data(), 0.0, y_temp.data());
+                    H->add_vector_product('N', 1.0, y_temp.data(), 1.0, y.data());
+                }
+                return (y);
             }
 
-            // y = y +(x* urestr) * vrestrx;
+            else {
+                std::vector<CoefficientPrecision> y(source_size, 0.0);
+                if (Sr.size() > 0) {
+                    for (int k = 0; k < Sr.size() / 2; ++k) {
 
-            for (int k = 0; k < Sh.size() / 2; ++k) {
-                auto H = Sh[2 * k];
-                auto K = Sh[2 * k + 1];
-                std::vector<CoefficientPrecision> y_temp(H->get_source_cluster().get_size(), 0.0);
-                H->add_vector_product('T', 1.0, x.data(), 1.0, y_temp.data());
-                K->add_vector_product('T', 1.0, y_temp.data(), 1.0, y.data());
+                        auto u = Sr[2 * k];
+                        auto v = Sr[2 * k + 1];
+                        std::vector<CoefficientPrecision> ytemp(u.nb_rows(), 0.0);
+                        u.add_vector_product('T', 1.0, x.data(), 0.0, ytemp.data());
+                        v.add_vector_product('T', 1.0, ytemp.data(), 1.0, y.data());
+                    }
+                }
+
+                // y = y +(x* urestr) * vrestrx;
+
+                for (int k = 0; k < Sh.size() / 2; ++k) {
+                    auto H = Sh[2 * k];
+                    auto K = Sh[2 * k + 1];
+                    std::vector<CoefficientPrecision> y_temp(H->get_source_cluster().get_size(), 0.0);
+                    H->add_vector_product('T', 1.0, x.data(), 1.0, y_temp.data());
+                    K->add_vector_product('T', 1.0, y_temp.data(), 1.0, y.data());
+                }
+                return (y);
             }
-            return (y);
         }
     }
 
@@ -2531,13 +2590,13 @@ class SumExpression_fast : public VirtualGenerator<CoefficientPrecision> {
     std::vector<CoefficientPrecision> get_col(const int &l) const {
         std::vector<double> e_l(source_size);
         e_l[l]   = 1.0;
-        auto col = this->new_prod('N', e_l);
+        auto col = this->prod('N', e_l);
         return col;
     }
     std::vector<CoefficientPrecision> get_row(const int &k) const {
         std::vector<double> e_k(target_size);
         e_k[k]   = 1.0;
-        auto row = this->new_prod('T', e_k);
+        auto row = this->prod('T', e_k);
         return row;
     }
     //////////////////////////////////////////
@@ -2568,6 +2627,7 @@ class SumExpression_fast : public VirtualGenerator<CoefficientPrecision> {
 
         else {
             if ((M + N) > (target_size + source_size) / 2) {
+                std::cout << "!!!!!" << std::endl;
                 for (int k = 0; k < Sh.size() / 2; ++k) {
                     auto &H = Sh[2 * k];
                     auto &K = Sh[2 * k + 1];
@@ -2587,10 +2647,10 @@ class SumExpression_fast : public VirtualGenerator<CoefficientPrecision> {
                     Matrix<CoefficientPrecision> U_restr(target_size, U.nb_cols());
                     Matrix<CoefficientPrecision> V_restr(V.nb_rows(), source_size);
                     for (int i = 0; i < target_size; ++i) {
-                        U_restr.set_row(i, U.get_row(i + target_offset - offset[2 * k]));
+                        U_restr.set_row(i, U.get_row(i + target_offset));
                     }
                     for (int j = 0; j < source_size; ++j) {
-                        V_restr.set_col(j, V.get_col(j + source_offset - offset[2 * k + 1]));
+                        V_restr.set_col(j, V.get_col(j + source_offset));
                     }
                     U_restr.add_matrix_product('N', 1.0, V_restr.data(), 1.0, mat.data(), N);
                 }
@@ -2607,47 +2667,261 @@ class SumExpression_fast : public VirtualGenerator<CoefficientPrecision> {
 
     // do Sr = Sr +AB with QR svd
     // U1V1^T+U2V2^T = (U1, U2)(V1,V2)^T = (Q1R1)(Q2R2)T =
-    void
-    actualise(const LRtype &LR0, const CoefficientPrecision &epsilon) {
+    void actualise(const LRtype &LR0, const CoefficientPrecision &epsilon) {
         auto Sr_new = Sr.formatted_addition(LR0, epsilon);
         this->set_sr(Sr_new);
     }
 
     SumExpression_fast restrict(const Cluster<CoordinatePrecision> &t, const Cluster<CoordinatePrecision> &s) {
-        std::vector<Matrix<CoefficientPrecision>> sr_0 = this->get_sr();
-        std::vector<HMatrixType> sh_0;
+        std::vector<Matrix<CoefficientPrecision>> sr_0;
+
+        if (Sr.size() > 0) {
+            // On restreint U et V
+            Matrix<CoefficientPrecision> U = Sr[0];
+            Matrix<CoefficientPrecision> V = Sr[1];
+            Matrix<CoefficientPrecision> Urestr(t.get_size(), U.nb_cols());
+            Matrix<CoefficientPrecision> Vrestr(V.nb_rows(), s.get_size());
+            for (int k = 0; k < t.get_size(); ++k) {
+                Urestr.set_row(k, U.get_col(k + t.get_offset() - target_offset));
+            }
+            for (int l = 0; l < s.get_size(); ++l) {
+                Vrestr.set_col(l, V.get_col(l + s.get_offset() - source_offset));
+            }
+            sr_0.push_back(Urestr);
+            sr_0.push_back(Vrestr);
+        }
+        std::vector<HMatrixType *> sh_0;
         SumExpression_fast res;
+        // std::cout << "?? " << std::endl;
         for (int k = 0; k < Sh.size() / 2; ++k) {
             auto &H = Sh[2 * k];
             auto &K = Sh[2 * k + 1];
 
             for (auto &rho_child : H->get_source_cluster().get_children()) {
-                bool test_target = H->get_admissibility_condition()->ComputeAdmissibility(t, *rho_child);
-                bool test_source = H->get_admissibility_condition()->ComputeAdmissibility(*rho_child, s);
-                auto H_child     = H->get_block(t.get_size(), rho_child->get_size(), t.get_offset(), rho_child->get_offset());
-                auto K_child     = K->get_block(rho_child->get_size(), s.get_size(), rho_child->get_offset(), s.get_offset());
+                // bool test_target = H->get_admissibility_condition()->ComputeAdmissibility(t, *rho_child, H->get_eta());
+
+                bool test_target = H->test_admissible(t, *rho_child);
+
+                // bool test_source = H->get_admissibility_condition()->ComputeAdmissibility(*rho_child, s, H->get_eta());
+                bool test_source = H->test_admissible(*rho_child, s);
+
+                auto H_child = H->get_block(t.get_size(), rho_child->get_size(), t.get_offset(), rho_child->get_offset());
+                auto K_child = K->get_block(rho_child->get_size(), s.get_size(), rho_child->get_offset(), s.get_offset());
+                // std::cout << "             ici0   " << std::endl;
+
                 if (test_target || test_source) {
+                    // Compute low-rank matrix UV =  LR(HK) ;
+                    // std::cout << "             ici1   " << std::endl;
                     SumExpression_fast temp(H_child, K_child);
-                    LRtype lr_new(temp, H_child->get_low_rank_generator(), t, *rho_child, -1, H_child->get_epsilon());
-                    if (Sr.size() == 0) {
-                        std::vector<Matrix<CoefficientPrecision>> tempp(2);
-                        tempp[0] = lr_new.Get_U();
-                        tempp[1] = lr_new.Get_V();
-                        sr_0     = tempp;
+                    LRtype lr_new(temp, *H_child->get_low_rank_generator(), t, s, -1, H_child->get_epsilon());
+                    // std::cout << " lr0 ok" << std::endl;
+                    if (lr_new.Get_U().nb_cols() > 0) {
+                        if (sr_0.size() == 0) {
+                            std::vector<Matrix<CoefficientPrecision>> temp(2);
+                            temp[0] = lr_new.Get_U();
+                            temp[1] = lr_new.Get_V();
+                            sr_0    = temp;
+
+                        } else {
+                            bool flag = true;
+                            LRtype srr(sr_0[0], sr_0[1]);
+
+                            auto lr_update = srr.formatted_addition(lr_new, H_child->get_epsilon(), flag);
+
+                            if (flag == 1) {
+                                // QRsvd a marché
+                                std::vector<Matrix<CoefficientPrecision>> temp(2);
+                                temp[0] = lr_update.Get_U();
+                                temp[1] = lr_update.Get_V();
+                                sr_0    = temp;
+                                std::cout << " erreur formated addition 0 :" << normFrob(temp[0] * temp[1] - (sr_0[0] * sr_0[1] + lr_new.Get_U() * lr_new.Get_V())) / normFrob(sr_0[0] * sr_0[1] + lr_new.Get_U() * lr_new.Get_V()) << std::endl;
+                            } else {
+                                SumExpression_fast s_intermediaire;
+                                std::vector<Matrix<CoefficientPrecision>> data_lr(4);
+                                data_lr[0] = sr_0[0];
+                                data_lr[1] = sr_0[1];
+                                data_lr[2] = lr_new.Get_U();
+                                data_lr[3] = lr_new.Get_V();
+                                s_intermediaire.set_sr(data_lr, t.get_offset(), s.get_offset());
+                                LRtype lr_bourrin(s_intermediaire, *H_child->get_low_rank_generator(), t, s, -1, H_child->get_epsilon());
+                                if (lr_bourrin.Get_U().nb_cols() > 0) {
+                                    std::vector<Matrix<CoefficientPrecision>> temp(2);
+                                    temp[0] = lr_bourrin.Get_U();
+                                    temp[1] = lr_bourrin.Get_V();
+                                    std::cout << " erreur formated addition 1:" << normFrob(temp[0] * temp[1] - (sr_0[0] * sr_0[1] + lr_new.Get_U() * lr_new.Get_V())) / normFrob((sr_0[0] * sr_0[1] + lr_new.Get_U() * lr_new.Get_V())) << std::endl;
+
+                                    sr_0 = temp;
+                                } else {
+                                    sh_0.push_back(H_child);
+                                    sh_0.push_back(K_child);
+                                }
+                            }
+                        }
                     } else {
-                        bool flag = false;
-                        LRtype srr(Sr[0], Sr[1]);
-                        auto lr_update = srr.formatted_addition(lr_new, H_child->get_epsilon(), flag);
-                        std::vector<Matrix<CoefficientPrecision>> tempp(2);
-                        tempp[0] = lr_update.Get_U();
-                        tempp[1] = lr_update.Get_V();
-                        res.set_sr(tempp);
+                        sh_0.push_back(H_child);
+                        sh_0.push_back(K_child);
                     }
                 } else {
-                    res.add_HK(H_child, K_child);
+                    sh_0.push_back(H_child);
+                    sh_0.push_back(K_child);
                 }
             }
         }
+        if (sr_0.size() > 0) {
+            int oft = t.get_offset();
+            int ofs = s.get_offset();
+            res.set_sr(sr_0, oft, ofs);
+        }
+        if (sh_0.size() > 0) {
+            res.set_sh(sh_0);
+        }
+        return res;
+    }
+
+    SumExpression_fast restrict_ACA(const Cluster<CoordinatePrecision> &t, const Cluster<CoordinatePrecision> &s) const {
+        std::vector<Matrix<CoefficientPrecision>> sr_0;
+
+        if (Sr.size() > 0) {
+            // On restreint U et V
+            Matrix<CoefficientPrecision> U = Sr[0];
+            Matrix<CoefficientPrecision> V = Sr[1];
+            Matrix<CoefficientPrecision> Urestr(t.get_size(), U.nb_cols());
+            Matrix<CoefficientPrecision> Vrestr(V.nb_rows(), s.get_size());
+            for (int k = 0; k < t.get_size(); ++k) {
+                Urestr.set_row(k, U.get_row(k + t.get_offset() - target_offset));
+            }
+            for (int l = 0; l < s.get_size(); ++l) {
+                Vrestr.set_col(l, V.get_col(l + s.get_offset() - source_offset));
+            }
+            std::vector<Matrix<CoefficientPrecision>> temp(2);
+            temp[0] = Urestr;
+            temp[1] = Vrestr;
+
+            sr_0 = temp;
+        }
+        std::vector<HMatrixType *> sh_0;
+        SumExpression_fast res;
+        // std::cout << "?? " << std::endl;
+        for (int k = 0; k < Sh.size() / 2; ++k) {
+            auto &H = Sh[2 * k];
+            auto &K = Sh[2 * k + 1];
+
+            for (auto &rho_child : H->get_source_cluster().get_children()) {
+                // bool test_target = H->get_admissibility_condition()->ComputeAdmissibility(t, *rho_child, H->get_eta());
+
+                bool test_target = H->test_admissible(t, *rho_child);
+
+                // bool test_source = H->get_admissibility_condition()->ComputeAdmissibility(*rho_child, s, H->get_eta());
+                bool test_source = H->test_admissible(*rho_child, s);
+
+                auto H_child = H->get_block(t.get_size(), rho_child->get_size(), t.get_offset(), rho_child->get_offset());
+                auto K_child = K->get_block(rho_child->get_size(), s.get_size(), rho_child->get_offset(), s.get_offset());
+                // std::cout << "             ici0   " << std::endl;
+
+                if (test_target || test_source) {
+                    // Compute low-rank matrix UV =  LR(HK) ;
+                    // std::cout << "             ici1   " << std::endl;
+                    SumExpression_fast temp(H_child, K_child);
+                    LRtype lr_new(temp, *H_child->get_low_rank_generator(), t, s, -1, H_child->get_epsilon());
+
+                    // std::cout << " lr0 ok" << std::endl;
+                    if (lr_new.Get_U().nb_cols() > 0) {
+                        if (sr_0.size() == 0) {
+
+                            std::vector<Matrix<CoefficientPrecision>> temp(2);
+                            temp[0] = lr_new.Get_U();
+                            temp[1] = lr_new.Get_V();
+                            sr_0    = temp;
+
+                        } else {
+                            SumExpression_fast s_intermediaire;
+                            std::vector<Matrix<CoefficientPrecision>> data_lr(4);
+                            data_lr[0] = sr_0[0];
+                            data_lr[1] = sr_0[1];
+                            data_lr[2] = lr_new.Get_U();
+                            data_lr[3] = lr_new.Get_V();
+                            s_intermediaire.set_sr(data_lr, t.get_offset(), s.get_offset());
+
+                            LRtype lr_bourrin(s_intermediaire, *H_child->get_low_rank_generator(), t, s, -1, H_child->get_epsilon());
+
+                            if (lr_bourrin.Get_U().nb_cols() > 0) {
+
+                                std::vector<Matrix<CoefficientPrecision>> temp(2);
+                                temp[0] = lr_bourrin.Get_U();
+                                temp[1] = lr_bourrin.Get_V();
+
+                                sr_0 = temp;
+
+                            } else {
+                                std::cout << "sh1 " << std::endl;
+
+                                sh_0.push_back(H_child);
+                                sh_0.push_back(K_child);
+                                std::cout << "sh1 okk " << std::endl;
+                            }
+                        }
+                    } else {
+                        std::cout << "sh2 " << std::endl;
+
+                        sh_0.push_back(H_child);
+                        sh_0.push_back(K_child);
+                        std::cout << "sh2 ok " << std::endl;
+                    }
+                } else {
+                    std::cout << "sh3 " << std::endl;
+
+                    sh_0.push_back(H_child);
+                    sh_0.push_back(K_child);
+                    std::cout << "sh3 ok " << std::endl;
+                }
+            }
+        }
+        if (sr_0.size() > 0) {
+            int oft = t.get_offset();
+            int ofs = s.get_offset();
+            res.set_sr(sr_0, oft, ofs);
+        }
+        if (sh_0.size() > 0) {
+            std::cout << "set sh " << std::endl;
+            res.set_sh(sh_0);
+            std::cout << "res sh ok " << std::endl;
+        }
+        res.set_size(t, s);
+        return res;
+    }
+
+    Matrix<CoefficientPrecision> evaluate() {
+        Matrix<CoefficientPrecision> res(target_size, source_size);
+        if (Sr.size() > 0) {
+            CoefficientPrecision alpha = 1.0;
+            CoefficientPrecision beta  = 1.0;
+            int col                    = Sr[0].nb_cols();
+            Blas<CoefficientPrecision>::gemm("N", "N", &target_size, &source_size, &col, &alpha, Sr[0].data(), &target_size, Sr[1].data(), &col, &beta, res.data(), &target_size);
+            // res = res + (Sr[0] * Sr[1]);
+            // std::cout << "sr ok" << std::endl;
+        }
+        if (Sh.size() > 0) {
+            for (int k = 0; k < Sh.size() / 2; ++k) {
+                CoefficientPrecision alpha = 1.0;
+                CoefficientPrecision beta  = 1.0;
+                int col                    = Sh[2 * k]->get_source_cluster().get_size();
+                Matrix<CoefficientPrecision> Hdense(target_size, col);
+                Matrix<CoefficientPrecision> Kdense(col, source_size);
+                if (Sh[2 * k]->is_dense() && Sh[2 * k + 1]->is_dense()) {
+                    Blas<CoefficientPrecision>::gemm("N", "N", &target_size, &source_size, &col, &alpha, Sh[2 * k]->get_dense_data()->data(), &target_size, Sh[2 * k + 1]->get_dense_data()->data(), &col, &beta, res.data(), &target_size);
+                } else {
+                    copy_to_dense(*Sh[2 * k], Hdense.data());
+                    // std::cout << "copy h ok " << std::endl;
+
+                    copy_to_dense(*Sh[2 * k + 1], Kdense.data());
+                    // std::cout << "copy k ok " << std::endl;
+                    Blas<CoefficientPrecision>::gemm("N", "N", &target_size, &source_size, &col, &alpha, Hdense.data(), &target_size, Kdense.data(), &col, &beta, res.data(), &target_size);
+                }
+                // res = res + Hdense * Kdense;
+                // std::cout << "+sh ok " << std::endl;
+            }
+        }
+        // std::cout << "eval over " << std::endl;
         return res;
     }
 };

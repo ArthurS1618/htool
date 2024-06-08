@@ -57,8 +57,9 @@ class LowRankMatrix {
     }
     //////////////////////////
     /// je rajoute l'addition tronqué , ca renvoie U, V avec eventuellement V=0 si il y a pas d'approx de rang faible diponible
+    /// flage = true , return false si ca a pas marché ou que c'était pas interressant ( c'est le cas extreme (10, 5)*(5, 10) +(10, 5)*(5, 10))
     ///////////////////
-    LowRankMatrix formatted_addition(const LowRankMatrix &R, const double &epsilon0, bool flag) {
+    LowRankMatrix formatted_addition(const LowRankMatrix &R, const double &epsilon0, bool &flag) {
         int conc_nc  = this->rank_of() + R.rank_of();
         int interest = (m_number_of_rows + m_number_of_columns) / 2.0;
         if (conc_nc > interest) {
@@ -75,8 +76,9 @@ class LowRankMatrix {
             auto QRu   = QR_factorisation(U1.nb_rows(), Uconc.nb_cols(), Uconc);
             auto QRv   = QR_factorisation(Vconc.nb_rows(), Vconc.nb_cols(), Vconc);
             Matrix<double> RuRv(QRu[0].nb_rows(), QRv[0].nb_cols());
-            int ldu      = QRu[1].nb_rows();
-            int ldv      = QRv[1].nb_cols();
+            int ldu = QRu[1].nb_rows();
+            int ldv = QRv[1].nb_cols();
+
             int rk       = QRu[1].nb_cols();
             double alpha = 1.0;
             double beta  = 1.0;
@@ -85,13 +87,18 @@ class LowRankMatrix {
             Matrix<double> svdU(RuRv.nb_rows(), std::min(RuRv.nb_rows(), RuRv.nb_cols()));
             Matrix<double> svdV(std::min(RuRv.nb_rows(), RuRv.nb_cols()), RuRv.nb_cols());
             auto S        = compute_svd(RuRv, svdU, svdV);
-            double margin = S[0];
+            double margin = norm2(S);
             auto it       = std::find_if(S.begin(), S.end(), [epsilon0, margin](double s) {
-                return s < (epsilon0 * (1.0 + margin));
+                return s < (epsilon0 * margin);
             });
-
+            Matrix<double> Ss(S.size(), S.size());
+            for (int k = 0; k < S.size(); ++k) {
+                Ss(k, k) = S[k];
+            }
             int rep = std::distance(S.begin(), it);
-            if (rep < interest) {
+            // int rep = S.size();
+            // std::cout << " erreur spectrale de : " << S[rep] << ", normalized : " << S[rep + 1] / margin << "//" << rep << ',' << S.size() << std::endl;
+            if (rep < conc_nc) {
                 Matrix<double> Urestr(svdU.nb_rows(), rep);
                 for (int l = 0; l < rep; ++l) {
                     Urestr.set_col(l, svdU.get_col(l));
@@ -104,6 +111,7 @@ class LowRankMatrix {
                 for (int k = 0; k < rep; ++k) {
                     srestr(k, k) = S[k];
                 }
+                // std::cout << "erreur svd :  " << normFrob((svdU * Ss * svdV)) << "    " << normFrob(Urestr * srestr * Vrestr) << std::endl;
                 auto res_U = QRu[0] * Urestr * srestr;
                 auto res_V = Vrestr * Vrestr.transp(QRv[0]);
                 LowRankMatrix res(res_U, res_V);

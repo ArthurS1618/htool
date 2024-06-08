@@ -144,6 +144,7 @@ class HMatrix : public TreeNode<HMatrix<CoefficientPrecision, CoordinatePrecisio
     bool is_dense() const { return m_storage_type == StorageType::Dense; }
     bool is_low_rank() const { return m_storage_type == StorageType::LowRank; }
     bool is_hierarchical() const { return m_storage_type == StorageType::Hierarchical; }
+    const double get_eta() { return this->m_tree_data->m_eta; }
 
     // HMatrix Tree setters
     void set_eta(CoordinatePrecision eta) { this->m_tree_data->m_eta = eta; }
@@ -159,6 +160,7 @@ class HMatrix : public TreeNode<HMatrix<CoefficientPrecision, CoordinatePrecisio
     // Arthur -> j'ai besoin de pouvoir accéder au low_rank generato ->  on juste passer par m_tree_data
     std::shared_ptr<VirtualLowRankGenerator<CoefficientPrecision, CoordinatePrecision>> get_low_rank_generator() { return this->m_tree_data->m_low_rank_generator; }
     std::shared_ptr<VirtualAdmissibilityCondition<CoordinatePrecision>> get_admissibility_condition() { return this->m_tree_data->m_admissibility_condition; }
+    bool test_admissible(const Cluster<CoordinatePrecision> &t, const Cluster<CoordinatePrecision> &s) { return this->m_tree_data->m_admissibility_condition->ComputeAdmissibility(t, s, this->m_tree_data->m_eta); }
     // HMatrix Tree setters
     const HMatrix<CoefficientPrecision, CoordinatePrecision> *get_diagonal_hmatrix() const { return this->m_tree_data->m_block_diagonal_hmatrix; }
     char get_symmetry_for_leaves() const { return m_symmetry_type_for_leaves; }
