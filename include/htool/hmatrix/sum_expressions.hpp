@@ -2457,6 +2457,17 @@ class SumExpression_fast : public VirtualGenerator<CoefficientPrecision> {
         source_size   = source_size0;
         source_offset = source_offset0;
     }
+
+    // ~SumExpression_fast() {
+    //     // Libérer la mémoire allouée pour les pointeurs dans Sh
+    //     for (auto ptr : Sh) {
+    //         delete ptr;
+    //     }
+    //     Sh.clear(); // Optionnel : vider le vecteur après suppression
+
+    //     // Sr ne nécessite pas de libération explicite de mémoire si Matrix<CoefficientPrecision> gère bien sa mémoire
+    //     Sr.clear(); // Optionnel : vider le vecteur
+    // }
     ////////////////////////////
     //// Getter
     const std::vector<Matrix<CoefficientPrecision>> get_sr() const { return Sr; }
@@ -2478,9 +2489,43 @@ class SumExpression_fast : public VirtualGenerator<CoefficientPrecision> {
         target_size   = sr[0].nb_rows();
         source_size   = sr[1].nb_cols();
     }
-    void add_HK(HMatrixType *H, HMatrixType *K) {
-        Sh.push_back(H);
-        Sh.push_back(K);
+    void add_HK(HMatrixType *H, HMatrixType *K, bool &flag) {
+        if (H->is_low_rank() || K->is_low_rank()) {
+            if (Sr.size() > 0) {
+                SumExpression_fast s_intermediaire(H, K);
+                std::vector<Matrix<CoefficientPrecision>> data_lr(4);
+                data_lr[0] = Sr[0];
+                data_lr[1] = Sr[1];
+                s_intermediaire.set_sr(data_lr, H->get_target_cluster().get_offset(), K->get_source_cluster().get_offset());
+                LRtype lr_bourrin(s_intermediaire, *H->get_low_rank_generator(), H->get_target_cluster(), K->get_source_cluster(), -1, H->get_epsilon());
+                if (lr_bourrin.Get_U().nb_cols() > 0) {
+                    std::vector<Matrix<CoefficientPrecision>> new_sr(2);
+                    new_sr[0] = lr_bourrin.Get_U();
+                    new_sr[1] = lr_bourrin.Get_V();
+                    this->set_sr(new_sr, H->get_target_cluster().get_offset(), K->get_source_cluster().get_offset());
+                } else {
+                    flag = false;
+                    Sh.push_back(H);
+                    Sh.push_back(K);
+                }
+            } else {
+                SumExpression_fast s_intermediaire(H, K);
+                LRtype lr_bourrin(s_intermediaire, *H->get_low_rank_generator(), H->get_target_cluster(), K->get_source_cluster(), -1, H->get_epsilon());
+                if (lr_bourrin.Get_U().nb_cols() > 0) {
+                    std::vector<Matrix<CoefficientPrecision>> new_sr(2);
+                    new_sr[0] = lr_bourrin.Get_U();
+                    new_sr[1] = lr_bourrin.Get_V();
+                    this->set_sr(new_sr, H->get_target_cluster().get_offset(), K->get_source_cluster().get_offset());
+                } else {
+                    flag = false;
+                    Sh.push_back(H);
+                    Sh.push_back(K);
+                }
+            }
+        } else {
+            Sh.push_back(H);
+            Sh.push_back(K);
+        }
     }
     void set_sh(std::vector<HMatrixType *> &sh0) { Sh = sh0; }
     void set_size(const Cluster<CoordinatePrecision> &t, const Cluster<CoordinatePrecision> &s) {
@@ -2778,11 +2823,12 @@ class SumExpression_fast : public VirtualGenerator<CoefficientPrecision> {
         return res;
     }
 
-    SumExpression_fast restrict_ACA(const Cluster<CoordinatePrecision> &t, const Cluster<CoordinatePrecision> &s) const {
+    SumExpression_fast restrict_ACA(const Cluster<CoordinatePrecision> &t, const Cluster<CoordinatePrecision> &s, bool &flag) const {
         std::vector<Matrix<CoefficientPrecision>> sr_0;
 
         if (Sr.size() > 0) {
             // On restreint U et V
+            // std::cout << " sr restr " << std::endl;
             Matrix<CoefficientPrecision> U = Sr[0];
             Matrix<CoefficientPrecision> V = Sr[1];
             Matrix<CoefficientPrecision> Urestr(t.get_size(), U.nb_cols());
@@ -2798,6 +2844,7 @@ class SumExpression_fast : public VirtualGenerator<CoefficientPrecision> {
             temp[1] = Vrestr;
 
             sr_0 = temp;
+            // std::cout << " sr restr ok " << std::endl;
         }
         std::vector<HMatrixType *> sh_0;
         SumExpression_fast res;
@@ -2805,7 +2852,7 @@ class SumExpression_fast : public VirtualGenerator<CoefficientPrecision> {
         for (int k = 0; k < Sh.size() / 2; ++k) {
             auto &H = Sh[2 * k];
             auto &K = Sh[2 * k + 1];
-
+            // std::cout << " sh restr begin " << std::endl;
             for (auto &rho_child : H->get_source_cluster().get_children()) {
                 // bool test_target = H->get_admissibility_condition()->ComputeAdmissibility(t, *rho_child, H->get_eta());
 
@@ -2816,63 +2863,235 @@ class SumExpression_fast : public VirtualGenerator<CoefficientPrecision> {
 
                 auto H_child = H->get_block(t.get_size(), rho_child->get_size(), t.get_offset(), rho_child->get_offset());
                 auto K_child = K->get_block(rho_child->get_size(), s.get_size(), rho_child->get_offset(), s.get_offset());
-                // std::cout << "             ici0   " << std::endl;
-
-                if (test_target || test_source) {
-                    // Compute low-rank matrix UV =  LR(HK) ;
-                    // std::cout << "             ici1   " << std::endl;
+                if (H_child->is_low_rank() || K_child->is_low_rank()) {
                     SumExpression_fast temp(H_child, K_child);
+                    if (sr_0.size() > 0) {
+                        temp.set_sr(sr_0, t.get_offset(), s.get_offset());
+                    }
                     LRtype lr_new(temp, *H_child->get_low_rank_generator(), t, s, -1, H_child->get_epsilon());
-
-                    // std::cout << " lr0 ok" << std::endl;
                     if (lr_new.Get_U().nb_cols() > 0) {
-                        if (sr_0.size() == 0) {
+                        std::vector<Matrix<CoefficientPrecision>> temp(2);
+                        temp[0] = lr_new.Get_U();
+                        temp[1] = lr_new.Get_V();
+                        sr_0    = temp;
+                        // std::cout << "naniiiii utile" << std::endl;
 
-                            std::vector<Matrix<CoefficientPrecision>> temp(2);
-                            temp[0] = lr_new.Get_U();
-                            temp[1] = lr_new.Get_V();
-                            sr_0    = temp;
+                    } else {
+                        flag = false;
+                        sh_0.push_back(H_child);
+                        sh_0.push_back(K_child);
+                        // std::cout << "naniiiii  : " << H_child->get_target_cluster().get_size() << ',' << H_child->get_source_cluster().get_size() << '|' << K_child->get_target_cluster().get_size() << ',' << K_child->get_source_cluster().get_size() << std::endl;
+                    }
+                } else {
+                    // std::cout << "             " << H_child->get_target_cluster().get_size() << ',' << t.get_size() << '|' << H_child->get_source_cluster().get_size() << ',' << rho_child->get_size() << std::endl;
+                    // std::cout << "              " << K_child->get_target_cluster().get_size() << ',' << rho_child->get_size() << '|' << K_child->get_source_cluster().get_size() << ',' << s.get_size() << std::endl;
+                    // std::cout << t.get_children().size() << ',' << s.get_children().size() << std::endl;
+                    // std::cout << "             ici0   " << std::endl;
 
-                        } else {
-                            SumExpression_fast s_intermediaire;
-                            std::vector<Matrix<CoefficientPrecision>> data_lr(4);
-                            data_lr[0] = sr_0[0];
-                            data_lr[1] = sr_0[1];
-                            data_lr[2] = lr_new.Get_U();
-                            data_lr[3] = lr_new.Get_V();
-                            s_intermediaire.set_sr(data_lr, t.get_offset(), s.get_offset());
+                    if (t.get_children().size() > 0) {
+                        if (test_target || test_source) {
+                            // Compute low-rank matrix UV =  LR(HK) ;
+                            SumExpression_fast temp(H_child, K_child);
+                            LRtype lr_new(temp, *H_child->get_low_rank_generator(), t, s, -1, H_child->get_epsilon());
 
-                            LRtype lr_bourrin(s_intermediaire, *H_child->get_low_rank_generator(), t, s, -1, H_child->get_epsilon());
+                            if (lr_new.Get_U().nb_cols() > 0) {
+                                // std::cout << "             ici1   " << std::endl;
 
-                            if (lr_bourrin.Get_U().nb_cols() > 0) {
+                                if (sr_0.size() == 0) {
+                                    // std::cout << "             lr1   " << std::endl;
 
-                                std::vector<Matrix<CoefficientPrecision>> temp(2);
-                                temp[0] = lr_bourrin.Get_U();
-                                temp[1] = lr_bourrin.Get_V();
+                                    std::vector<Matrix<CoefficientPrecision>> temp(2);
+                                    temp[0] = lr_new.Get_U();
+                                    temp[1] = lr_new.Get_V();
+                                    sr_0    = temp;
+                                    // std::cout << "             lr1   ok" << std::endl;
 
-                                sr_0 = temp;
+                                } else {
+                                    // std::cout << "             lr2 begin  " << std::endl;
+
+                                    SumExpression_fast s_intermediaire;
+                                    std::vector<Matrix<CoefficientPrecision>> data_lr(4);
+                                    data_lr[0] = sr_0[0];
+                                    data_lr[1] = sr_0[1];
+                                    data_lr[2] = lr_new.Get_U();
+                                    data_lr[3] = lr_new.Get_V();
+                                    s_intermediaire.set_sr(data_lr, t.get_offset(), s.get_offset());
+                                    // std::cout << "             lr21 begin  " << std::endl;
+
+                                    LRtype lr_bourrin(s_intermediaire, *H_child->get_low_rank_generator(), t, s, -1, H_child->get_epsilon());
+                                    // std::cout << "             lr22 ok  " << std::endl;
+
+                                    if (lr_bourrin.Get_U().nb_cols() > 0) {
+                                        // std::cout << "             lr2  " << std::endl;
+
+                                        std::vector<Matrix<CoefficientPrecision>> temp(2);
+                                        temp[0] = lr_bourrin.Get_U();
+                                        temp[1] = lr_bourrin.Get_V();
+
+                                        sr_0 = temp;
+                                        // std::cout << "             lr2  OK " << std::endl;
+
+                                    } else {
+                                        // std::cout << "             sh  " << std::endl;
+                                        if (H_child->is_low_rank() || K_child->is_low_rank()) {
+                                            std::cout << "?!" << std::endl;
+                                        }
+                                        sh_0.push_back(H_child);
+                                        sh_0.push_back(K_child);
+                                        // std::cout << "             sh ok  " << std::endl;
+                                    }
+                                }
+                                // std::cout << "             ici1  ok " << std::endl;
 
                             } else {
-                                std::cout << "sh1 " << std::endl;
+                                // std::cout << "             ici2   " << std::endl;
 
+                                // std::cout << "sh2 " << std::endl;
+                                if (H_child->is_low_rank() || K_child->is_low_rank()) {
+                                    std::cout << "?!  1" << std::endl;
+                                }
                                 sh_0.push_back(H_child);
                                 sh_0.push_back(K_child);
-                                std::cout << "sh1 okk " << std::endl;
+                                // std::cout << "sh2 ok " << std::endl;
+                                // std::cout << "             ici2 ok   " << std::endl;
+                            }
+                        } else {
+                            // std::cout << "sh3 " << std::endl;
+                            if (H_child->is_low_rank() || K_child->is_low_rank()) {
+                                std::cout << "?!   2" << std::endl;
+                            }
+                            sh_0.push_back(H_child);
+                            sh_0.push_back(K_child);
+                            // std::cout << "sh3 ok " << std::endl;
+                        }
+                    } else {
+                        // std::cout << "sh3 " << std::endl;
+                        if (H_child->is_low_rank() || K_child->is_low_rank()) {
+                            std::cout << "?!    3" << std::endl;
+                        }
+                        sh_0.push_back(H_child);
+                        sh_0.push_back(K_child);
+                        // std::cout << "sh3 ok " << std::endl;
+                    }
+                }
+            }
+            // std::cout << " sh restr ok " << std::endl;
+        }
+        if (sr_0.size() > 0) {
+            // std::cout << "set tr " << std::endl;
+
+            int oft = t.get_offset();
+            int ofs = s.get_offset();
+            res.set_sr(sr_0, oft, ofs);
+            // std::cout << "set tr  ok " << std::endl;
+        }
+        if (sh_0.size() > 0) {
+            // std::cout << "set sh " << std::endl;
+            res.set_sh(sh_0);
+            // std::cout << "res sh ok " << std::endl;
+        }
+        // std::cout << "size" << std::endl;
+        res.set_size(t, s);
+        // std::cout << "size ok" << std::endl;
+
+        // std::cout << "on va restuen restr " << std::endl;
+        return res;
+    }
+
+    SumExpression_fast Restrict(const Cluster<CoordinatePrecision> &t, const Cluster<CoordinatePrecision> &s, bool &flag) const {
+        std::vector<Matrix<CoefficientPrecision>> sr_0;
+
+        if (Sr.size() > 0) {
+            Matrix<CoefficientPrecision> U = Sr[0];
+            Matrix<CoefficientPrecision> V = Sr[1];
+            Matrix<CoefficientPrecision> Urestr(t.get_size(), U.nb_cols());
+            Matrix<CoefficientPrecision> Vrestr(V.nb_rows(), s.get_size());
+            for (int k = 0; k < t.get_size(); ++k) {
+                Urestr.set_row(k, U.get_row(k + t.get_offset() - target_offset));
+            }
+            for (int l = 0; l < s.get_size(); ++l) {
+                Vrestr.set_col(l, V.get_col(l + s.get_offset() - source_offset));
+            }
+            std::vector<Matrix<CoefficientPrecision>> temp(2);
+            temp[0] = Urestr;
+            temp[1] = Vrestr;
+            sr_0    = temp;
+        }
+        std::vector<HMatrixType *> sh_0;
+        SumExpression_fast res;
+        for (int k = 0; k < Sh.size() / 2; ++k) {
+            auto &H = Sh[2 * k];
+            auto &K = Sh[2 * k + 1];
+            for (auto &rho_child : H->get_source_cluster().get_children()) {
+                bool test_target = H->test_admissible(t, *rho_child);
+                bool test_source = H->test_admissible(*rho_child, s);
+                auto H_child     = H->get_block(t.get_size(), rho_child->get_size(), t.get_offset(), rho_child->get_offset());
+                auto K_child     = K->get_block(rho_child->get_size(), s.get_size(), rho_child->get_offset(), s.get_offset());
+                if (H_child->is_low_rank() || K_child->is_low_rank()) {
+                    bool test_hk = true;
+                    res.add_HK(H_child, K_child, test_hk);
+                    if (test_hk == false) {
+                        flag = false;
+                        return res;
+                    }
+                } else {
+                    if (t.get_children().size() > 0) {
+                        if (test_target || test_source) {
+                            SumExpression_fast temp(H_child, K_child);
+                            LRtype lr_new(temp, *H_child->get_low_rank_generator(), t, s, -1, H_child->get_epsilon());
+                            if (lr_new.Get_U().nb_cols() > 0) {
+                                if (sr_0.size() == 0) {
+                                    std::vector<Matrix<CoefficientPrecision>> temp(2);
+                                    temp[0] = lr_new.Get_U();
+                                    temp[1] = lr_new.Get_V();
+                                    sr_0    = temp;
+                                } else {
+                                    SumExpression_fast s_intermediaire;
+                                    std::vector<Matrix<CoefficientPrecision>> data_lr(4);
+                                    data_lr[0] = sr_0[0];
+                                    data_lr[1] = sr_0[1];
+                                    data_lr[2] = lr_new.Get_U();
+                                    data_lr[3] = lr_new.Get_V();
+                                    s_intermediaire.set_sr(data_lr, t.get_offset(), s.get_offset());
+                                    LRtype lr_bourrin(s_intermediaire, *H_child->get_low_rank_generator(), t, s, -1, H_child->get_epsilon());
+                                    if (lr_bourrin.Get_U().nb_cols() > 0) {
+                                        std::vector<Matrix<CoefficientPrecision>> temp(2);
+                                        temp[0] = lr_bourrin.Get_U();
+                                        temp[1] = lr_bourrin.Get_V();
+                                        sr_0    = temp;
+                                    } else {
+                                        bool test_hk = true;
+                                        res.add_HK(H_child, K_child, test_hk);
+                                        if (test_hk == false) {
+                                            flag = false;
+                                            return res;
+                                        }
+                                    }
+                                }
+                            } else {
+                                bool test_hk = true;
+                                res.add_HK(H_child, K_child, test_hk);
+                                if (test_hk == false) {
+                                    flag = false;
+                                    return res;
+                                }
+                            }
+                        } else {
+                            bool test_hk = true;
+                            res.add_HK(H_child, K_child, test_hk);
+                            if (test_hk == false) {
+                                flag = false;
+                                return res;
                             }
                         }
                     } else {
-                        std::cout << "sh2 " << std::endl;
-
-                        sh_0.push_back(H_child);
-                        sh_0.push_back(K_child);
-                        std::cout << "sh2 ok " << std::endl;
+                        bool test_hk = true;
+                        res.add_HK(H_child, K_child, test_hk);
+                        if (test_hk == false) {
+                            flag = false;
+                            return res;
+                        }
                     }
-                } else {
-                    std::cout << "sh3 " << std::endl;
-
-                    sh_0.push_back(H_child);
-                    sh_0.push_back(K_child);
-                    std::cout << "sh3 ok " << std::endl;
                 }
             }
         }
@@ -2881,16 +3100,12 @@ class SumExpression_fast : public VirtualGenerator<CoefficientPrecision> {
             int ofs = s.get_offset();
             res.set_sr(sr_0, oft, ofs);
         }
-        if (sh_0.size() > 0) {
-            std::cout << "set sh " << std::endl;
-            res.set_sh(sh_0);
-            std::cout << "res sh ok " << std::endl;
-        }
         res.set_size(t, s);
         return res;
     }
 
-    Matrix<CoefficientPrecision> evaluate() {
+    Matrix<CoefficientPrecision>
+    evaluate() {
         Matrix<CoefficientPrecision> res(target_size, source_size);
         if (Sr.size() > 0) {
             CoefficientPrecision alpha = 1.0;
@@ -2910,6 +3125,10 @@ class SumExpression_fast : public VirtualGenerator<CoefficientPrecision> {
                 if (Sh[2 * k]->is_dense() && Sh[2 * k + 1]->is_dense()) {
                     Blas<CoefficientPrecision>::gemm("N", "N", &target_size, &source_size, &col, &alpha, Sh[2 * k]->get_dense_data()->data(), &target_size, Sh[2 * k + 1]->get_dense_data()->data(), &col, &beta, res.data(), &target_size);
                 } else {
+                    auto &hh = Sh[2 * k];
+                    auto &kk = Sh[2 * k + 1];
+                    // std::cout << "evel :" << hh->get_target_cluster().get_size() << ',' << hh->get_source_cluster().get_size() << '|' << kk->get_target_cluster().get_size() << ',' << kk->get_source_cluster().get_size() << '|' << target_size << ',' << col << ',' << source_size << std::endl;
+
                     copy_to_dense(*Sh[2 * k], Hdense.data());
                     // std::cout << "copy h ok " << std::endl;
 
