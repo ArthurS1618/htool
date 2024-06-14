@@ -25,3 +25,8 @@ add_subdirectory(hmatrix_factorization)
 # add_custom_target(build-tests-hmatrix-factorization-comparaison)
 # add_dependencies(build-tests-hmatrix build-tests-hmatrix-factorization-comparaison)
 # add_subdirectory(hmatrix_factorization)
+
+
+add_executable(Test_air_quality test_air_quality.cpp)
+target_link_libraries(Test_air_quality htool)
+add_test(Test_air_quality Test_air_quality)

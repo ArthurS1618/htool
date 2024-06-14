@@ -88,6 +88,19 @@ class ComputeBoundingBox final : public VirtualDirectionComputationStrategy<T> {
     }
 };
 
+template <typename T>
+class ConstantDirection final : public VirtualDirectionComputationStrategy<T> {
+  private:
+    std::vector<T> direction;
+
+  public:
+    using VirtualDirectionComputationStrategy<T>::VirtualDirectionComputationStrategy;
+    ConstantDirection(const std::vector<T> direction_0) : direction(direction_0) {}
+    std::vector<T> compute_direction(const Cluster<T> *cluster, const std::vector<int> &permutation, int spatial_dimension, const T *const coordinates, const T *const, const T *const weights) override {
+        return direction;
+    }
+};
+
 } // namespace htool
 
 #endif
