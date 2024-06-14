@@ -26,6 +26,15 @@ void triangular_matrix_matrix_solve(char side, char UPLO, char transa, char diag
 
     Blas<T>::trsm(&side, &UPLO, &transa, &diag, &m, &n, &alpha, A.data(), &lda, B.data(), &ldb);
 }
+template <typename T>
+void triangular_matrix_vec_solve(char side, char UPLO, char transa, char diag, T alpha, const Matrix<T> &A, std::vector<T> &B) {
+    int m   = B.size();
+    int n   = 1;
+    int lda = side == 'L' ? m : n;
+    int ldb = m;
+
+    Blas<T>::trsm(&side, &UPLO, &transa, &diag, &m, &n, &alpha, A.data(), &lda, B.data(), &ldb);
+}
 
 template <typename T>
 void lu_solve(char trans, const Matrix<T> &A, Matrix<T> &B) {

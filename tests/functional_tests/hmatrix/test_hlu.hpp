@@ -1,11 +1,11 @@
 #include <chrono>
 #include <ctime>
-#include <htool/basic_types/matrix.hpp>
 #include <htool/clustering/clustering.hpp>
 #include <htool/hmatrix/hmatrix.hpp>
 #include <htool/hmatrix/hmatrix_output.hpp>
 #include <htool/hmatrix/sum_expressions.hpp>
 #include <htool/hmatrix/tree_builder/tree_builder.hpp>
+#include <htool/matrix/matrix.hpp>
 #include <htool/testing/generator_input.hpp>
 #include <htool/testing/generator_test.hpp>
 #include <htool/testing/geometry.hpp>
@@ -42,7 +42,7 @@ class Matricegenerator : public VirtualGenerator<CoefficientPrecision> {
     const Cluster<CoordinatePrecision> &source;
 
   public:
-    Matricegenerator(Matrix<CoefficientPrecision> &mat0, const Cluster<CoordinatePrecision> &target0, const Cluster<CoordinatePrecision> &source0) : mat(mat0), target(target0), source(source0){};
+    Matricegenerator(Matrix<CoefficientPrecision> &mat0, const Cluster<CoordinatePrecision> &target0, const Cluster<CoordinatePrecision> &source0) : mat(mat0), target(target0), source(source0) {}
 
     void copy_submatrix(int M, int N, int row_offset, int col_offset, double *ptr) const override {
         const auto &target_permutation = target.get_permutation();
@@ -81,7 +81,7 @@ class Matricegenerator : public VirtualGenerator<CoefficientPrecision> {
 /// %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% /////
 
 template <typename T, typename GeneratorTestType>
-std::vector<T> test_hlu(int size, htool::underlying_type<T> epsilon, htool::underlying_type<T> eta) {
+bool test_hlu(int size, htool::underlying_type<T> epsilon, htool::underlying_type<T> eta) {
 
     bool is_error = false;
 
@@ -98,8 +98,8 @@ std::vector<T> test_hlu(int size, htool::underlying_type<T> epsilon, htool::unde
 
     //////////////////////
     // Clustering
-    ClusterTreeBuilder<double, ComputeLargestExtent<double>, RegularSplitting<double>> recursive_build_strategy_1(size, 3, p1.data(), 2, 2);
-    std::shared_ptr<Cluster<double>> root_cluster_1 = std::make_shared<Cluster<double>>(recursive_build_strategy_1.create_cluster_tree());
+    ClusterTreeBuilder<double> recursive_build_strategy_1;
+    std::shared_ptr<Cluster<double>> root_cluster_1 = std::make_shared<Cluster<double>>(recursive_build_strategy_1.create_cluster_tree(size, 3, p1.data(), 2, 2));
     // std::cout << "Cluster tree ok" << std::endl;
     //////////////////////
 
@@ -108,10 +108,10 @@ std::vector<T> test_hlu(int size, htool::underlying_type<T> epsilon, htool::unde
     ///////////////////
     // Generator: donné en argument de la méthode
     auto permutation = root_cluster_1->get_permutation();
-    GeneratorTestType generator(3, size, size, p1, p1, root_cluster_1, root_cluster_1);
+    // GeneratorTestType generator;
 
     Matrix<double> reference_num_htool(size, size);
-    generator.copy_submatrix(size, size, 0, 0, reference_num_htool.data());
+    GeneratorTestType.copy_submatrix(size, size, 0, 0, reference_num_htool.data());
 
     //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%//
     ///////////////////
@@ -362,10 +362,12 @@ std::vector<T> test_hlu(int size, htool::underlying_type<T> epsilon, htool::unde
     std::cout << "____________________________________________" << std::endl;
     std::cout << std::endl;
 
-    std::vector<double> res_vec(4);
-    res_vec[0] = size;
-    res_vec[1] = duration_lu0;
-    res_vec[2] = cpt2;
-    res_vec[3] = err;
-    return res_vec;
+    // std::vector<double> res_vec(4);
+    // res_vec[0] = size;
+    // res_vec[1] = duration_lu0;
+    // res_vec[2] = cpt2;
+    // res_vec[3] = err;
+    // return res_vec;
+
+    return is_error;
 }
