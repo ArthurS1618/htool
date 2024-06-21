@@ -68,5 +68,18 @@ void cholesky_solve(char UPLO, const Matrix<T> &A, Matrix<T> &B) {
     Lapack<T>::potrs(&UPLO, &M, &NRHS, A.data(), &lda, B.data(), &ldb, &info);
 }
 
+/// A =SVD -> lapack ------------> je le fait pour renvoyer S et écrire U et V sur des matrices d'entrées !!!!! MARCHE QUE AVEC DES MATRICES CARRE sinon il faut changer lda, ldb etc
+template <typename T>
+std::vector<T> compute_svd(Matrix<T> &A, Matrix<T> &U, Matrix<T> &V) {
+    int N = A.nb_cols();
+    std::vector<T> S(N, 0.0);
+    int info;
+    int lwork = 10 * N;
+    std::vector<T> rwork(lwork);
+    std::vector<T> work(lwork);
+    Lapack<T>::gesvd("A", "A", &N, &N, A.data(), &N, S.data(), U.data(), &N, V.data(), &N, work.data(), &lwork, rwork.data(), &info);
+    return S;
+}
+
 } // namespace htool
 #endif

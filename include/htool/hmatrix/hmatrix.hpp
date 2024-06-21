@@ -6,6 +6,7 @@
 #endif
 #include "../basic_types/tree.hpp"
 #include "../clustering/cluster_node.hpp"
+#include "../matrix/linalg/factorization.hpp"
 #include "../misc/logger.hpp"
 #include "hmatrix_tree_data.hpp"
 #include "interfaces/virtual_admissibility_condition.hpp"
@@ -173,7 +174,7 @@ class HMatrix : public TreeNode<HMatrix<CoefficientPrecision, CoordinatePrecisio
         }
         return nullptr;
     }
-
+    void save_plot(const std::string &outputname) const;
     int get_rank() const {
         return m_storage_type == StorageType::LowRank ? m_low_rank_data->rank_of() : -1;
     }
@@ -734,18 +735,36 @@ class HMatrix : public TreeNode<HMatrix<CoefficientPrecision, CoordinatePrecisio
         U.hmatrix_vector_triangular_U(res, temp, t, 0);
         return res;
     }
-
+    HMatrix<CoefficientPrecision, CoordinatePrecision> *get_block(const int &szt, const int &szs, const int &oft, const int &ofs) const {
+        if ((this->get_target_cluster().get_size() == szt) && (this->get_target_cluster().get_offset() == oft) && (this->get_source_cluster().get_size() == szs) && (this->get_source_cluster().get_offset() == ofs)) {
+            return const_cast<HMatrix<CoefficientPrecision, CoordinatePrecision> *>(this);
+        } else {
+            if (this->get_children().size() == 0) {
+                // "je voit pas d'autre solution , on renvoie le plus gros blocs et il faudra extraire"
+                return const_cast<HMatrix<CoefficientPrecision, CoordinatePrecision> *>(this);
+            }
+            for (auto &child : this->get_children()) {
+                auto &target_cluster = child->get_target_cluster();
+                auto &source_cluster = child->get_source_cluster();
+                if (((szt + (oft - child->get_target_cluster().get_offset()) <= child->get_target_cluster().get_size()) and (szt <= child->get_target_cluster().get_size()) and (oft >= child->get_target_cluster().get_offset()))
+                    and (((szs + (ofs - child->get_source_cluster().get_offset()) <= child->get_source_cluster().get_size()) and (szs <= child->get_source_cluster().get_size()) and (ofs >= child->get_source_cluster().get_offset())))) {
+                    return child->get_block(szt, szs, oft, ofs);
+                }
+            }
+        }
+        return nullptr;
+    }
     double get_compression() {
         double compr = 0.0;
         for (auto &l : this->get_leaves()) {
             if (l->is_dense()) {
                 compr += l->get_target_cluster().get_size() * l->get_source_cluster().get_size();
             } else {
-                compr += l->get_low_rank_data()->Get_U().nb_cols() * (l->get_low_rank_data()->Get_U().nb_rows() + l->get_low_rank_data()->Get_V().nb_cols());
+                compr += l->get_low_rank_data()->get_U().nb_cols() * (l->get_low_rank_data()->get_U().nb_rows() + l->get_low_rank_data()->get_V().nb_cols());
             }
         }
-        compr = 1 - compr;
-        return (compr / (1.0 * this->get_target_cluster().get_size() * this->get_source_cluster().gets_size()));
+        compr = compr / (1.0 * this->get_target_cluster().get_size() * this->get_source_cluster().get_size());
+        return (1 - compr);
     }
 };
 
@@ -2946,22 +2965,29 @@ void HMatrix<CoefficientPrecision, CoordinatePrecision>::recursive_build_hmatrix
 //     }
 // }
 
-// template <typename CoefficientPrecision, typename CoordinatePrecision>
-// void HMatrix<CoefficientPrecision, CoordinatePrecision>::save_plot(const std::string &outputname) const {
+template <typename CoefficientPrecision, typename CoordinatePrecision>
+void HMatrix<CoefficientPrecision, CoordinatePrecision>::save_plot(const std::string &outputname) const {
 
-//     std::ofstream outputfile((outputname + ".csv").c_str());
+    std::ofstream outputfile((outputname + ".csv").c_str());
 
-//     if (outputfile) {
-//         const auto &output = get_output();
-//         outputfile << m_block_tree_properties->m_root_cluster_tree_target->get_size() << "," << m_block_tree_properties->m_root_cluster_tree_source->get_size() << std::endl;
-//         for (const auto &block : output) {
-//             outputfile << block << "\n";
-//         }
-//         outputfile.close();
-//     } else {
-//         std::cout << "Unable to create " << outputname << std::endl; // LCOV_EXCL_LINE
-//     }
-// }
+    if (outputfile) {
+        outputfile << this->get_target_cluster().get_size() << "," << this->get_source_cluster().get_size() << std::endl;
+        auto leaves = this->get_leaves();
+        for (auto l : leaves) {
+            outputfile << l->get_target_cluster().get_offset() << "," << l->get_target_cluster().get_size() << "," << l->get_source_cluster().get_offset() << "," << l->get_source_cluster().get_size() << ",";
+            if (l->is_low_rank()) {
+                auto ll = l->get_low_rank_data();
+                int k   = ll->rank_of();
+                outputfile << k << "\n";
+            } else {
+                outputfile << -1 << "\n";
+            }
+        }
+        outputfile.close();
+    } else {
+        std::cout << "Unable to create " << outputname << std::endl; // LCOV_EXCL_LINE
+    }
+}
 
 // template <typename CoefficientPrecision, typename CoordinatePrecision>
 // std::vector<DisplayBlock> HMatrix<CoefficientPrecision, CoordinatePrecision>::get_output() const {

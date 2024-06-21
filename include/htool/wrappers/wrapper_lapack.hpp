@@ -28,7 +28,8 @@
     void HTOOL_LAPACK_F77(B##ormlq)(const char *, const char *, const int *, const int *, const int *, const U *, const int *, const U *, U *, const int *, U *, const int *, int *);        \
     void HTOOL_LAPACK_F77(C##unmlq)(const char *, const char *, const int *, const int *, const int *, const T *, const int *, const T *, T *, const int *, T *, const int *, int *);        \
     void HTOOL_LAPACK_F77(B##ormqr)(const char *, const char *, const int *, const int *, const int *, const U *, const int *, const U *, U *, const int *, U *, const int *, int *);        \
-    void HTOOL_LAPACK_F77(C##unmqr)(const char *, const char *, const int *, const int *, const int *, const T *, const int *, const T *, T *, const int *, T *, const int *, int *);
+    void HTOOL_LAPACK_F77(C##unmqr)(const char *, const char *, const int *, const int *, const int *, const T *, const int *, const T *, T *, const int *, T *, const int *, int *);        \
+    void HTOOL_LAPACK_F77(B##getri)(const int *, U *, const int *, int *, U *, const int *, int *);
 
 #if !defined(PETSC_HAVE_BLASLAPACK)
 #    ifndef _MKL_H_
@@ -87,6 +88,9 @@ struct Lapack {
     /* Function: gv
      *  Computes the eigenvalues and (optionally) the eigenvectors of a hermitian/symetric generalized eigenvalue problem. */
     static void gv(const int *, const char *, const char *, const int *, K *, const int *, K *, const int *, underlying_type<K> *, K *, const int *, underlying_type<K> *, int *);
+    /* Function getri
+     *Computes invert of a matrix using L and U from geqrf */
+    static void getri(const int *, K *, const int *, int *, K *, const int *, int *);
 };
 
 #    define HTOOL_GENERATE_LAPACK(C, T)                                                                                                                                \
@@ -148,6 +152,11 @@ struct Lapack {
         inline void Lapack<U>::gesvd(const char *jobu, const char *jobvt, const int *m, const int *n, U *a, const int *lda, U *s, U *u, const int *ldu, U *vt, const int *ldvt, U *work, const int *lwork, U *, int *info) {                                    \
             HTOOL_LAPACK_F77(B##gesvd)                                                                                                                                                                                                                          \
             (jobu, jobvt, m, n, a, lda, s, u, ldu, vt, ldvt, work, lwork, info);                                                                                                                                                                                \
+        }                                                                                                                                                                                                                                                       \
+        template <>                                                                                                                                                                                                                                             \
+        inline void Lapack<U>::getri(const int *n, U *a, const int *lda, int *ipiv, U *work, const int *lwork, int *info) {                                                                                                                                     \
+            HTOOL_LAPACK_F77(B##getri)                                                                                                                                                                                                                          \
+            (n, a, lda, ipiv, work, lwork, info);                                                                                                                                                                                                               \
         }                                                                                                                                                                                                                                                       \
         template <>                                                                                                                                                                                                                                             \
         inline void Lapack<T>::gesvd(const char *jobu, const char *jobvt, const int *m, const int *n, T *a, const int *lda, U *s, T *u, const int *ldu, T *vt, const int *ldvt, T *work, const int *lwork, U *rwork, int *info) {                               \
