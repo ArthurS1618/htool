@@ -1,6 +1,5 @@
 #include <htool/matrix/linalg/interface.hpp>
 #include <htool/matrix/matrix.hpp>
-#include <htool/testing/generate_random_permutation.hpp>
 #include <htool/testing/generator_input.hpp>
 using namespace std;
 using namespace htool;
