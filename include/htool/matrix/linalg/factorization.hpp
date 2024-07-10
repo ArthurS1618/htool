@@ -51,11 +51,11 @@ void triangular_matrix_matrix_solve(char side, char UPLO, char transa, char diag
     }
 
     Blas<T>::trsm(&side, &UPLO, &transa, &diag, &m, &n, &alpha, A.data(), &lda, B.data(), &ldb);
-
+    // std::cout <<"TEST "<<ipiv<<" "<<is_pivoted<<"\n";
     if (is_pivoted and UPLO == 'L') {
         if (side == 'L' and transa != 'N') {
-            int K1   = 0;
-            int K2   = m - 1;
+            int K1   = 1;
+            int K2   = m;
             int incx = -1;
             Blas<T>::laswp(&n, B.data(), &ldb, &K1, &K2, ipiv.data(), &incx);
         } else if (side == 'R' and transa == 'N') {
