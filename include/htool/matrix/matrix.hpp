@@ -300,6 +300,15 @@ class Matrix {
     //! ### Interface with blas gemm
     /*!
      */
+    void plus_egal(const Matrix B) {
+        assert((m_number_of_cols == B.m_number_of_cols) && (m_number_of_rows == B.m_number_of_rows));
+        int n        = m_number_of_cols * m_number_of_rows; // Nombre total d'éléments dans la matrice
+        double alpha = 1.0;                                 // Facteur de multiplication pour X
+        int inc      = 1;                                   // Incrément pour les éléments du vecteur
+
+        // Appel à daxpy pour effectuer l'opération Y = alpha * X + Y
+        Blas<T>::axpy(&n, &alpha, B.data(), &inc, data(), &inc);
+    }
     void mvprod(const T *in, T *out, const int &mu = 1) const {
         int nr  = m_number_of_rows;
         int nc  = m_number_of_cols;

@@ -37,6 +37,11 @@ add_custom_target(build-tests-hmatrix-air-quality)
 add_dependencies(build-tests-hmatrix build-tests-hmatrix-air-quality)
 add_subdirectory(test_ifp)
 
+add_custom_target(build-tests-sum-expression)
+add_dependencies(build-tests-hmatrix build-tests-sum-expression)
+add_subdirectory(sum_expression)
+
+
 # add_executable(Test_HMULT test_hmult.cpp)
 # target_link_libraries(Test_HMULT htool)
 # add_test(Test_HMULT Test_HMULT)
