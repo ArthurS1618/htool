@@ -193,6 +193,49 @@ bool test_hmatrix_build(int nr, int nc, bool use_local_cluster, char Symmetry, c
     is_error = is_error || !(frobenius_error < epsilon);
     std::cout << "Check dense conversion: " << frobenius_error << "\n";
 
+    // Check dense conversion with permutation
+    Matrix<T> permuted_matrix(hmatrix_target_cluster.get_size(), hmatrix_source_cluster.get_size()), temp_matrix(hmatrix_target_cluster.get_size(), hmatrix_source_cluster.get_size());
+    copy_to_dense_in_user_numbering(root_hmatrix, permuted_matrix.data());
+
+    const auto &source_permutation = hmatrix_source_cluster.get_permutation();
+    for (int i = 0; i < hmatrix_target_cluster.get_size(); i++) {
+        for (int j = 0; j < hmatrix_source_cluster.get_size(); j++) {
+            temp_matrix(i, j) = permuted_matrix(target_permutation[i + hmatrix_target_cluster.get_offset()] - hmatrix_target_cluster.get_offset(), source_permutation[j + hmatrix_source_cluster.get_offset()] - hmatrix_source_cluster.get_offset());
+        }
+    }
+    // MPI_Barrier(MPI_COMM_WORLD);
+    // if (rankWorld == 0) {
+    //     dense_matrix.print(std::cout, ",");
+    //     std::cout << root_hmatrix.get_symmetry() << "\n";
+    // }
+    // MPI_Barrier(MPI_COMM_WORLD);
+    // MPI_Barrier(MPI_COMM_WORLD);
+    // if (rankWorld == 1) {
+    //     dense_matrix.print(std::cout, ",");
+    //     std::cout << root_hmatrix.get_symmetry() << "\n";
+    // }
+    // MPI_Barrier(MPI_COMM_WORLD);
+    // MPI_Barrier(MPI_COMM_WORLD);
+    // if (rankWorld == 0) {
+    //     save_leaves_with_rank(root_hmatrix, "test_0");
+    //     Matrix<T> test = temp_matrix - dense_matrix;
+    //     test.print(std::cout, ",");
+    //     std::cout << root_hmatrix.get_symmetry() << "\n";
+    // }
+    // MPI_Barrier(MPI_COMM_WORLD);
+    // MPI_Barrier(MPI_COMM_WORLD);
+    // if (rankWorld == 1) {
+    //     save_leaves_with_rank(root_hmatrix, "test_1");
+    //     Matrix<T> test = temp_matrix - dense_matrix;
+    //     test.print(std::cout, ",");
+    //     std::cout << root_hmatrix.get_symmetry() << "\n";
+    // }
+    // MPI_Barrier(MPI_COMM_WORLD);
+    frobenius_error = normFrob(temp_matrix - dense_matrix);
+    frobenius_error /= dense_matrix_norm;
+    is_error = is_error || !(frobenius_error < epsilon);
+    std::cout << "Check dense conversion in user numbering: " << frobenius_error << "\n";
+
     // Check get diagonal conversion
     if (Symmetry != 'N' || nr == nc) {
         int local_size   = diagonal_hmatrix->get_target_cluster().get_size();
@@ -208,6 +251,14 @@ bool test_hmatrix_build(int nr, int nc, bool use_local_cluster, char Symmetry, c
 
         is_error = is_error || !(error_on_diagonal < epsilon);
         std::cout << "Check get diagonal: " << error_on_diagonal << "\n";
+
+        vector<T> diagonal_in_user_numbering(local_size), temp_vector(local_size);
+        copy_diagonal_in_user_numbering(*diagonal_hmatrix, diagonal_in_user_numbering.data());
+        user_to_cluster(diagonal_hmatrix->get_target_cluster(), diagonal_in_user_numbering.data(), temp_vector.data());
+        error_on_diagonal = norm2(temp_vector - dense_diagonal) / norm2(dense_diagonal);
+
+        is_error = is_error || !(error_on_diagonal < epsilon);
+        std::cout << "Check get diagonal in user numbering: " << error_on_diagonal << "\n";
     }
 
     //
