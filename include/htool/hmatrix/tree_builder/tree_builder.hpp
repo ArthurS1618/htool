@@ -133,10 +133,10 @@ class HMatrixTreeBuilder {
     void set_dense_blocks_generator(std::shared_ptr<VirtualDenseBlocksGenerator<CoefficientPrecision>> dense_blocks_generator) { m_dense_blocks_generator = dense_blocks_generator; }
 
     // Getters
-    char get_symmetry() { return m_symmetry_type; }
-    char get_UPLO() { return m_UPLO_type; }
-    const Cluster<CoordinatePrecision> &get_target_cluster() { return m_target_root_cluster; }
-    const Cluster<CoordinatePrecision> &get_source_cluster() { return m_source_root_cluster; }
+    char get_symmetry() const { return m_symmetry_type; }
+    char get_UPLO() const { return m_UPLO_type; }
+    const Cluster<CoordinatePrecision> &get_target_cluster() const { return m_target_root_cluster; }
+    const Cluster<CoordinatePrecision> &get_source_cluster() const { return m_source_root_cluster; }
 };
 
 template <typename CoefficientPrecision, typename CoordinatePrecision>
