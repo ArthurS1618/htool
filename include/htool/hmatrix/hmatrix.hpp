@@ -186,6 +186,7 @@ class HMatrix : public TreeNode<HMatrix<CoefficientPrecision, CoordinatePrecisio
         return nullptr;
     }
     void save_plot(const std::string &outputname) const;
+
     int get_rank() const {
         return m_storage_type == StorageType::LowRank ? m_low_rank_data->rank_of() : -1;
     }
@@ -271,6 +272,8 @@ class HMatrix : public TreeNode<HMatrix<CoefficientPrecision, CoordinatePrecisio
     }
     std::shared_ptr<VirtualLowRankGenerator<CoefficientPrecision, CoordinatePrecision>> get_low_rank_generator() { return this->m_tree_data->m_low_rank_generator; }
 
+    std::shared_ptr<VirtualAdmissibilityCondition<CoordinatePrecision>> get_admissibility_condition() { return this->m_tree_data->m_admissibility_condition; }
+
     // Infos
     // const std::map<std::string, std::string> &get_infos() const { return infos; }
     // std::string get_infos(const std::string &key) const { return infos[key]; }
@@ -312,6 +315,154 @@ class HMatrix : public TreeNode<HMatrix<CoefficientPrecision, CoordinatePrecisio
     // Linear algebra
     void add_vector_product(char trans, CoefficientPrecision alpha, const CoefficientPrecision *in, CoefficientPrecision beta, CoefficientPrecision *out) const;
     void add_matrix_product_row_major(char trans, CoefficientPrecision alpha, const CoefficientPrecision *in, CoefficientPrecision beta, CoefficientPrecision *out, int mu) const;
+    void plus_egal(const CoefficientPrecision &apha, const HMatrix *B);
+    void hierarchical_gemm(char transa, char transb, const CoefficientPrecision &alpha, HMatrix<CoefficientPrecision, CoordinatePrecision> *A, HMatrix<CoefficientPrecision, CoordinatePrecision> *B, const CoefficientPrecision &beta);
+
+    void set_data(const Matrix<CoefficientPrecision> &M) {
+        if (this->get_target_cluster().get_children().size() > 0) {
+            for (auto &t_child : this->get_target_cluster().get_children()) {
+                for (auto &s_child : this->get_source_cluster().get_children()) {
+                    auto child                       = this->add_child(t_child.get(), s_child.get());
+                    Matrix<CoefficientPrecision> mat = copy_sub_matrix(M, t_child->get_size(), s_child->get_size(), t_child->get_offset() - this->get_target_cluster().get_offset(), s_child->get_offset() - this->get_source_cluster().get_offset());
+                    child->set_data(mat);
+                }
+            }
+        } else {
+            std::unique_ptr<Matrix<CoefficientPrecision>> m = std::make_unique<Matrix<CoefficientPrecision>>(M);
+            this->set_dense_data(std::move(m));
+        }
+    }
+
+    void grid(const Matrix<CoefficientPrecision> &M, const int &oft0, const int &ofs0) {
+        auto adm = this->compute_admissibility(this->get_target_cluster(), this->get_source_cluster());
+        if (adm) {
+            // std::cout << "!!!!" << std::endl;
+            SumExpression_fast<CoefficientPrecision, CoordinatePrecision> temp;
+            temp.set_size(this->get_target_cluster(), this->get_source_cluster());
+            auto m = copy_sub_matrix(M, this->get_target_cluster().get_size(), this->get_source_cluster().get_size(), this->get_target_cluster().get_offset() - oft0, this->get_source_cluster().get_offset() - ofs0);
+            temp.set_dense(m);
+            LowRankMatrix<CoefficientPrecision, CoordinatePrecision> lr_test(temp, *this->get_low_rank_generator(), this->get_target_cluster(), this->get_source_cluster(), -1, this->get_epsilon());
+            if (lr_test.get_U().nb_cols() > 0) {
+                this->set_low_rank_data(lr_test);
+            } else {
+                if (this->get_target_cluster().get_children().size() > 0) {
+                    for (auto &t_child : this->get_target_cluster().get_children()) {
+                        for (auto &s_child : this->get_source_cluster().get_children()) {
+                            auto child = this->add_child(t_child.get(), s_child.get());
+                            child->grid(M, oft0, ofs0);
+                        }
+                    }
+                } else {
+                    auto m                                            = copy_sub_matrix(M, this->get_target_cluster().get_size(), this->get_source_cluster().get_size(), this->get_target_cluster().get_offset() - oft0, this->get_source_cluster().get_offset() - ofs0);
+                    std::unique_ptr<Matrix<CoefficientPrecision>> mat = std::make_unique<Matrix<CoefficientPrecision>>(m);
+                    this->set_dense_data(std::move(mat));
+                }
+            }
+        } else {
+            if (this->get_target_cluster().get_children().size() > 0) {
+                for (auto &t_child : this->get_target_cluster().get_children()) {
+                    for (auto &s_child : this->get_source_cluster().get_children()) {
+                        auto child = this->add_child(t_child.get(), s_child.get());
+                        child->grid(M, oft0, ofs0);
+                    }
+                }
+            } else {
+                auto m                                            = copy_sub_matrix(M, this->get_target_cluster().get_size(), this->get_source_cluster().get_size(), this->get_target_cluster().get_offset() - oft0, this->get_source_cluster().get_offset() - ofs0);
+                std::unique_ptr<Matrix<CoefficientPrecision>> mat = std::make_unique<Matrix<CoefficientPrecision>>(m);
+                this->set_dense_data(std::move(mat));
+            }
+        }
+    }
+
+    void assign(const Matrix<CoefficientPrecision> *M, const int &oft0, const int &ofs0) {
+        auto adm = this->compute_admissibility(this->get_target_cluster(), this->get_source_cluster());
+        if (adm) {
+            // std::cout << "!!!!" << std::endl;
+            SumExpression_fast<CoefficientPrecision, CoordinatePrecision> temp;
+            temp.set_size(this->get_target_cluster(), this->get_source_cluster());
+            auto m = copy_sub_matrix(*M, this->get_target_cluster().get_size(), this->get_source_cluster().get_size(), this->get_target_cluster().get_offset() - oft0, this->get_source_cluster().get_offset() - ofs0);
+            temp.set_dense(m);
+            LowRankMatrix<CoefficientPrecision, CoordinatePrecision> lr_test(temp, *this->get_low_rank_generator(), this->get_target_cluster(), this->get_source_cluster(), -1, this->get_epsilon());
+            if (lr_test.get_U().nb_cols() > 0) {
+                this->set_low_rank_data(lr_test);
+            } else {
+                if (this->get_target_cluster().get_children().size() > 0) {
+                    for (auto &t_child : this->get_target_cluster().get_children()) {
+                        for (auto &s_child : this->get_source_cluster().get_children()) {
+                            auto child = this->add_child(t_child.get(), s_child.get());
+                            child->assign(M, oft0, ofs0);
+                        }
+                    }
+                } else {
+                    // auto m                                            = copy_sub_matrix(*M, this->get_target_cluster().get_size(), this->get_source_cluster().get_size(), this->get_target_cluster().get_offset() - oft0, this->get_source_cluster().get_offset() - ofs0);
+                    std::unique_ptr<Matrix<CoefficientPrecision>> mat = std::make_unique<Matrix<CoefficientPrecision>>(m);
+                    this->set_dense_data(std::move(mat));
+                }
+            }
+        } else {
+            if (this->get_target_cluster().get_children().size() > 0) {
+                for (auto &t_child : this->get_target_cluster().get_children()) {
+                    for (auto &s_child : this->get_source_cluster().get_children()) {
+                        auto child = this->add_child(t_child.get(), s_child.get());
+                        child->assign(M, oft0, ofs0);
+                    }
+                }
+            } else {
+                auto m                                            = copy_sub_matrix(*M, this->get_target_cluster().get_size(), this->get_source_cluster().get_size(), this->get_target_cluster().get_offset() - oft0, this->get_source_cluster().get_offset() - ofs0);
+                std::unique_ptr<Matrix<CoefficientPrecision>> mat = std::make_unique<Matrix<CoefficientPrecision>>(m);
+                this->set_dense_data(std::move(mat));
+                // std::cout << " on affect un bloc de taille " << this->get_target_cluster().get_size() << ',' << this->get_source_cluster().get_size() << std::endl;
+            }
+        }
+    }
+    void format() {
+        if (this->is_dense() && this->get_target_cluster().get_children().size() > 0) {
+            auto mm = *this->get_dense_data();
+
+            this->m_leaves.clear();
+            this->m_dense_data   = std::move(nullptr);
+            this->m_storage_type = StorageType::Hierarchical;
+            this->assign(&mm, this->get_target_cluster().get_offset(), this->get_source_cluster().get_offset());
+        } else if (this->get_children().size() > 0) {
+            for (auto &child : this->get_children()) {
+                child->format();
+            }
+        }
+    }
+
+    void copy_format(HMatrix *res) {
+        if (this->get_children().size() > 0) {
+            for (auto &t_child : this->get_target_cluster().get_children()) {
+                for (auto &s_child : this->get_source_cluster().get_children()) {
+                    auto new_child = res->add_child(t_child.get(), s_child.get());
+                    this->get_block(t_child->get_size(), s_child->get_size(), t_child->get_offset(), s_child->get_offset())->copy_format(new_child);
+                }
+            }
+        } else {
+            if (this->is_dense()) {
+                if (this->get_target_cluster().get_children().size() == 0) {
+                    std::unique_ptr<Matrix<CoefficientPrecision>> m = std::make_unique<Matrix<CoefficientPrecision>>(*this->get_dense_data());
+                    res->set_dense_data(std::move(m));
+                } else {
+                    // auto m = *M->get_dense_data();
+                    res->assign(this->get_dense_data(), this->get_target_cluster().get_offset(), this->get_source_cluster().get_offset());
+                    // res->set_data(*this->get_dense_data());
+                }
+            } else {
+                res->set_low_rank_data(*this->get_low_rank_data());
+            }
+        }
+    }
+
+    HMatrix get_format() {
+        HMatrix res(this->get_target_cluster(), this->get_source_cluster());
+        res.set_admissibility_condition(this->get_admissibility_condition());
+        res.set_low_rank_generator(this->get_low_rank_generator());
+        res.set_epsilon(this->get_epsilon());
+        res.set_eta(this->m_tree_data->m_eta);
+        this->copy_format(&res);
+        return res;
+    }
 
     // void add_vector_product(char trans, CoefficientPrecision alpha, const CoefficientPrecision *in, CoefficientPrecision beta, CoefficientPrecision *out) const;
     // void add_matrix_product(CoefficientPrecision alpha, const CoefficientPrecision *in, CoefficientPrecision beta, CoefficientPrecision *out, int mu) const;
@@ -351,14 +502,199 @@ class HMatrix : public TreeNode<HMatrix<CoefficientPrecision, CoordinatePrecisio
     // void apply_dirichlet(const std::vector<int> &boundary);
     HMatrix hmatrix_product(const HMatrix &H) const;
     HMatrix hmatrix_product_fast(const HMatrix &H) const;
+    void add_hmatrix_product_fast(const CoefficientPrecision &alpha, SumExpression_fast<CoefficientPrecision, CoordinatePrecision> &sum_expr, std::shared_ptr<VirtualAdmissibilityCondition<CoordinatePrecision>> *adm);
+    /// trouver X tq LX=y
+    void FM_fast(const Cluster<CoordinatePrecision> &t, const Cluster<CoordinatePrecision> &s, HMatrix *X) {
+        if (X->is_dense()) {
+            Matrix<CoefficientPrecision> dense  = *X->get_dense_data();
+            Matrix<CoefficientPrecision> ldense = *this->get_block(X->get_target_cluster().get_size(), X->get_target_cluster().get_size(), X->get_target_cluster().get_offset(), X->get_target_cluster().get_offset())->get_dense_data();
+            triangular_matrix_matrix_solve('L', 'L', 'N', 'U', 1.0, ldense, dense);
+            std::unique_ptr<Matrix<CoefficientPrecision>> mat = std::make_unique<Matrix<CoefficientPrecision>>(dense);
+            X->set_dense_data(std::move(mat));
 
+        } else if (X->is_low_rank()) {
+            Matrix<CoefficientPrecision> new_U(X->get_low_rank_data()->get_U().nb_rows(), X->get_low_rank_data()->get_U().nb_cols());
+            for (int k = 0; k < X->get_low_rank_data()->get_U().nb_cols(); ++k) {
+                std::vector<CoefficientPrecision> col(new_U.nb_rows(), 0.0);
+                auto v = X->get_low_rank_data()->get_U().get_col(k);
+                this->hmatrix_vector_triangular_L(col, v, this->get_target_cluster(), 0);
+
+                new_U.set_col(k, col);
+            }
+            LowRankMatrix<CoefficientPrecision, CoordinatePrecision> lr_new(new_U, X->get_low_rank_data()->get_V());
+            X->set_low_rank_data(lr_new);
+        } else {
+            // recursion
+            // on regarde si L est pas LR ( on pourrait pas descendre)
+            if (this->get_block(X->get_target_cluster().get_size(), X->get_source_cluster().get_size(), X->get_target_cluster().get_offset(), X->get_source_cluster().get_offset())->get_children().size() == 0) {
+                std::cout << "wtffffffffffff" << std::endl;
+            }
+            std::cout << "X children : " << X->get_children().size() << std::endl;
+            for (int i = 0; i < X->get_target_cluster().get_children().size(); ++i) {
+                for (auto &cluster_child : X->get_source_cluster().get_children()) {
+                    auto &ti = X->get_target_cluster().get_children()[i];
+                    this->FM_fast(*ti, *cluster_child, X->get_block(ti->get_size(), cluster_child->get_size(), ti->get_offset(), cluster_child->get_offset()));
+                    for (int j = i + 1; j < X->get_source_cluster().get_children().size(); ++j) {
+                        auto &tj = X->get_source_cluster().get_children()[j];
+                        std::cout << "                                 on appel prod sur " << tj->get_size() << ',' << ti->get_size() << ',' << cluster_child->get_size() << std::endl;
+                        auto prod = this->get_block(tj->get_size(), ti->get_size(), tj->get_offset(), ti->get_offset())->hmatrix_product_fast(*X->get_block(ti->get_size(), cluster_child->get_size(), ti->get_offset(), cluster_child->get_offset()));
+                        auto Xt   = X->get_block(tj->get_size(), cluster_child->get_size(), tj->get_offset(), cluster_child->get_offset());
+                        Xt->plus_egal(-1.0, &prod);
+                    }
+                }
+            }
+        }
+    }
+
+    void FM_fast_build(const Cluster<CoordinatePrecision> &t, const Cluster<CoordinatePrecision> &s, HMatrix *X, HMatrix *bloc_courant) {
+        double err = 0;
+        if (bloc_courant->is_dense()) {
+            if (bloc_courant->get_target_cluster().get_children().size() > 0) {
+                // std::cout << "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!" << std::endl;
+                Matrix<CoefficientPrecision> bloc_dense(bloc_courant->get_target_cluster().get_size(), bloc_courant->get_source_cluster().get_size());
+                copy_to_dense(*bloc_courant, bloc_dense.data());
+                Matrix<CoefficientPrecision> ldense(this->get_target_cluster().get_size(), this->get_target_cluster().get_size());
+                copy_to_dense(*this, ldense.data());
+                triangular_matrix_matrix_solve('L', 'L', 'N', 'U', 1.0, ldense, bloc_dense);
+                X->assign(&bloc_dense, this->get_target_cluster().get_offset(), bloc_courant->get_source_cluster().get_offset());
+                if (err > 0.01) {
+                    std::cerr << "_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_error!     1" << std::endl;
+                }
+            } else {
+                // std::cout << "dense :" << std::endl;
+                Matrix<CoefficientPrecision> dense = *bloc_courant->get_dense_data();
+                auto dense0                        = dense;
+
+                // std::cout << "numero 1 " << std::endl;
+                auto Lt = this->get_block(bloc_courant->get_target_cluster().get_size(), bloc_courant->get_target_cluster().get_size(), bloc_courant->get_target_cluster().get_offset(), bloc_courant->get_target_cluster().get_offset());
+                // std::cout << "Lt " << Lt->get_target_cluster().get_size() << ',' << Lt->get_source_cluster().get_size() << '!' << Lt->get_target_cluster().get_offset() << ',' << Lt->get_source_cluster().get_offset() << std::endl;
+                Matrix<CoefficientPrecision> ldense = *Lt->get_dense_data();
+                triangular_matrix_matrix_solve('L', 'L', 'N', 'U', 1.0, ldense, dense);
+                std::unique_ptr<Matrix<CoefficientPrecision>> mat = std::make_unique<Matrix<CoefficientPrecision>>(dense);
+                X->set_dense_data(std::move(mat));
+                Matrix<CoefficientPrecision> xdense(X->get_target_cluster().get_size(), X->get_source_cluster().get_size());
+                copy_to_dense(*X, xdense.data());
+                err = normFrob(dense0 - ldense * xdense) / normFrob(dense0);
+                // std::cout << "dense ok , erreur sur feuille dense : " << err << std::endl;
+                if (err > 0.01) {
+                    std::cerr << "_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_error!     2" << std::endl;
+                }
+            }
+            // std::cout << "on push un dense de norme " << normFrob(dense) << std::endl;
+        } else if (bloc_courant->is_low_rank()) {
+            // std::cout << "numero 2 " << std::endl;
+            // std::cout << "lr :  " << this->get_target_cluster().get_size() << ',' << this->get_source_cluster().get_size() << '!' << X->get_target_cluster().get_size() << ',' << X->get_source_cluster().get_size() << '!' << bloc_courant->get_target_cluster().get_size() << ',' << bloc_courant->get_source_cluster().get_size() << std::endl;
+            Matrix<CoefficientPrecision> new_U(this->get_source_cluster().get_size(), bloc_courant->get_low_rank_data()->get_U().nb_cols());
+            // std::cout << "++size info++  " << new_U.nb_rows() << ',' << new_U.nb_cols
+            Matrix<CoefficientPrecision> ldense(this->get_target_cluster().get_size(), this->get_source_cluster().get_size());
+            // std::cout << "info this ++ " << this->get_target_cluster().get_children().size() << ',' << this->get_children().size() << std::endl;
+            copy_to_dense(*this, ldense.data());
+            // std::cout << "!!!!!!!!! norme de L : " << normFrob(ldense) << std::endl;
+            if (this->get_target_cluster().get_children().size() == 0) {
+                Matrix<CoefficientPrecision> ldense0(this->get_target_cluster().get_size(), this->get_source_cluster().get_size());
+                copy_to_dense(*this, ldense0.data());
+                auto uu  = bloc_courant->get_low_rank_data()->get_U();
+                auto uu0 = uu;
+                triangular_matrix_matrix_solve('L', 'L', 'N', 'U', 1.0, ldense0, uu);
+                new_U = uu;
+                err   = normFrob(ldense0 * uu - uu0) / normFrob(uu0);
+                // std::cout << "  erreur corner : " << err << std::endl;
+                if (err > 0.01) {
+                    std::cerr << "_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_error!     3" << std::endl;
+                }
+            } else {
+                for (int k = 0; k < bloc_courant->get_low_rank_data()->get_U().nb_cols(); ++k) {
+                    std::vector<CoefficientPrecision> col(new_U.nb_rows(), 0.0);
+                    auto v  = bloc_courant->get_low_rank_data()->get_U().get_col(k);
+                    auto v0 = v;
+                    // std::cout << "norme de la colonne                   ->  : " << norm2(v) << std::endl;
+                    // std::cout << "size info ++ : " << this->get_target_cluster().get_size() << ',' << this->get_source_cluster().get_size() << ',' << col.size() << ',' << new_U.nb_rows() << ',' << v.size() << " !! " << bloc_courant->get_target_cluster().get_size() << ',' << bloc_courant->get_source_cluster().get_size() << std::endl;
+                    this->hmatrix_vector_triangular_L(col, v, this->get_target_cluster(), this->get_target_cluster().get_offset());
+                    // std::cout << "    erreur lr sur collone k: " << norm2(ldense * col - v0) / norm2(v0) << std::endl;
+                    // std::cout << "norme de la colonne aprés solve                    ->  : " << norm2(col) << std::endl;
+
+                    new_U.set_col(k, col);
+                }
+            }
+            LowRankMatrix<CoefficientPrecision, CoordinatePrecision> lr_new(new_U, bloc_courant->get_low_rank_data()->get_V());
+            X->set_low_rank_data(lr_new);
+            // std::cout << "on push un lr de norme : " << normFrob(X->get_low_rank_data()->get_U() * X->get_low_rank_data()->get_V()) << " avec U et V de norme :" << normFrob(new_U) << ',' << normFrob(X->get_low_rank_data()->get_V()) << std::endl;
+            Matrix<CoefficientPrecision> xdense(X->get_target_cluster().get_size(), X->get_source_cluster().get_size());
+            copy_to_dense(*X, xdense.data());
+            err = normFrob(ldense * xdense - bloc_courant->get_low_rank_data()->get_U() * bloc_courant->get_low_rank_data()->get_V()) / normFrob(bloc_courant->get_low_rank_data()->get_U() * bloc_courant->get_low_rank_data()->get_V());
+            // std::cout << "lr ok , erreur sur feuille low rank : " << err << std::endl;
+            if (err > 0.01) {
+                std::cerr << "_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_error!     4" << std::endl;
+            }
+        } else {
+            // recursion
+            // std::cout << "------------66>" << bloc_courant->get_target_cluster().get_children().size() << std::endl;
+            // std::cout << "recursion : " << std::endl;
+            for (auto &ti : bloc_courant->get_target_cluster().get_children()) {
+                for (auto &cluster_child : bloc_courant->get_source_cluster().get_children()) {
+                    auto X_child = X->add_child(ti.get(), cluster_child.get());
+                    Matrix<CoefficientPrecision> zdense0(ti->get_size(), cluster_child->get_size());
+                    copy_to_dense(*bloc_courant->get_block(ti->get_size(), cluster_child->get_size(), ti->get_offset(), cluster_child->get_offset()), zdense0.data());
+                    // std::cout << "      fm intermediaire: " << std::endl;
+
+                    this->get_block(ti->get_size(), ti->get_size(), ti->get_offset(), ti->get_offset())->FM_fast_build(*ti, *cluster_child, X_child, bloc_courant->get_block(ti->get_size(), cluster_child->get_size(), ti->get_offset(), cluster_child->get_offset()));
+                    // X_child->get_format();
+                    Matrix<CoefficientPrecision> ldense0(ti->get_size(), ti->get_size());
+                    copy_to_dense(*this->get_block(ti->get_size(), ti->get_size(), ti->get_offset(), ti->get_offset()), ldense0.data());
+                    Matrix<CoefficientPrecision> xdense(ti->get_size(), cluster_child->get_size());
+                    copy_to_dense(*X_child, xdense.data());
+                    err = normFrob(ldense0 * xdense - zdense0) / normFrob(zdense0);
+                    // std::cout << "      fm intermediaire ok , erreur : " << err << std::endl;
+                    if (err > 0.01) {
+                        std::cerr << "_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_error!     5" << std::endl;
+                    }
+                    for (auto &tj : bloc_courant->get_target_cluster().get_children()) {
+                        if (tj->get_offset() > ti->get_offset()) {
+                            // std::cout << "this : " << this->get_target_cluster().get_size() << ',' << this->get_source_cluster().get_size() << ',' << this->get_target_cluster().get_offset() << ',' << this->get_source_cluster().get_offset() << ',' << this->get_children().size() << std::endl;
+                            auto Lji = this->get_block(tj->get_size(), ti->get_size(), tj->get_offset(), ti->get_offset());
+                            Matrix<CoefficientPrecision> ljidense(tj->get_size(), ti->get_size());
+                            copy_to_dense(*Lji, ljidense.data());
+                            // std::cout << "norme de X : " << normFrob(xdense) << " nb_child " << X_child->get_children().size() << ',' << X_child->is_dense() << ',' << X_child->is_low_rank() << std::endl;
+                            // std::cout << "          prod : " << std::endl;
+                            auto prod = Lji->hmatrix_product_fast(*X_child);
+                            Matrix<CoefficientPrecision> prod_dense(tj->get_size(), cluster_child->get_size());
+                            copy_to_dense(prod, prod_dense.data());
+                            err = normFrob(prod_dense - ljidense * xdense) / normFrob(ljidense * xdense);
+                            // std::cout << "          prod ok , erreur : " << err << std::endl;
+                            if (err > 0.01) {
+                                std::cerr << "_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_error!     6" << std::endl;
+                            }
+                            auto Zt = bloc_courant->get_block(tj->get_size(), cluster_child->get_size(), tj->get_offset(), cluster_child->get_offset());
+                            Matrix<CoefficientPrecision> zdense(tj->get_size(), cluster_child->get_size());
+                            copy_to_dense(*Zt, zdense.data());
+                            auto z0 = zdense;
+                            // std::cout << "            plus_egal:" << std::endl;
+                            // Zt->Moins(prod);
+                            // std::cout << "______________________________" << std::endl;
+
+                            Zt->plus_egal(-1.0, &prod);
+                            // std::cout << "_____________ok_________________" << std::endl;
+                            copy_to_dense(*Zt, zdense.data());
+                            err = normFrob((z0 - ljidense * xdense) - zdense) / normFrob((z0 - ljidense * xdense));
+                            // std::cout << "          plus egal ok , erreur : " << err << std::endl;
+                            if (err > 0.01) {
+                                std::cerr << "_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_error!     7" << std::endl;
+                            }
+                        }
+                    }
+                }
+            }
+            // std::cout << "recursion ok : " << std::endl;
+        }
+    }
     void copy_zero(const HMatrix &H) {
         if (H.get_children().size() > 0) {
             for (auto &child : H.get_children()) {
                 auto bloc = this->add_child(&child->get_target_cluster(), &child->get_source_cluster());
                 bloc->copy_zero(*child);
             }
-        } else {
+        } // namespace htool
+        else {
             Matrix<CoefficientPrecision> zero(H.get_target_cluster().get_size(), H.get_source_cluster().get_size());
             this->set_dense_data(zero);
             bool temp = true;
@@ -366,39 +702,58 @@ class HMatrix : public TreeNode<HMatrix<CoefficientPrecision, CoordinatePrecisio
     }
     void hmatrix_vector_triangular_L(std::vector<CoefficientPrecision> &X, std::vector<CoefficientPrecision> &B, const Cluster<CoordinatePrecision> &t, const int &offset0) {
         auto Ltt = this->get_block(t.get_size(), t.get_size(), t.get_offset(), t.get_offset());
+        // if( Ltt->get_target_cluster().get_size() == t.get_size() && Ltt->get_source_cluster().get_size() == t.get_size()){
         if (Ltt->get_children().size() == 0) {
             if (Ltt->is_dense()) {
                 auto ldense = *Ltt->get_dense_data();
                 std::vector<CoefficientPrecision> target(t.get_size());
-                std::copy(B.begin() + t.get_offset(), B.begin() + t.get_offset() + t.get_size(), target.begin());
-                auto bb = target;
+                std::copy(B.begin() + t.get_offset() - offset0, B.begin() + t.get_offset() - offset0 + t.get_size(), target.begin());
+                // std::cout << "norme de B1  " << norm2(B) << std::endl;
                 triangular_matrix_vec_solve('L', 'L', 'N', 'U', 1.0, ldense, target);
-                std::copy(target.begin(), target.end(), X.begin() + t.get_offset());
+                std::copy(target.begin(), target.end(), X.begin() + t.get_offset() - offset0);
+            } else {
+                std::cerr << "bloc no dense sur la diagonale" << std::endl;
             }
         } else {
             for (int j = 0; j < t.get_children().size(); ++j) {
                 auto &tj = t.get_children()[j];
+                // std::cout << "norme de B2 " << norm2(B) << std::endl;
+
                 Ltt->hmatrix_vector_triangular_L(X, B, *tj, offset0);
+                // std::cout << "norme de B3 " << norm2(B) << std::endl;
+
                 for (int i = j + 1; i < t.get_children().size(); ++i) {
                     auto &ti = t.get_children()[i];
                     std::vector<CoefficientPrecision> bi(ti->get_size());
                     // std::copy(B.begin() + ti->get_offset(), B.begin() + ti->get_offset(), bi.begin());
                     for (int k = 0; k < ti->get_size(); ++k) {
-                        bi[k] = B[k + ti->get_offset()];
+                        bi[k] = B[k + ti->get_offset() - offset0];
                     }
                     std::vector<CoefficientPrecision> xj(tj->get_size());
                     for (int k = 0; k < tj->get_size(); ++k) {
-                        xj[k] = X[k + tj->get_offset()];
+                        xj[k] = X[k + tj->get_offset() - offset0];
                     }
                     // std::copy(X.begin() + tj->get_offset(), X.begin() + tj->get_offset(), xj.begin());
-                    Ltt->get_block(ti->get_size(), tj->get_size(), ti->get_offset(), tj->get_offset())->add_vector_product('N', -1.0, xj.data(), 1.0, bi.data());
+                    auto Ltemp = Ltt->get_block(ti->get_size(), tj->get_size(), ti->get_offset(), tj->get_offset());
+                    // std::cout << "' size :  (" << ti->get_size() << ',' << ti->get_offset() << "),(" << tj->get_size() << ',' << tj->get_offset() << ")," << xj.size() << ',' << bi.size() << std::endl;
+                    // std::cout << "pour un bloc   " << Ltt->get_target_cluster().get_size() << ',' << Ltt->get_source_cluster().get_size() << std::endl;
+                    Matrix<CoefficientPrecision> ldense(ti->get_size(), tj->get_size());
+                    copy_to_dense(*Ltemp, ldense.data());
+                    // std::cout << "normes  : " << normFrob(ldense) << ',' << norm2(xj) << ',' << norm2(bi) << std::endl;
+                    Ltemp->get_block(ti->get_size(), tj->get_size(), ti->get_offset(), tj->get_offset())->add_vector_product('N', -1.0, xj.data(), 1.0, bi.data());
+                    // bi = bi - ldense * xj;
                     // std::copy(bi.begin(), bi.end(), B.begin() + ti->get_size());
                     for (int k = 0; k < ti->get_size(); ++k) {
-                        B[k + ti->get_offset()] = bi[k];
+                        B[k + ti->get_offset() - offset0] = bi[k];
                     }
+                    // std::cout << "norme de B4 " << norm2(B) << std::endl;
                 }
             }
         }
+        // }
+        // else{
+
+        // }
     }
     void hmatrix_vector_triangular_U(std::vector<CoefficientPrecision> &X, std::vector<CoefficientPrecision> &B, const Cluster<CoordinatePrecision> &t, const int &offset0) {
         auto Utt = this->get_block(t.get_size(), t.get_size(), t.get_offset(), t.get_offset());
@@ -581,6 +936,7 @@ class HMatrix : public TreeNode<HMatrix<CoefficientPrecision, CoordinatePrecisio
                         // on verifie que les blocs existent vraimet
                         if ((Lji->get_target_cluster().get_size() == t_children[j]->get_size()) and (Lji->get_source_cluster().get_size() == t_children[i]->get_size())) {
                             Zjs->Moins(Lji->hmatrix_product(*Xis));
+                            // Zjs->plus_egal(-1, &Lji->hmatrix_product_fast(*Xis));
                             // Zjs->Moins(Lji->hmatrix_product_new(*Xis));
 
                         } else {
@@ -1723,6 +2079,9 @@ void HMatrix<CoefficientPrecision, CoordinatePrecision>::threaded_hierarchical_a
 
 template <typename CoefficientPrecision, typename CoordinatePrecision>
 HMatrix<CoefficientPrecision, CoordinatePrecision> HMatrix<CoefficientPrecision, CoordinatePrecision>::hmatrix_product_fast(const HMatrix<CoefficientPrecision, CoordinatePrecision> &B) const {
+    if (this->get_source_cluster().get_size() != B.get_target_cluster().get_size()) {
+        std::cerr << " Hmatrix unaligned" << std::endl;
+    }
     HMatrix root_hmatrix(this->get_target_cluster(), B.get_source_cluster());
     root_hmatrix.set_admissibility_condition(this->m_tree_data->m_admissibility_condition);
     auto admissibility = this->m_tree_data->m_admissibility_condition;
@@ -1760,7 +2119,13 @@ void HMatrix<CoefficientPrecision, CoordinatePrecision>::recursive_build_hmatrix
                     }
                 } else {
                     // on peut pas descendre
+                    // if (this->get_target_cluster().get_children().size() > 0) {
                     this->compute_dense_data(sum_expr);
+                    // } else {
+                    //     Matrix<CoefficientPrecision> mat(this->get_target_cluster().get_size(), this->get_source_cluster().get_size());
+                    //     sum_expr.copy_submatrix(this->get_target_cluster().get_size(), this->get_source_cluster().get_size(), 0, 0, mat.data());
+                    //     this->assign(&mat, this->get_target_cluster().get_offset(), this->get_source_cluster().get_offset());
+                    // }
                 }
             } else {
                 // ACA a marché on affecte
@@ -1779,16 +2144,259 @@ void HMatrix<CoefficientPrecision, CoordinatePrecision>::recursive_build_hmatrix
                 }
             } else {
                 // on peut pas descendre
+                if (this->get_target_cluster().get_children().size() > 0) {
+                    std::cout << " wtf 2 ?" << std::endl;
+                }
                 this->compute_dense_data(sum_expr);
-                Matrix<CoefficientPrecision> dense(this->get_target_cluster().get_size(), this->get_source_cluster().get_size());
-                copy_to_dense(*this, dense.data());
             }
         }
     } else {
-        this->compute_dense_data(sum_expr);
+        if (this->get_target_cluster().get_children().size() == 0 && this->get_source_cluster().get_children().size() == 0) {
+            //     // if (this->get_target_cluster().get_children().size() > 0) {
+            //     //     std::cout << " wtf 3 ?" << std::endl;
+            //     // }
+            this->compute_dense_data(sum_expr);
+        } else {
+            Matrix<CoefficientPrecision> mat(this->get_target_cluster().get_size(), this->get_source_cluster().get_size());
+            sum_expr.copy_submatrix(this->get_target_cluster().get_size(), this->get_source_cluster().get_size(), this->get_target_cluster().get_offset(), this->get_source_cluster().get_offset(), mat.data());
+            this->assign(&mat, this->get_target_cluster().get_offset(), this->get_source_cluster().get_offset());
+        }
+        // Matrix<CoefficientPrecision> mat(this->get_target_cluster().get_size(), this->get_source_cluster().get_size());
+        // sum_expr.copy_submatrix(this->get_target_cluster().get_size(), this->get_source_cluster().get_size(), 0, 0, mat.data());
+        // this->assign(&mat, this->get_target_cluster().get_offset(), this->get_source_cluster().get_offset());
     }
 }
+
+/// M = M + alpha *HK
+template <typename CoefficientPrecision, typename CoordinatePrecision>
+void HMatrix<CoefficientPrecision, CoordinatePrecision>::add_hmatrix_product_fast(const CoefficientPrecision &alpha, SumExpression_fast<CoefficientPrecision, CoordinatePrecision> &sum_expr, std::shared_ptr<VirtualAdmissibilityCondition<CoordinatePrecision>> *adm) {
+    if (this->is_low_rank()) {
+        // ACA sur sumexpr
+        std::vector<Matrix<CoefficientPrecision>> sr_new(4);
+        auto stemp = sum_expr;
+        sr_new[0]  = this->get_low_rank_data()->get_U();
+        sr_new[1]  = this->get_low_rank_data()->get_V();
+        sr_new[2]  = alpha * sum_expr.get_sr()[0];
+        sr_new[3]  = sum_expr.get_sr()[1];
+
+        stemp.set_sr(sr_new, this->get_target_cluster().get_offset(), this->get_source_cluster().get_offset());
+        LowRankMatrix<CoefficientPrecision, CoordinatePrecision> lr(stemp, *this->m_tree_data->m_low_rank_generator, this->get_target_cluster(), this->get_source_cluster(), -1, this->get_epsilon());
+        if ((lr.get_U().nb_rows() == 0) or (lr.get_U().nb_cols() == 0) or (lr.get_V().nb_rows() == 0) or (lr.get_V().nb_cols() == 0)) {
+            // ACA plante , il y a pas de bonne solution , autant densifié
+            // on peut pas descendre
+            this->compute_dense_data(stemp);
+
+        } else {
+            // ACA a marché on affecte
+            this->set_low_rank_data(lr);
+        }
+    } else if (this->is_dense()) {
+        Matrix<CoefficientPrecision> dense(this->get_target_cluster().get_size(), this->get_source_cluster().get_size());
+        sum_expr.copy_submatrix(this->get_target_cluster().get_size(), this->get_source_cluster().get_size(), this->get_target_cluster().get_offset() - sum_expr.get_target_offset(), this->get_source_cluster().get_offset() - sum_expr.get_source_offset(), dense.data());
+        int size = this->get_target_cluster().get_size() * this->get_source_cluster().get_size();
+        int inc  = 1;
+        Blas<CoefficientPrecision>::axpy(&size, &alpha, dense.data(), &inc, this->get_dense_data()->data(), &inc);
+    }
+
+    else {
+        // on est pas sur une feuille , si on peut on descend
+        if (sum_expr.get_restr()) {
+            std::cout << "size children " << this->get_children().size() << std::endl;
+            for (auto &child : this->get_children()) {
+                SumExpression_fast<CoefficientPrecision, CoordinatePrecision> sum_restr = sum_expr.restrict_ACA(child->get_target_cluster(), child->get_source_cluster());
+                child->add_hmatrix_product_fast(alpha, sum_restr, adm);
+            }
+            std::cout << "affectation ok " << std::endl;
+
+        } else {
+            // on peut pas descendre
+            Matrix<CoefficientPrecision> dense(this->get_target_cluster().get_size(), this->get_source_cluster().get_size());
+            sum_expr.copy_submatrix(this->get_target_cluster().get_size(), this->get_source_cluster().get_size(), this->get_target_cluster().get_offset() - sum_expr.get_target_offset(), this->get_source_cluster().get_offset() - sum_expr.get_source_offset(), dense.data());
+            Matrix<CoefficientPrecision> this_dense(this->get_target_cluster().get_size(), this->get_source_cluster().get_size());
+            copy_to_dense(*this, this_dense.data());
+
+            int size = this->get_target_cluster().get_size() * this->get_source_cluster().get_size();
+            int inc  = 1;
+            Blas<CoefficientPrecision>::axpy(&size, &alpha, dense.data(), &inc, this_dense.data(), &inc);
+
+            std::unique_ptr<Matrix<CoefficientPrecision>> mat = std::make_unique<Matrix<CoefficientPrecision>>(this_dense);
+            this->set_dense_data(std::move(mat));
+        }
+    }
+}
+
 /////////////////////////////////////////////////////////////////////////////
+
+/////
+// plus egal
+/////
+template <typename CoefficientPrecision, typename CoordinatePrecision>
+void HMatrix<CoefficientPrecision, CoordinatePrecision>::plus_egal(const CoefficientPrecision &alpha, const HMatrix<CoefficientPrecision, CoordinatePrecision> *B) {
+
+    if ((this->get_target_cluster().get_size() != B->get_target_cluster().get_size()) || (this->get_source_cluster().get_size() != B->get_source_cluster().get_size())) {
+        std::cerr << " Hmatrices unaligned in 'plus_egal' " << std::endl;
+    } else {
+        if (this->get_children().size() == 0) {
+            if (B->get_target_cluster().get_size() == this->get_target_cluster().get_size() && B->get_source_cluster().get_size() == this->get_source_cluster().get_size()) {
+                // feuille alligné, on travail normal bloc par bloc-----------------> ca devrait toujours être le cas
+                if (B->is_low_rank() && this->is_low_rank()) {
+                    // std::cout << "numero 1 " << std::endl;
+
+                    // std::cout << ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> " << normFrob(this->get_low_rank_data()->get_U() * this->get_low_rank_data()->get_V()) << ',' << normFrob(B->get_low_rank_data()->get_U() * B->get_low_rank_data()->get_V()) << std::endl;
+                    Matrix<CoefficientPrecision> Ualpha(B->get_low_rank_data()->get_U().nb_rows(), B->get_low_rank_data()->get_U().nb_cols());
+
+                    std::transform(B->get_low_rank_data()->get_U().data(), B->get_low_rank_data()->get_U().data() + B->get_low_rank_data()->get_U().nb_rows() * B->get_low_rank_data()->get_U().nb_cols(), Ualpha.data(),
+                                   [alpha](double val) { // capture alpha by value
+                                       return alpha * val;
+                                   });
+                    // auto Ualpha = alpha * B->get_low_rank_data()->get_U();
+                    SumExpression_fast<CoefficientPrecision, CoordinatePrecision> Sumexpr;
+                    std::vector<Matrix<CoefficientPrecision>> sr_temp(4);
+                    sr_temp[0] = this->get_low_rank_data()->get_U();
+                    sr_temp[1] = this->get_low_rank_data()->get_V();
+                    sr_temp[2] = Ualpha;
+                    sr_temp[3] = B->get_low_rank_data()->get_V();
+                    Sumexpr.set_sr(sr_temp, this->get_target_cluster().get_offset(), this->get_source_cluster().get_offset());
+                    LowRankMatrix<CoefficientPrecision, CoordinatePrecision> lr_new(Sumexpr, *this->get_low_rank_generator(), this->get_target_cluster(), this->get_source_cluster(), -1, this->get_epsilon());
+                    // std::cout << "1 ok" << std::endl;
+                    if (lr_new.get_U().nb_cols() > 0) {
+                        this->set_low_rank_data(lr_new);
+                        // std::cout << "numero 1 1   :" << normFrob(sr_temp[0] * sr_temp[1] + sr_temp[2] * sr_temp[3] - lr_new.get_U() * lr_new.get_V()) / normFrob(sr_temp[0] * sr_temp[1] + sr_temp[2] * sr_temp[3]) << std::endl;
+
+                        // std::cout << "2 ok" << std::endl;
+
+                    } else {
+                        int m                       = this->get_target_cluster().get_size();
+                        int n                       = this->get_source_cluster().get_size();
+                        int k                       = this->get_low_rank_data()->get_U().nb_cols();
+                        CoefficientPrecision alpha0 = 1.0;
+                        CoefficientPrecision beta0  = 1.0;
+                        int lda                     = m;
+                        int ldb                     = k;
+                        int ldc                     = m;
+                        char trans                  = 'N';
+                        // Matrix<CoefficientPrecision> bloc(this->get_target_cluster().get_size(), this->get_source_cluster().get_size());
+
+                        // Blas<CoefficientPrecision>::gemm(&trans, &trans, &m, &n, &k, &alpha0, this->get_low_rank_data()->get_U().data(), &lda, this->get_low_rank_data()->get_V().data(), &ldb, &beta0, bloc.data(), &ldc);
+                        // Blas<CoefficientPrecision>::gemm(&trans, &trans, &m, &n, &k, &alpha, B->get_low_rank_data()->get_U().data(), &lda, B->get_low_rank_data()->get_V().data(), &ldb, &beta0, bloc.data(), &ldc);
+                        // std::unique_ptr<Matrix<CoefficientPrecision>> mat = std::make_unique<Matrix<CoefficientPrecision>>(bloc);
+                        // this->set_dense_data(std::move(mat));
+                        auto bloc = this->get_low_rank_data()->get_U() * this->get_low_rank_data()->get_V() + alpha * B->get_low_rank_data()->get_U() * B->get_low_rank_data()->get_V();
+                        // this->assign(&bloc, this->get_target_cluster().get_offset(), this->get_source_cluster().get_offset());
+                        // if (this->get_target_cluster().get_children().size() == 0) {
+                        std::unique_ptr<Matrix<CoefficientPrecision>> mat = std::make_unique<Matrix<CoefficientPrecision>>(bloc);
+                        this->set_dense_data(std::move(mat));
+                        // } else {
+                        //     std::cout << "   1------------------!!" << std::endl;
+                        //     this->assign(&bloc, this->get_target_cluster().get_offset(), this->get_source_cluster().get_offset());
+                        // }
+                        // std::cout << "numero 1  2" << std::endl;
+
+                        // std::cout << "3 ok" << std::endl;
+                    }
+                } else if (B->is_dense() && this->is_dense()) {
+                    // Matrix<CoefficientPrecision> temp(this->get_target_cluster().get_size(), this->get_source_cluster().get_size());
+                    // int size = this->get_target_cluster().get_size() * this->get_source_cluster().get_size();
+                    // int inc  = 1;
+                    // Blas<CoefficientPrecision>::axpy(&size, &alpha, B->get_dense_data()->data(), &inc, this->get_dense_data()->data(), &inc);
+                    // std::cout << "numero 2 " << std::endl;
+
+                    Matrix<CoefficientPrecision> hdense = *this->get_dense_data() + alpha * *B->get_dense_data();
+                    // this->assign(&hdense, this->get_target_cluster().get_size(), this->get_source_cluster().get_size());
+                    if (this->get_target_cluster().get_children().size() == 0) {
+                        std::unique_ptr<Matrix<CoefficientPrecision>> mat = std::make_unique<Matrix<CoefficientPrecision>>(hdense);
+                        this->set_dense_data(std::move(mat));
+                    } else {
+                        // std::cout << "   2------------------!!" << std::endl;
+                        this->assign(&hdense, this->get_target_cluster().get_offset(), this->get_source_cluster().get_offset());
+                    }
+
+                } else {
+                    Matrix<CoefficientPrecision> hdense(this->get_target_cluster().get_size(), this->get_source_cluster().get_size());
+                    Matrix<CoefficientPrecision> bdense(B->get_target_cluster().get_size(), B->get_source_cluster().get_size());
+                    copy_to_dense(*this, hdense.data());
+                    copy_to_dense(*B, bdense.data());
+                    // int inc  = 1.0;
+                    // int size = hdense.nb_rows() * hdense.nb_cols();
+                    // Blas<CoefficientPrecision>::axpy(&size, &alpha, bdense.data(), &inc, hdense.data(), &inc);
+                    // std::cout << "numero 3 " << std::endl;
+                    hdense = hdense + alpha * bdense;
+
+                    // auto hh = hdense + alpha * bdense;
+
+                    // std::unique_ptr<Matrix<CoefficientPrecision>> mat = std::make_unique<Matrix<CoefficientPrecision>>(hdense);
+                    // this->set_dense_data(std::move(mat));
+
+                    if (this->get_target_cluster().get_children().size() == 0) {
+                        std::unique_ptr<Matrix<CoefficientPrecision>> mat = std::make_unique<Matrix<CoefficientPrecision>>(hdense);
+                        this->set_dense_data(std::move(mat));
+                    } else {
+                        this->assign(&hdense, this->get_target_cluster().get_offset(), this->get_source_cluster().get_offset());
+                    }
+                }
+            } else {
+                std::cout << "????????????????????????????????" << std::endl;
+            }
+        } else {
+            /// recursion
+            // on est obligé de vérifier que tout les fils sont ok avant d'appeler la recursion
+            bool flag = true;
+            for (auto &child : this->get_children()) {
+                auto B_child = B->get_block(child->get_target_cluster().get_size(), child->get_source_cluster().get_size(), child->get_target_cluster().get_offset(), child->get_source_cluster().get_offset());
+
+                if (B_child->get_target_cluster().get_size() != child->get_target_cluster().get_size() || B_child->get_source_cluster().get_size() != child->get_source_cluster().get_size()) {
+                    flag = false;
+                    break;
+                }
+            }
+            if (flag) {
+                for (auto &child : this->get_children()) {
+                    auto B_child = B->get_block(child->get_target_cluster().get_size(), child->get_source_cluster().get_size(), child->get_target_cluster().get_offset(), child->get_source_cluster().get_offset());
+                    child->plus_egal(alpha, B_child);
+                }
+
+            } else {
+                std::cout << "wwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwww" << std::endl;
+
+                // corner case , on fait quoi si B il est bizzard ?
+                Matrix<CoefficientPrecision> bdense(B->get_target_cluster().get_size(), B->get_source_cluster().get_size());
+                copy_to_dense(*B, bdense.data());
+                Matrix<CoefficientPrecision> dense(this->get_target_cluster().get_size(), this->get_source_cluster().get_size());
+                copy_to_dense(*this, dense.data());
+                int size = this->get_target_cluster().get_size() * this->get_source_cluster().get_size();
+                int inc  = 1;
+                if (B->get_target_cluster().get_size() == this->get_target_cluster().get_size() && B->get_source_cluster().get_size() == this->get_source_cluster().get_size()) {
+                    std::cout << "cas 1 " << std::endl;
+                    Blas<CoefficientPrecision>::axpy(&size, &alpha, bdense.data(), &inc, dense.data(), &inc);
+                    std::unique_ptr<Matrix<CoefficientPrecision>> mat = std::make_unique<Matrix<CoefficientPrecision>>(dense);
+                    this->set_dense_data(std::move(mat));
+                    // this->assign(&dense, this->get_target_cluster().get_offset(), this->get_source_cluster().get_offset());
+                } else {
+                    std::cout << "cas 2 " << std::endl;
+
+                    auto brestr = copy_sub_matrix(bdense, this->get_target_cluster().get_size(), this->get_source_cluster().get_size(), this->get_target_cluster().get_offset() - B->get_target_cluster().get_offset(), this->get_source_cluster().get_offset() - B->get_source_cluster().get_offset());
+                    Blas<CoefficientPrecision>::axpy(&size, &alpha, brestr.data(), &inc, dense.data(), &inc);
+                    std::unique_ptr<Matrix<CoefficientPrecision>> mat = std::make_unique<Matrix<CoefficientPrecision>>(dense);
+                    this->set_dense_data(std::move(mat));
+                    // this->assign(&dense, this->get_target_cluster().get_offset(), this->get_source_cluster().get_offset());
+                }
+            }
+        }
+    }
+}
+
+// /////////////////////////////
+// ///// GEMM pour hmat : C =  op(A)*op(B) + beta *C
+// /////////////////////////
+// template <typename CoefficientPrecision, typename CoordinatePrecision>
+// void HMatrix<CoefficientPrecision, CoordinatePrecision>::hierarchical_gemm(char transa, char transb, const CoefficientPrecision &alpha, HMatrix<CoefficientPrecision, CoordinatePrecision> *A, HMatrix<CoefficientPrecision, CoordinatePrecision> *B, const CoefficientPrecision &beta) {
+//     if (transa == 'N' && transb == 'N') {
+//         this->plus_egal(beta, &(A->hmatrix_product_fast(*B)));
+//     } else {
+//         std::cout << " pour l'instant avec transa = transb ='N' && alpha =1" << std::endl;
+//     }
+// }
+
 ////////////////////////
 // HMATRIX HMATRIX
 template <typename CoefficientPrecision, typename CoordinatePrecision>

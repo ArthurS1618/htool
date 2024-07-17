@@ -224,18 +224,20 @@ class SumExpression_fast : public VirtualGenerator<CoefficientPrecision> {
                 // mat = mat + hrestr * krestr;
             }
             if (Sr.size() > 0) {
-                auto U = Sr[0];
-                auto V = Sr[1];
-                Matrix<CoefficientPrecision> U_restr(target_size, U.nb_cols());
-                Matrix<CoefficientPrecision> V_restr(V.nb_rows(), source_size);
-                for (int i = 0; i < target_size; ++i) {
-                    U_restr.set_row(i, U.get_row(i + row_offset - target_offset));
+                for (int k = 0; k < Sr.size() / 2; ++k) {
+                    auto U = Sr[2 * k];
+                    auto V = Sr[2 * k + 1];
+                    Matrix<CoefficientPrecision> U_restr(target_size, U.nb_cols());
+                    Matrix<CoefficientPrecision> V_restr(V.nb_rows(), source_size);
+                    for (int i = 0; i < target_size; ++i) {
+                        U_restr.set_row(i, U.get_row(i + row_offset - target_offset));
+                    }
+                    for (int j = 0; j < source_size; ++j) {
+                        V_restr.set_col(j, V.get_col(j + col_offset - source_offset));
+                    }
+                    U_restr.add_matrix_product('N', 1.0, V_restr.data(), 1.0, mat.data(), N);
+                    // mat = mat + U_restr * V_restr;
                 }
-                for (int j = 0; j < source_size; ++j) {
-                    V_restr.set_col(j, V.get_col(j + col_offset - source_offset));
-                }
-                U_restr.add_matrix_product('N', 1.0, V_restr.data(), 1.0, mat.data(), N);
-                // mat = mat + U_restr * V_restr;
             }
             if (Sdense.nb_cols() > 0) {
                 mat.plus_egal(Sdense);

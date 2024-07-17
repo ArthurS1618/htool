@@ -10,7 +10,7 @@ int main(int argc, char *argv[]) {
     // double epsilon = std::stod(argv[3]);
     // int size       = 4000;
     int rank       = 100;
-    double epsilon = 1e-3;
+    double epsilon = 1e-6;
     int data       = test_sum_expression<double>(size, rank, epsilon);
     MPI_Finalize();
 

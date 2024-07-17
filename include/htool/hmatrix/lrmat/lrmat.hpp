@@ -33,6 +33,7 @@ class LowRankMatrix {
 
     LowRankMatrix &operator=(const LowRankMatrix &rhs) = default;
     LowRankMatrix(const LowRankMatrix &rhs)            = default;
+    LowRankMatrix(const Matrix<CoefficientPrecision> &A, const Matrix<CoefficientPrecision> &B) : m_U(A), m_V(B) {}
 
     // Getters
     int nb_rows() const { return m_U.nb_rows(); }

@@ -340,6 +340,7 @@ class SumExpression : public VirtualGenerator<CoefficientPrecision> {
         // auto col = dense * e_l;
         return col;
     }
+
     std::vector<CoefficientPrecision> get_row(const int &k) const {
         std::vector<double> e_k(target_size);
         e_k[k]   = 1.0;
