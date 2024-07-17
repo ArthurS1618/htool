@@ -7,7 +7,7 @@
 #include "implementations/partition_from_cluster.hpp"
 namespace htool {
 
-template <typename CoefficientPrecision, typename CoordinatePrecision>
+template <typename CoefficientPrecision, typename CoordinatePrecision = underlying_type<CoefficientPrecision>>
 class DistributedOperatorFromHMatrix {
   private:
     const PartitionFromCluster<CoefficientPrecision, CoordinatePrecision> target_partition, source_partition;
@@ -32,7 +32,7 @@ class DistributedOperatorFromHMatrix {
     }
 };
 
-template <typename CoefficientPrecision, typename CoordinatePrecision>
+template <typename CoefficientPrecision, typename CoordinatePrecision = underlying_type<CoefficientPrecision>>
 class DefaultApproximationBuilder {
   private:
     std::function<int(MPI_Comm)> get_rankWorld = [](MPI_Comm comm) {
@@ -51,7 +51,7 @@ class DefaultApproximationBuilder {
     DefaultApproximationBuilder(const VirtualGenerator<CoefficientPrecision> &generator, const Cluster<CoordinatePrecision> &target_cluster, const Cluster<CoordinatePrecision> &source_cluster, htool::underlying_type<CoefficientPrecision> epsilon, htool::underlying_type<CoefficientPrecision> eta, char symmetry, char UPLO, MPI_Comm communicator) : distributed_operator_builder(generator, target_cluster, source_cluster, HMatrixTreeBuilder<CoefficientPrecision, CoordinatePrecision>(target_cluster, source_cluster, epsilon, eta, symmetry, UPLO, -1, get_rankWorld(communicator), get_rankWorld(communicator)), communicator), hmatrix(distributed_operator_builder.hmatrix), distributed_operator(distributed_operator_builder.distributed_operator), block_diagonal_hmatrix(distributed_operator_builder.block_diagonal_hmatrix) {}
 };
 
-template <typename CoefficientPrecision, typename CoordinatePrecision>
+template <typename CoefficientPrecision, typename CoordinatePrecision = underlying_type<CoefficientPrecision>>
 class DefaultLocalApproximationBuilder {
   private:
     std::function<int(MPI_Comm)> get_rankWorld = [](MPI_Comm comm) {
