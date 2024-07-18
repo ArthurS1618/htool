@@ -1,5 +1,6 @@
 #include "../test_hmatrix_product.hpp"
 #include <htool/hmatrix/hmatrix.hpp>
+#include <mpi.h>
 
 using namespace std;
 using namespace htool;

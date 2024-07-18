@@ -47,7 +47,7 @@ bool test_hmatrix_lu(char trans, int n1, int n2, htool::underlying_type<T> epsil
 template <typename T, typename GeneratorTestType>
 bool test_hmatrix_cholesky(char UPLO, int n1, int n2, htool::underlying_type<T> epsilon, htool::underlying_type<T> margin) {
     bool is_error = false;
-    double eta    = 10;
+    double eta    = -100;
     htool::underlying_type<T> error;
 
     // Setup test case

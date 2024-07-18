@@ -123,6 +123,9 @@ class HMatrixTreeBuilder {
 
     // Build
     HMatrixType build(const VirtualGenerator<CoefficientPrecision> &generator) const;
+    HMatrixType build(const VirtualGeneratorInUserNumbering<CoefficientPrecision> &generator) const {
+        return this->build(GeneratorWithPermutation<CoefficientPrecision>(generator, m_target_root_cluster.get_permutation().data(), m_source_root_cluster.get_permutation().data()));
+    }
 
     // Setters
     void set_low_rank_generator(std::shared_ptr<VirtualLowRankGenerator<CoefficientPrecision, CoordinatePrecision>> ptr) { m_low_rank_generator = ptr; }

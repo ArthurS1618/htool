@@ -14,7 +14,7 @@ using namespace std;
 using namespace htool;
 
 template <typename CoefficientPrecision>
-bool test_lrmat(const Cluster<double> &target_cluster, const Cluster<double> &source_cluster, const GeneratorTestDouble &A, const LowRankMatrix<CoefficientPrecision> &Fixed_approximation, const LowRankMatrix<CoefficientPrecision> &Auto_approximation, std::pair<double, double> fixed_compression_interval, std::pair<double, double> auto_compression_interval) {
+bool test_lrmat(const Cluster<double> &target_cluster, const Cluster<double> &source_cluster, const VirtualGenerator<CoefficientPrecision> &A, const LowRankMatrix<CoefficientPrecision> &Fixed_approximation, const LowRankMatrix<CoefficientPrecision> &Auto_approximation, std::pair<double, double> fixed_compression_interval, std::pair<double, double> auto_compression_interval) {
 
     bool test = 0;
 

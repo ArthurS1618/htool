@@ -30,6 +30,9 @@ class DistributedOperatorFromHMatrix {
         distributed_operator.add_local_operator(&local_hmatrix);
         block_diagonal_hmatrix = hmatrix.get_sub_hmatrix(hmatrix_builder.get_target_cluster().get_cluster_on_partition(get_rankWorld(communicator)), hmatrix_builder.get_source_cluster().get_cluster_on_partition(get_rankWorld(communicator)));
     }
+
+    DistributedOperatorFromHMatrix(const VirtualGeneratorInUserNumbering<CoefficientPrecision> &generator, const Cluster<CoordinatePrecision> &target_cluster, const Cluster<CoordinatePrecision> &source_cluster, const HMatrixTreeBuilder<CoefficientPrecision, CoordinatePrecision> &hmatrix_builder, MPI_Comm communicator) : DistributedOperatorFromHMatrix(GeneratorWithPermutation<CoefficientPrecision>(generator, target_cluster.get_permutation().data(), source_cluster.get_permutation().data()), target_cluster, source_cluster, hmatrix_builder, communicator) {
+    }
 };
 
 template <typename CoefficientPrecision, typename CoordinatePrecision = underlying_type<CoefficientPrecision>>
@@ -49,6 +52,8 @@ class DefaultApproximationBuilder {
     const HMatrix<CoefficientPrecision, CoordinatePrecision> *block_diagonal_hmatrix{nullptr};
 
     DefaultApproximationBuilder(const VirtualGenerator<CoefficientPrecision> &generator, const Cluster<CoordinatePrecision> &target_cluster, const Cluster<CoordinatePrecision> &source_cluster, htool::underlying_type<CoefficientPrecision> epsilon, htool::underlying_type<CoefficientPrecision> eta, char symmetry, char UPLO, MPI_Comm communicator) : distributed_operator_builder(generator, target_cluster, source_cluster, HMatrixTreeBuilder<CoefficientPrecision, CoordinatePrecision>(target_cluster, source_cluster, epsilon, eta, symmetry, UPLO, -1, get_rankWorld(communicator), get_rankWorld(communicator)), communicator), hmatrix(distributed_operator_builder.hmatrix), distributed_operator(distributed_operator_builder.distributed_operator), block_diagonal_hmatrix(distributed_operator_builder.block_diagonal_hmatrix) {}
+
+    DefaultApproximationBuilder(const VirtualGeneratorInUserNumbering<CoefficientPrecision> &generator, const Cluster<CoordinatePrecision> &target_cluster, const Cluster<CoordinatePrecision> &source_cluster, htool::underlying_type<CoefficientPrecision> epsilon, htool::underlying_type<CoefficientPrecision> eta, char symmetry, char UPLO, MPI_Comm communicator) : DefaultApproximationBuilder(GeneratorWithPermutation<CoefficientPrecision>(generator, target_cluster.get_permutation().data(), source_cluster.get_permutation().data()), target_cluster, source_cluster, epsilon, eta, symmetry, UPLO, communicator) {}
 };
 
 template <typename CoefficientPrecision, typename CoordinatePrecision = underlying_type<CoefficientPrecision>>
@@ -69,6 +74,8 @@ class DefaultLocalApproximationBuilder {
 
   public:
     DefaultLocalApproximationBuilder(const VirtualGenerator<CoefficientPrecision> &generator, const Cluster<CoordinatePrecision> &target_cluster, const Cluster<CoordinatePrecision> &source_cluster, htool::underlying_type<CoefficientPrecision> epsilon, htool::underlying_type<CoefficientPrecision> eta, char symmetry, char UPLO, MPI_Comm communicator) : distributed_operator_builder(generator, target_cluster, source_cluster, HMatrixTreeBuilder<CoefficientPrecision, CoordinatePrecision>(target_cluster.get_cluster_on_partition(get_rankWorld(communicator)), source_cluster.get_cluster_on_partition(get_rankWorld(communicator)), epsilon, eta, symmetry, UPLO, -1, get_rankWorld(communicator), get_rankWorld(communicator)), communicator), hmatrix(distributed_operator_builder.hmatrix), distributed_operator(distributed_operator_builder.distributed_operator), block_diagonal_hmatrix(distributed_operator_builder.block_diagonal_hmatrix) {}
+
+    DefaultLocalApproximationBuilder(const VirtualGeneratorInUserNumbering<CoefficientPrecision> &generator, const Cluster<CoordinatePrecision> &target_cluster, const Cluster<CoordinatePrecision> &source_cluster, htool::underlying_type<CoefficientPrecision> epsilon, htool::underlying_type<CoefficientPrecision> eta, char symmetry, char UPLO, MPI_Comm communicator) : DefaultLocalApproximationBuilder(GeneratorWithPermutation<CoefficientPrecision>(generator, target_cluster.get_permutation().data(), source_cluster.get_permutation().data()), target_cluster, source_cluster, epsilon, eta, symmetry, UPLO, communicator) {}
 };
 
 } // namespace htool

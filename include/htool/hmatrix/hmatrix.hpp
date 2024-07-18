@@ -14,7 +14,6 @@
 #include "lrmat/lrmat.hpp"
 #include <queue>
 
-#include <mpi.h>
 namespace htool {
 
 // Class
@@ -988,9 +987,6 @@ template <typename CoefficientPrecision, typename CoordinatePrecision>
 void HMatrix<CoefficientPrecision, CoordinatePrecision>::threaded_hierarchical_add_vector_product(char trans, CoefficientPrecision alpha, const CoefficientPrecision *in, CoefficientPrecision beta, CoefficientPrecision *out) const {
 
     set_leaves_in_cache();
-
-    int rankWorld;
-    MPI_Comm_rank(MPI_COMM_WORLD, &rankWorld);
 
     int out_size(m_target_cluster->get_size());
     auto get_output_cluster{&HMatrix::get_target_cluster};
