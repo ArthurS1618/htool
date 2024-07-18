@@ -287,7 +287,163 @@ class SumExpression_fast : public VirtualGenerator<CoefficientPrecision> {
 
                 auto H_child = H->get_block(t.get_size(), rho_child->get_size(), t.get_offset(), rho_child->get_offset());
                 auto K_child = K->get_block(rho_child->get_size(), s.get_size(), rho_child->get_offset(), s.get_offset());
-                // si on arrive pas a choper les blocs : ca arrive sur les petits
+                // si on arrive pas a choper les blocs : ca doit pas arriver mais bon
+                if (H_child->get_target_cluster().get_size() != t.get_size() || H_child->get_source_cluster().get_size() != rho_child->get_size() || K_child->get_target_cluster().get_size() != rho_child->get_size() || K_child->get_source_cluster().get_size() != s.get_size()) {
+                    // std::cout << "?! " << std::endl;
+                    // std::cout << H_child->get_target_cluster().get_size() << '=' << t.get_size() << ',' << H_child->get_source_cluster().get_size() << '=' << rho_child->get_size() << ',' << K_child->get_target_cluster().get_size() << '=' << rho_child->get_size() << ',' << K_child->get_source_cluster().get_size() << '=' << s.get_size() << std::endl;
+                    Matrix<CoefficientPrecision> hdense(H->get_target_cluster().get_size(), H->get_source_cluster().get_size());
+                    Matrix<CoefficientPrecision> kdense(K->get_target_cluster().get_size(), K->get_source_cluster().get_size());
+                    copy_to_dense(*H, hdense.data());
+                    copy_to_dense(*K, kdense.data());
+                    std::cout << "            avant d'extraire : " << normFrob(hdense) << ',' << normFrob(kdense) << std::endl;
+                    auto hrestr                = copy_sub_matrix(hdense, t.get_size(), rho_child->get_size(), t.get_offset() - H->get_target_cluster().get_offset(), rho_child->get_offset() - H->get_source_cluster().get_offset());
+                    auto krestr                = copy_sub_matrix(kdense, rho_child->get_size(), s.get_size(), rho_child->get_offset() - K->get_target_cluster().get_offset(), s.get_offset() - K->get_source_cluster().get_offset());
+                    const char trans           = 'N';
+                    int m                      = t.get_size();
+                    int n                      = s.get_size();
+                    int kk                     = rho_child->get_size();
+                    CoefficientPrecision alpha = 1.0;
+                    CoefficientPrecision beta  = 1.0;
+                    int lda                    = m;
+                    int ldb                    = kk;
+                    int ldc                    = m;
+                    if (sdense_0.nb_cols() == 0) {
+                        sdense_0.resize(t.get_size(), s.get_size());
+                    }
+                    Blas<CoefficientPrecision>::gemm(&trans, &trans, &m, &n, &kk, &alpha, hrestr.data(), &lda, krestr.data(), &ldb, &beta, sdense_0.data(), &ldc);
+                    std::cout << "sdense de norme : " << normFrob(sdense_0) << ',' << sdense_0.nb_rows() << ',' << sdense_0.nb_cols() << std::endl;
+                    flag = false;
+
+                } else {
+                    // sinon on regarde si ils sont admissibles
+                    if ((H_child->is_low_rank() || K_child->is_low_rank() || test_target || test_source) && (t.get_children().size() > 0) && (s.get_children().size() > 0)) {
+                        // Compute low-rank matrix UV =  LR(HK) ;
+                        SumExpression_fast temp(H_child, K_child);
+                        if (sr_0.size() == 0) {
+                            // Première affectation
+                            LRtype lr_new(temp, *H_child->get_low_rank_generator(), t, s, -1, H_child->get_epsilon());
+                            if (lr_new.get_U().nb_cols() > 0) {
+                                // ACA a marché
+                                std::vector<Matrix<CoefficientPrecision>> tempm(2);
+                                tempm[0] = lr_new.get_U();
+                                tempm[1] = lr_new.get_V();
+                                sr_0     = tempm;
+
+                            } else {
+                                // on push les hmat
+                                if (H_child->is_low_rank() || K_child->is_low_rank() || t.get_children().size() == 0 || s.get_children().size() == 0) {
+                                    flag = false;
+                                }
+                                sh_0.push_back(H_child);
+                                sh_0.push_back(K_child);
+                            }
+                        } else {
+                            // il faut rajouter HK a SR, on appel fait un ACA sur SUMEXPR(HK, SR)
+                            SumExpression_fast s_intermediaire(H_child, K_child);
+                            std::vector<Matrix<CoefficientPrecision>> data_lr(2);
+                            data_lr[0] = sr_0[0];
+                            data_lr[1] = sr_0[1];
+                            s_intermediaire.set_sr(data_lr, t.get_offset(), s.get_offset());
+                            LRtype lr_bourrin(s_intermediaire, *H_child->get_low_rank_generator(), t, s, -1, H_child->get_epsilon());
+                            if (lr_bourrin.get_U().nb_cols() > 0) {
+                                // ACA a marché
+                                std::vector<Matrix<CoefficientPrecision>> tempm(2);
+                                tempm[0] = lr_bourrin.get_U();
+                                tempm[1] = lr_bourrin.get_V();
+                                sr_0     = tempm;
+
+                            } else {
+                                // on push les matrice hiérachique
+                                if (H_child->is_low_rank() || K_child->is_low_rank() || t.get_children().size() == 0 || s.get_children().size() == 0) {
+                                    flag = false;
+                                }
+                                sh_0.push_back(H_child);
+                                sh_0.push_back(K_child);
+                            }
+                        }
+
+                    } else {
+                        // Pas admissble , on push les hmat
+                        if (H_child->is_low_rank() || K_child->is_low_rank() || t.get_children().size() == 0 || s.get_children().size() == 0) {
+                            flag = false;
+                        }
+                        sh_0.push_back(H_child);
+                        sh_0.push_back(K_child);
+                    }
+                }
+            }
+        }
+        if (sr_0.size() > 0) {
+            int oft = t.get_offset();
+            int ofs = s.get_offset();
+            res.set_sr(sr_0, oft, ofs);
+        }
+        if (sh_0.size() > 0) {
+            res.set_sh(sh_0);
+        }
+        res.set_size(t, s);
+        res.set_restr(flag);
+        res.set_dense(sdense_0);
+
+        return res;
+    }
+
+    SumExpression_fast restrict_ACA_triangulaire(char transa, char transb, const Cluster<CoordinatePrecision> &t, const Cluster<CoordinatePrecision> &s) const {
+        bool flag = true;
+        std::vector<Matrix<CoefficientPrecision>> sr_0;
+        Matrix<CoefficientPrecision> sdense_0;
+        // truncation SR
+        if (Sr.size() > 0) {
+            Matrix<CoefficientPrecision> U = Sr[0];
+            Matrix<CoefficientPrecision> V = Sr[1];
+            Matrix<CoefficientPrecision> Urestr(t.get_size(), U.nb_cols());
+            Matrix<CoefficientPrecision> Vrestr(V.nb_rows(), s.get_size());
+            for (int k = 0; k < t.get_size(); ++k) {
+                Urestr.set_row(k, U.get_row(k + t.get_offset() - target_offset));
+            }
+            for (int l = 0; l < s.get_size(); ++l) {
+                Vrestr.set_col(l, V.get_col(l + s.get_offset() - source_offset));
+            }
+            std::vector<Matrix<CoefficientPrecision>> temp(2);
+            temp[0] = Urestr;
+            temp[1] = Vrestr;
+
+            sr_0 = temp;
+        }
+        if (Sdense.nb_cols() > 0) {
+            sdense_0 = copy_sub_matrix(Sdense, t.get_size(), s.get_size(), t.get_offset() - target_offset, s.get_offset() - source_offset);
+        }
+        std::vector<HMatrixType *> sh_0;
+        SumExpression_fast res;
+        // On parcours Sh si un des deux admissible on fait un ACA avec une sumexpr temporaire qui a deux matrices lw rank SR+ HK (H ou K lr)
+        for (int k = 0; k < Sh.size() / 2; ++k) {
+            auto &H = Sh[2 * k];
+            auto &K = Sh[2 * k + 1];
+            for (auto &rho_child : H->get_source_cluster().get_children()) {
+                if (transa == 'L') {
+                    if (rho_child->get_offset() > t.get_offset()) {
+                        continue;
+                    }
+                } else if (transa == 'U') {
+                    if (rho_child->get_offset() < t.get_offset()) {
+                        continue;
+                    }
+                }
+                if (transb == 'L') {
+                    if (rho_child->get_offset() < s.get_offset()) {
+                        continue;
+                    }
+                } else if (transb == 'U') {
+                    if (rho_child->get_offset() > s.get_offset()) {
+                        continue;
+                    }
+                }
+                bool test_target = H->compute_admissibility(t, *rho_child);
+                bool test_source = H->compute_admissibility(*rho_child, s);
+
+                auto H_child = H->get_block(t.get_size(), rho_child->get_size(), t.get_offset(), rho_child->get_offset());
+                auto K_child = K->get_block(rho_child->get_size(), s.get_size(), rho_child->get_offset(), s.get_offset());
+                // si on arrive pas a choper les blocs : ca doit pas arriver mais bon
                 if (H_child->get_target_cluster().get_size() != t.get_size() || H_child->get_source_cluster().get_size() != rho_child->get_size() || K_child->get_target_cluster().get_size() != rho_child->get_size() || K_child->get_source_cluster().get_size() != s.get_size()) {
                     // std::cout << "?! " << std::endl;
                     // std::cout << H_child->get_target_cluster().get_size() << '=' << t.get_size() << ',' << H_child->get_source_cluster().get_size() << '=' << rho_child->get_size() << ',' << K_child->get_target_cluster().get_size() << '=' << rho_child->get_size() << ',' << K_child->get_source_cluster().get_size() << '=' << s.get_size() << std::endl;

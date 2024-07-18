@@ -68,6 +68,33 @@ void cholesky_solve(char UPLO, const Matrix<T> &A, Matrix<T> &B) {
     Lapack<T>::potrs(&UPLO, &M, &NRHS, A.data(), &lda, B.data(), &ldb, &info);
 }
 
+template <typename T>
+void get_lu_factorisation(const Matrix<T> &M, Matrix<T> &L, Matrix<T> &U, std::vector<int> &P) {
+    auto A   = M;
+    int size = A.nb_rows();
+    std::vector<int> ipiv(size, 0.0);
+    int info = -1;
+    Lapack<T>::getrf(&size, &size, A.data(), &size, ipiv.data(), &info);
+    for (int i = 0; i < size; ++i) {
+        L(i, i) = 1;
+        U(i, i) = A(i, i);
+
+        for (int j = 0; j < i; ++j) {
+            L(i, j) = A(i, j);
+            U(j, i) = A(j, i);
+        }
+    }
+    for (int k = 1; k < size + 1; ++k) {
+        P[k - 1] = k;
+    }
+    for (int k = 0; k < size; ++k) {
+        if (ipiv[k] - 1 != k) {
+            int temp       = P[k];
+            P[k]           = P[ipiv[k] - 1];
+            P[ipiv[k] - 1] = temp;
+        }
+    }
+}
 /// A =SVD -> lapack ------------> je le fait pour renvoyer S et écrire U et V sur des matrices d'entrées !!!!! MARCHE QUE AVEC DES MATRICES CARRE sinon il faut changer lda, ldb etc
 template <typename T>
 std::vector<T> compute_svd(Matrix<T> &A, Matrix<T> &U, Matrix<T> &V) {

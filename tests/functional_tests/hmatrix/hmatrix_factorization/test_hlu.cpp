@@ -18,7 +18,7 @@ int main(int argc, char *argv[]) {
 
     for (int k = 1; k < nb; ++k) {
         int size = size_max * k / (nb - 1);
-        is_error = is_error || test_hlu<double, GeneratorTestDouble>(size, epsilon, eta);
+        is_error = is_error || test_hlu<double, GeneratorTestDoubleSymmetric>(size, epsilon, eta);
     }
     MPI_Finalize();
     if (is_error) {
