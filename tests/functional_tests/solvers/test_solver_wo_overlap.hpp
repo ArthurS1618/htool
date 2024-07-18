@@ -54,7 +54,7 @@ int test_solver_wo_overlap(int argc, char *argv[], int mu, char symmetric, std::
         std::cout << "Creating generators" << std::endl;
     Matrix<complex<double>> A;
     A.bytes_to_matrix(datapath + "/matrix.bin");
-    GeneratorFromMatrix<std::complex<double>> Generator(A, target_cluster.get_permutation(), target_cluster.get_permutation());
+    GeneratorInUserNumberingFromMatrix<std::complex<double>> Generator(A);
     int n = A.nb_rows();
 
     // Right-hand side
