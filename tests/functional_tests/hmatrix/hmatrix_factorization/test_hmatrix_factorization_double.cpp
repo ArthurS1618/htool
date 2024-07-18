@@ -18,9 +18,9 @@ int main(int, char *[]) {
         for (auto trans : {'N', 'T'}) {
             is_error = is_error || test_hmatrix_lu<double, GeneratorTestDoubleSymmetric>(trans, n1, n2, epsilon, margin);
         }
-        // for (auto UPLO : {'L', 'U'}) {
-        //     is_error = is_error || test_hmatrix_cholesky<double, GeneratorTestDoubleSymmetric>(UPLO, n1, n2, epsilon, margin);
-        // }
+        for (auto UPLO : {'L', 'U'}) {
+            is_error = is_error || test_hmatrix_cholesky<double, GeneratorTestDoubleSymmetric>(UPLO, n1, n2, epsilon, margin);
+        }
     }
 
     if (is_error) {
