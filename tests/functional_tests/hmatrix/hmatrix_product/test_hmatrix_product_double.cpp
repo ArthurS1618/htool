@@ -7,8 +7,8 @@ using namespace htool;
 int main(int argc, char *argv[]) {
 
     MPI_Init(&argc, &argv);
-    bool is_error       = false;
-    const double margin = 10;
+    bool is_error = false;
+    const std::array<double, 5> additional_lrmat_sum_tolerances{10., 10., 10., 10., 10.};
 
     for (auto epsilon : {1e-6, 1e-10}) {
         for (auto n1 : {200, 400}) {
@@ -19,17 +19,18 @@ int main(int argc, char *argv[]) {
                             for (auto transb : {'N', 'T'}) {
                                 std::cout << "hmatrix product: " << use_local_cluster << " " << epsilon << " " << n1 << " " << n2 << " " << n3 << " " << transa << " " << transb << "\n";
 
-                                is_error = is_error || test_hmatrix_product<double, GeneratorTestDouble>(transa, transb, n1, n2, n3, use_local_cluster, epsilon, margin);
+                                is_error = is_error || test_hmatrix_product<double, GeneratorTestDouble>(transa, transb, n1, n2, n3, use_local_cluster, epsilon, additional_lrmat_sum_tolerances);
                             }
                         }
                     }
                 }
-                // for (auto side : {'L', 'R'}) {
-                //     for (auto UPLO : {'U', 'L'}) {
-                //         std::cout << "symmetric matrix product: " << n1 << " " << n3 << " " << side << " " << UPLO << " " << epsilon << "\n";
-                //         is_error = is_error || test_symmetric_hmatrix_product<double, GeneratorTestDoubleSymmetric>(n1, n3, side, UPLO, epsilon, margin);
-                //     }
-                // }
+                for (auto side : {'L', 'R'}) {
+                    for (auto UPLO : {'U', 'L'}) {
+                        const double margin = 0;
+                        std::cout << "symmetric matrix product: " << n1 << " " << n3 << " " << side << " " << UPLO << " " << epsilon << "\n";
+                        is_error = is_error || test_symmetric_hmatrix_product<double, GeneratorTestDoubleSymmetric>(n1, n3, side, UPLO, epsilon, margin);
+                    }
+                }
             }
         }
     }

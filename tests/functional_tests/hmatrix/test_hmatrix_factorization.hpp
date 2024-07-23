@@ -65,7 +65,11 @@ bool test_hmatrix_cholesky(char UPLO, int n1, int n2, htool::underlying_type<T> 
     Matrix<T> A_dense(no_A, ni_A), X_dense(no_X, ni_X), B_dense(X_dense), densified_hmatrix_test(B_dense), matrix_test;
     test_case.operator_A->copy_submatrix(no_A, ni_A, test_case.root_cluster_A_output->get_offset(), test_case.root_cluster_A_input->get_offset(), A_dense.data());
     generate_random_matrix(X_dense);
-    add_symmetric_matrix_matrix_product('L', UPLO, T(1.), A_dense, X_dense, T(0.), B_dense);
+    if (is_complex<T>()) {
+        add_hermitian_matrix_matrix_product('L', UPLO, T(1.), A_dense, X_dense, T(0.), B_dense);
+    } else {
+        add_symmetric_matrix_matrix_product('L', UPLO, T(1.), A_dense, X_dense, T(0.), B_dense);
+    }
 
     // Cholesky factorization
     matrix_test = B_dense;

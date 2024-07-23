@@ -112,6 +112,10 @@ class TestCaseProduct {
 
 template <typename T, typename GeneratorTestType>
 class TestCaseSymmetricProduct {
+    std::unique_ptr<GeneratorTestType> operator_in_user_numbering_A = nullptr;
+    std::unique_ptr<GeneratorTestType> operator_in_user_numbering_B = nullptr;
+    std::unique_ptr<GeneratorTestType> operator_in_user_numbering_C = nullptr;
+
   public:
     char side;
     char symmetry;
@@ -126,9 +130,9 @@ class TestCaseSymmetricProduct {
     const Cluster<underlying_type<T>> *root_cluster_B_output    = nullptr;
     const Cluster<underlying_type<T>> *root_cluster_C_input     = nullptr;
     const Cluster<underlying_type<T>> *root_cluster_C_output    = nullptr;
-    std::unique_ptr<GeneratorTestType> operator_A               = nullptr;
-    std::unique_ptr<GeneratorTestType> operator_B               = nullptr;
-    std::unique_ptr<GeneratorTestType> operator_C               = nullptr;
+    std::unique_ptr<GeneratorWithPermutation<T>> operator_A     = nullptr;
+    std::unique_ptr<GeneratorWithPermutation<T>> operator_B     = nullptr;
+    std::unique_ptr<GeneratorWithPermutation<T>> operator_C     = nullptr;
     int ni_A;
     int no_A;
     int ni_B;
@@ -136,7 +140,7 @@ class TestCaseSymmetricProduct {
     int ni_C;
     int no_C;
 
-    TestCaseSymmetricProduct(int n1, int n2, underlying_type<T> z_distance_A, char side0, char symmetry0, char UPLO0, int number_of_partition = -1) : side(side0), symmetry(symmetry0), UPLO(UPLO0), x1(3 * n1), x2(3 * n1) {
+    TestCaseSymmetricProduct(int n1, int n2, underlying_type<T> z_distance_A, char side0, char symmetry0, char UPLO0, int number_of_partition = -1) : side(side0), symmetry(symmetry0), UPLO(UPLO0), x1(3 * n1), x2(3 * n2) {
 
         // Input sizes
         ni_A = n1;
@@ -170,27 +174,30 @@ class TestCaseSymmetricProduct {
         }
 
         // Operators
-        operator_A            = std::make_unique<GeneratorTestType>(3, no_A, ni_A, x1, x1, *root_cluster_1, *root_cluster_1, true, true);
-        root_cluster_A_output = root_cluster_1.get();
-        root_cluster_A_input  = root_cluster_1.get();
+        operator_in_user_numbering_A = std::make_unique<GeneratorTestType>(3, x1, x1);
+        root_cluster_A_output        = root_cluster_1.get();
+        root_cluster_A_input         = root_cluster_1.get();
 
         if (side == 'L') {
-            operator_B            = std::make_unique<GeneratorTestType>(3, no_B, ni_B, x1, x2, *root_cluster_1, *root_cluster_2, true, true);
-            root_cluster_B_output = root_cluster_1.get();
-            root_cluster_B_input  = root_cluster_2.get();
+            operator_in_user_numbering_B = std::make_unique<GeneratorTestType>(3, x1, x2);
+            root_cluster_B_output        = root_cluster_1.get();
+            root_cluster_B_input         = root_cluster_2.get();
 
-            operator_C            = std::make_unique<GeneratorTestType>(3, no_C, ni_C, x1, x2, *root_cluster_1, *root_cluster_2, true, true);
-            root_cluster_C_input  = root_cluster_1.get();
-            root_cluster_C_output = root_cluster_2.get();
+            operator_in_user_numbering_C = std::make_unique<GeneratorTestType>(3, x1, x2);
+            root_cluster_C_output        = root_cluster_1.get();
+            root_cluster_C_input         = root_cluster_2.get();
         } else {
-            operator_B            = std::make_unique<GeneratorTestType>(3, no_B, ni_B, x2, x1, *root_cluster_2, *root_cluster_1, true, true);
-            root_cluster_B_output = root_cluster_2.get();
-            root_cluster_B_input  = root_cluster_1.get();
+            operator_in_user_numbering_B = std::make_unique<GeneratorTestType>(3, x2, x1);
+            root_cluster_B_output        = root_cluster_2.get();
+            root_cluster_B_input         = root_cluster_1.get();
 
-            operator_C            = std::make_unique<GeneratorTestType>(3, no_C, ni_C, x2, x1, *root_cluster_2, *root_cluster_1, true, true);
-            root_cluster_C_input  = root_cluster_2.get();
-            root_cluster_C_output = root_cluster_1.get();
+            operator_in_user_numbering_C = std::make_unique<GeneratorTestType>(3, x2, x1);
+            root_cluster_C_output        = root_cluster_2.get();
+            root_cluster_C_input         = root_cluster_1.get();
         }
+        operator_A = std::make_unique<GeneratorWithPermutation<T>>(*operator_in_user_numbering_A, root_cluster_A_output->get_permutation().data(), root_cluster_A_input->get_permutation().data());
+        operator_B = std::make_unique<GeneratorWithPermutation<T>>(*operator_in_user_numbering_B, root_cluster_B_output->get_permutation().data(), root_cluster_B_input->get_permutation().data());
+        operator_C = std::make_unique<GeneratorWithPermutation<T>>(*operator_in_user_numbering_C, root_cluster_C_output->get_permutation().data(), root_cluster_C_input->get_permutation().data());
     }
 };
 

@@ -16,8 +16,7 @@ int main(int, char *[]) {
     for (auto number_of_rhs : {100}) {
         for (auto epsilon : {1e-6, 1e-10}) {
             for (auto side : {'L', 'R'}) {
-                // TODO: add 'C' operation when hmatrix product is checked
-                for (auto operation : {'N', 'T'}) {
+                for (auto operation : {'N', 'T', 'C'}) {
                     std::cout << epsilon << " " << number_of_rhs << " " << side << " " << operation << "\n";
                     is_error = is_error || test_hmatrix_triangular_solve<std::complex<double>, GeneratorTestComplexHermitian>(side, operation, n1, number_of_rhs, epsilon, margin);
                 }

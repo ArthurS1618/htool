@@ -1,5 +1,5 @@
 #include "../test_lrmat_product.hpp"
-#include <htool/hmatrix/lrmat/sympartialACA.hpp>
+#include <htool/hmatrix/lrmat/SVD.hpp>
 
 using namespace std;
 using namespace htool;
@@ -17,19 +17,14 @@ int main(int, char *[]) {
                     for (auto transa : {'N', 'T'}) {
                         for (auto transb : {'N', 'T'}) {
                             std::cout << epsilon << " " << n1 << " " << n2 << " " << n3 << " " << transa << " " << transb << "\n";
-                            is_error = is_error || test_lrmat_product<double, GeneratorTestDouble, sympartialACA<double>>(transa, transb, n1, n2, n3, epsilon, additional_compression_tolerance, additional_lrmat_sum_tolerances);
-                        }
-                    }
-                    for (auto transa : {'N', 'T'}) {
-                        for (auto transb : {'N', 'T'}) {
-                            std::cout << epsilon << " " << n1 << " " << n2 << " " << n3 << " " << transa << " " << transb << "\n";
-                            is_error = is_error || test_lrmat_product<std::complex<double>, GeneratorTestComplex, sympartialACA<std::complex<double>>>(transa, transb, n1, n2, n3, epsilon, additional_compression_tolerance, additional_lrmat_sum_tolerances);
+                            is_error = is_error || test_lrmat_product<double, GeneratorTestDouble, SVD<double>>(transa, transb, n1, n2, n3, epsilon, additional_compression_tolerance, additional_lrmat_sum_tolerances);
                         }
                     }
                 }
             }
         }
     }
+
     if (is_error) {
         return 1;
     }
