@@ -14,7 +14,7 @@ using namespace std;
 using namespace htool;
 
 template <typename T, typename GeneratorTestType>
-bool test_matrix_hmatrix_product(const TestCaseProduct<T, GeneratorTestType> &test_case, bool use_local_cluster, htool::underlying_type<T> epsilon, htool::underlying_type<T> margin) {
+bool test_matrix_hmatrix_product(const TestCaseProduct<T, GeneratorTestType> &test_case, bool use_local_cluster, htool::underlying_type<T> epsilon, htool::underlying_type<T> additional_lrmat_sum_tolerance) {
 
     int rankWorld;
     MPI_Comm_rank(MPI_COMM_WORLD, &rankWorld);
@@ -113,7 +113,7 @@ bool test_matrix_hmatrix_product(const TestCaseProduct<T, GeneratorTestType> &te
     dense_lrmat_test.resize(lrmat_test.get_U().nb_rows(), lrmat_test.get_V().nb_cols());
     lrmat_test.copy_to_dense(dense_lrmat_test.data());
     error    = normFrob(matrix_result_w_lrmat_sum - dense_lrmat_test) / normFrob(matrix_result_w_lrmat_sum);
-    is_error = is_error || !(error < std::max(epsilon, lrmat_tolerance) * margin);
+    is_error = is_error || !(error < std::max(epsilon, lrmat_tolerance) * (1 + additional_lrmat_sum_tolerance));
     cout << "> Errors on a matrix hmatrix product to lrmat with sum: " << error << endl;
 
     return is_error;

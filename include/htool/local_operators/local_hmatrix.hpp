@@ -5,6 +5,9 @@
 #include "../clustering/cluster_node.hpp"
 #include "../hmatrix/hmatrix.hpp"
 #include "../hmatrix/interfaces/virtual_generator.hpp"
+#include "../hmatrix/linalg/add_hmatrix_matrix_product.hpp"
+#include "../hmatrix/linalg/add_hmatrix_matrix_product_row_major.hpp"
+#include "../hmatrix/linalg/add_hmatrix_vector_product.hpp"
 #include "../hmatrix/tree_builder/tree_builder.hpp"
 #include "../matrix/matrix.hpp"
 #include "local_operator.hpp"
@@ -24,10 +27,10 @@ class LocalHMatrix final : public LocalOperator<CoefficientPrecision, Coordinate
     LocalHMatrix &operator=(LocalHMatrix &&LocalHMatrix) noexcept = default;
     ~LocalHMatrix()                                               = default;
 
-    void local_add_vector_product(char trans, CoefficientPrecision alpha, const CoefficientPrecision *in, CoefficientPrecision beta, CoefficientPrecision *out) const override { m_data.add_vector_product(trans, alpha, in, beta, out); }
-    void local_add_vector_product_symmetric(char trans, CoefficientPrecision alpha, const CoefficientPrecision *in, CoefficientPrecision beta, CoefficientPrecision *out, char, char) const override { m_data.add_vector_product(trans, alpha, in, beta, out); }
-    void local_add_matrix_product_row_major(char trans, CoefficientPrecision alpha, const CoefficientPrecision *in, CoefficientPrecision beta, CoefficientPrecision *out, int mu) const override { m_data.add_matrix_product_row_major(trans, alpha, in, beta, out, mu); }
-    void local_add_matrix_product_symmetric_row_major(char trans, CoefficientPrecision alpha, const CoefficientPrecision *in, CoefficientPrecision beta, CoefficientPrecision *out, int mu, char, char) const override { m_data.add_matrix_product_row_major(trans, alpha, in, beta, out, mu); }
+    void local_add_vector_product(char trans, CoefficientPrecision alpha, const CoefficientPrecision *in, CoefficientPrecision beta, CoefficientPrecision *out) const override { openmp_add_hmatrix_vector_product(trans, alpha, m_data, in, beta, out); }
+    void local_add_vector_product_symmetric(char trans, CoefficientPrecision alpha, const CoefficientPrecision *in, CoefficientPrecision beta, CoefficientPrecision *out, char, char) const override { openmp_add_hmatrix_vector_product(trans, alpha, m_data, in, beta, out); }
+    void local_add_matrix_product_row_major(char trans, CoefficientPrecision alpha, const CoefficientPrecision *in, CoefficientPrecision beta, CoefficientPrecision *out, int mu) const override { openmp_add_hmatrix_matrix_product_row_major(trans, 'N', alpha, m_data, in, beta, out, mu); }
+    void local_add_matrix_product_symmetric_row_major(char trans, CoefficientPrecision alpha, const CoefficientPrecision *in, CoefficientPrecision beta, CoefficientPrecision *out, int mu, char, char) const override { openmp_add_hmatrix_matrix_product_row_major(trans, 'N', alpha, m_data, in, beta, out, mu); }
 
     const HMatrix<CoefficientPrecision, CoordinatePrecision> &get_hmatrix() const { return *m_data.get(); }
 };

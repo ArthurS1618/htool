@@ -11,7 +11,6 @@ class VirtualGenerator {
 
   public:
     virtual void copy_submatrix(int M, int N, int row_offset, int col_offset, CoefficientPrecision *ptr) const = 0;
-    // virtual void copy_submatrix(int M, int N, const int *rows, const int *cols, CoefficientPrecision *ptr) const = 0;
 
     VirtualGenerator() {}
     VirtualGenerator(const VirtualGenerator &)            = default;
@@ -22,21 +21,34 @@ class VirtualGenerator {
 };
 
 template <typename CoefficientPrecision>
-class VirtualGeneratorWithPermutation : public VirtualGenerator<CoefficientPrecision> {
+class VirtualGeneratorInUserNumbering {
+
+  public:
+    virtual void copy_submatrix(int M, int N, const int *rows, const int *cols, CoefficientPrecision *ptr) const = 0;
+
+    VirtualGeneratorInUserNumbering() {}
+    VirtualGeneratorInUserNumbering(const VirtualGeneratorInUserNumbering &)            = default;
+    VirtualGeneratorInUserNumbering &operator=(const VirtualGeneratorInUserNumbering &) = default;
+    VirtualGeneratorInUserNumbering(VirtualGeneratorInUserNumbering &&)                 = default;
+    VirtualGeneratorInUserNumbering &operator=(VirtualGeneratorInUserNumbering &&)      = default;
+    virtual ~VirtualGeneratorInUserNumbering() {}
+};
+
+template <typename CoefficientPrecision>
+class GeneratorWithPermutation : public VirtualGenerator<CoefficientPrecision> {
 
   protected:
+    const VirtualGeneratorInUserNumbering<CoefficientPrecision> &m_generator_in_user_numbering;
     const int *m_target_permutation;
     const int *m_source_permutation;
 
   public:
-    VirtualGeneratorWithPermutation(const int *target_permutation, const int *source_permutation) : m_target_permutation(target_permutation), m_source_permutation(source_permutation) {
+    GeneratorWithPermutation(const VirtualGeneratorInUserNumbering<CoefficientPrecision> &generator_in_user_numbering, const int *target_permutation, const int *source_permutation) : m_generator_in_user_numbering(generator_in_user_numbering), m_target_permutation(target_permutation), m_source_permutation(source_permutation) {
     }
 
     virtual void copy_submatrix(int M, int N, int row_offset, int col_offset, CoefficientPrecision *ptr) const override {
-        copy_submatrix_from_user_numbering(M, N, m_target_permutation + row_offset, m_source_permutation + col_offset, ptr);
+        m_generator_in_user_numbering.copy_submatrix(M, N, m_target_permutation + row_offset, m_source_permutation + col_offset, ptr);
     }
-
-    virtual void copy_submatrix_from_user_numbering(int M, int N, const int *rows, const int *cols, CoefficientPrecision *ptr) const = 0;
 };
 
 } // namespace htool

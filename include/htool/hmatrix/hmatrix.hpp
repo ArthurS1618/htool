@@ -19,7 +19,6 @@
 
 #include <queue>
 
-#include <mpi.h>
 namespace htool {
 
 // Class
@@ -42,16 +41,10 @@ class HMatrix : public TreeNode<HMatrix<CoefficientPrecision, CoordinatePrecisio
     std::unique_ptr<LowRankMatrix<CoefficientPrecision, CoordinatePrecision>> m_low_rank_data{nullptr};
 
     // Cached leaves
-    // std::vector<HMatrix *> m_dense_leaves{};
-    // std::vector<HMatrix *> m_dense_leaves_in_diagonal_block{};
-    // std::vector<HMatrix *> m_diagonal_dense_leaves{};
-    // std::vector<HMatrix *> m_low_rank_leaves{};
-    // std::vector<HMatrix *> m_low_rank_leaves_in_diagonal_block{};
-    // std::vector<HMatrix *> m_diagonal_low_rank_leaves{};
     mutable std::vector<const HMatrix *> m_leaves{};
     mutable std::vector<const HMatrix *> m_leaves_for_symmetry{};
     mutable char m_symmetry_type_for_leaves{'N'};
-    // std::vector<HMatrix *> m_leaves_in_diagonal_block{};
+    mutable char m_UPLO_for_leaves{'N'};
 
     StorageType m_storage_type{StorageType::Hierarchical};
 
@@ -76,6 +69,7 @@ class HMatrix : public TreeNode<HMatrix<CoefficientPrecision, CoordinatePrecisio
 
                 if (m_symmetry_type_for_leaves == 'N' && current_hmatrix->get_symmetry() != 'N') {
                     m_symmetry_type_for_leaves = current_hmatrix->get_symmetry();
+                    m_UPLO_for_leaves          = current_hmatrix->get_UPLO();
                 }
 
                 for (const auto &child : current_hmatrix->get_children()) {
@@ -290,6 +284,7 @@ class HMatrix : public TreeNode<HMatrix<CoefficientPrecision, CoordinatePrecisio
     // // // Output structure
     // void save_plot(const std::string &outputname) const;
     // std::vector<DisplayBlock> get_output() const;
+    char get_UPLO_for_leaves() const { return m_UPLO_for_leaves; }
 
     // Data computation
     void compute_dense_data(const VirtualGenerator<CoefficientPrecision> &generator) {
@@ -3928,6 +3923,9 @@ void HMatrix<CoefficientPrecision, CoordinatePrecision>::save_plot(const std::st
 //     return Dense;
 // }
 
+// template <typename CoefficientPrecision, typename CoordinatePrecision>
+// };
+
 template <typename CoefficientPrecision, typename CoordinatePrecision>
 void copy_to_dense(const HMatrix<CoefficientPrecision, CoordinatePrecision> &hmatrix, CoefficientPrecision *ptr) {
 
@@ -3957,37 +3955,85 @@ void copy_to_dense(const HMatrix<CoefficientPrecision, CoordinatePrecision> &hma
             }
         }
     }
+}
 
-    // char symmetry_type = hmatrix.get_symmetry_for_leaves();
-    // for (auto leaf : hmatrix.get_leaves_for_symmetry()) {
-    //     int local_nr   = leaf->get_target_cluster().get_size();
-    //     int local_nc   = leaf->get_source_cluster().get_size();
-    //     int col_offset = leaf->get_target_cluster().get_offset() - source_offset;
-    //     int row_offset = leaf->get_source_cluster().get_offset() - target_offset;
-    //     if (leaf->is_dense()) {
-    //         for (int j = 0; j < local_nr; j++) {
-    //             for (int k = 0; k < local_nc; k++) {
-    //                 ptr[k + row_offset + (j + col_offset) * target_size] = (*leaf->get_dense_data())(j, k);
-    //             }
-    //         }
-    //     } else {
+template <typename CoefficientPrecision, typename CoordinatePrecision>
+void copy_to_dense_in_user_numbering(const HMatrix<CoefficientPrecision, CoordinatePrecision> &hmatrix, CoefficientPrecision *ptr) {
 
-    //         Matrix<CoefficientPrecision> low_rank_to_dense(local_nr, local_nc);
-    //         leaf->get_low_rank_data()->copy_to_dense(low_rank_to_dense.data());
-    //         for (int j = 0; j < local_nr; j++) {
-    //             for (int k = 0; k < local_nc; k++) {
-    //                 ptr[k + row_offset + (j + col_offset) * target_size] = low_rank_to_dense(j, k);
-    //             }
-    //         }
-    //     }
-    //     if (symmetry_type == 'H') {
-    //         for (int k = 0; k < local_nc; k++) {
-    //             for (int j = 0; j < local_nr; j++) {
-    //                 ptr[k + row_offset + (j + col_offset) * target_size] = conj_if_complex(ptr[k + row_offset + (j + col_offset) * target_size]);
-    //             }
-    //         }
-    //     }
-    // }
+    const auto &target_cluster = hmatrix.get_target_cluster();
+    const auto &source_cluster = hmatrix.get_source_cluster();
+    if (!target_cluster.is_root() && !is_cluster_on_partition(target_cluster)) {
+        htool::Logger::get_instance().log(LogLevel::ERROR, "Target cluster is neither root nor local, permutation is not stable and copy_to_dense_in_user_numbering cannot be used."); // LCOV_EXCL_LINE
+    }
+
+    if (!source_cluster.is_root() && !is_cluster_on_partition(source_cluster)) {
+        htool::Logger::get_instance().log(LogLevel::ERROR, "Source cluster is neither root nor local, permutation is not stable and copy_to_dense_in_user_numbering cannot be used."); // LCOV_EXCL_LINE
+    }
+
+    if (is_cluster_on_partition(target_cluster) && !(target_cluster.is_permutation_local())) {
+        htool::Logger::get_instance().log(LogLevel::ERROR, "Target cluster is local, but permutation is not local, copy_to_dense_in_user_numbering cannot be used"); // LCOV_EXCL_LINE}
+    }
+
+    if (is_cluster_on_partition(source_cluster) && !(source_cluster.is_permutation_local())) {
+        htool::Logger::get_instance().log(LogLevel::ERROR, "Source cluster is local, but permutation is not local, copy_to_dense_in_user_numbering cannot be used"); // LCOV_EXCL_LINE}
+    }
+    int target_offset              = target_cluster.get_offset();
+    int source_offset              = source_cluster.get_offset();
+    int target_size                = target_cluster.get_size();
+    const auto &target_permutation = target_cluster.get_permutation();
+    const auto &source_permutation = source_cluster.get_permutation();
+
+    for (auto leaf : hmatrix.get_leaves()) {
+        int local_nr   = leaf->get_target_cluster().get_size();
+        int local_nc   = leaf->get_source_cluster().get_size();
+        int row_offset = leaf->get_target_cluster().get_offset();
+        int col_offset = leaf->get_source_cluster().get_offset();
+
+        if (leaf->is_dense()) {
+            for (int k = 0; k < local_nc; k++) {
+                for (int j = 0; j < local_nr; j++) {
+                    ptr[target_permutation[j + row_offset] - target_offset + (source_permutation[k + col_offset] - source_offset) * target_size] = (*leaf->get_dense_data())(j, k);
+                }
+            }
+        } else {
+
+            Matrix<CoefficientPrecision> low_rank_to_dense(local_nr, local_nc);
+            leaf->get_low_rank_data()->copy_to_dense(low_rank_to_dense.data());
+            for (int k = 0; k < local_nc; k++) {
+                for (int j = 0; j < local_nr; j++) {
+                    ptr[target_permutation[j + row_offset] - target_offset + (source_permutation[k + col_offset] - source_offset) * target_size] = low_rank_to_dense(j, k);
+                }
+            }
+        }
+    }
+    if (hmatrix.get_symmetry_for_leaves() != 'N') {
+        for (auto leaf : hmatrix.get_leaves_for_symmetry()) {
+            int local_nr   = leaf->get_target_cluster().get_size();
+            int local_nc   = leaf->get_source_cluster().get_size();
+            int row_offset = leaf->get_target_cluster().get_offset();
+            int col_offset = leaf->get_source_cluster().get_offset();
+
+            if (leaf->get_target_cluster().get_offset() == leaf->get_source_cluster().get_offset() and hmatrix.get_UPLO_for_leaves() == 'L') {
+                for (int k = 0; k < local_nc; k++) {
+                    for (int j = k + 1; j < local_nr; j++) {
+                        ptr[source_permutation[k + col_offset] - target_offset + (target_permutation[j + row_offset] - source_offset) * target_size] = hmatrix.get_symmetry_for_leaves() == 'S' ? ptr[target_permutation[j + row_offset] - target_offset + (source_permutation[k + col_offset] - source_offset) * target_size] : conj_if_complex(ptr[target_permutation[j + row_offset] - target_offset + (source_permutation[k + col_offset] - source_offset) * target_size]);
+                    }
+                }
+            } else if (leaf->get_target_cluster().get_offset() == leaf->get_source_cluster().get_offset() and hmatrix.get_UPLO_for_leaves() == 'U') {
+                for (int k = 0; k < local_nc; k++) {
+                    for (int j = 0; j < k; j++) {
+                        ptr[source_permutation[k + col_offset] - target_offset + (target_permutation[j + row_offset] - source_offset) * target_size] = hmatrix.get_symmetry_for_leaves() == 'S' ? ptr[target_permutation[j + row_offset] - target_offset + (source_permutation[k + col_offset] - source_offset) * target_size] : conj_if_complex(ptr[target_permutation[j + row_offset] - target_offset + (source_permutation[k + col_offset] - source_offset) * target_size]);
+                    }
+                }
+            } else {
+                for (int k = 0; k < local_nc; k++) {
+                    for (int j = 0; j < local_nr; j++) {
+                        ptr[source_permutation[k + col_offset] - target_offset + (target_permutation[j + row_offset] - source_offset) * target_size] = hmatrix.get_symmetry_for_leaves() == 'S' ? ptr[target_permutation[j + row_offset] - target_offset + (source_permutation[k + col_offset] - source_offset) * target_size] : conj_if_complex(ptr[target_permutation[j + row_offset] - target_offset + (source_permutation[k + col_offset] - source_offset) * target_size]);
+                    }
+                }
+            }
+        }
+    }
 }
 
 ////////////// Arthur je rajoute ca pour la compression parce que get_low_rank_data est en private...
@@ -4032,153 +4078,42 @@ void copy_diagonal(const HMatrix<CoefficientPrecision, CoordinatePrecision> &hma
     }
 }
 
-// template <typename CoefficientPrecision>
-// Matrix<CoefficientPrecision> HMatrix<CoefficientPrecision,CoordinatePrecision>::get_local_interaction(bool permutation) const {
-//     int local_size_source = cluster_tree_s->get_masteroffset(rankWorld).second;
-//     Matrix<CoefficientPrecision> local_interaction(local_size, local_size_source);
-//     copy_local_interaction(local_interaction.data(), permutation);
-//     return local_interaction;
-// }
+template <typename CoefficientPrecision, typename CoordinatePrecision>
+void copy_diagonal_in_user_numbering(const HMatrix<CoefficientPrecision, CoordinatePrecision> &hmatrix, CoefficientPrecision *ptr) {
+    if (hmatrix.get_target_cluster().get_offset() != hmatrix.get_source_cluster().get_offset() || hmatrix.get_target_cluster().get_size() != hmatrix.get_source_cluster().get_size()) {
+        htool::Logger::get_instance().log(LogLevel::ERROR, "Matrix is not square a priori, get_local_diagonal cannot be used"); // LCOV_EXCL_LINE
+    }
 
-// template <typename CoefficientPrecision>
-// Matrix<CoefficientPrecision> HMatrix<CoefficientPrecision,CoordinatePrecision>::get_local_diagonal_block(bool permutation) const {
-//     int local_size_source = cluster_tree_s->get_masteroffset(rankWorld).second;
-//     Matrix<CoefficientPrecision> diagonal_block(local_size, local_size_source);
-//     copy_local_diagonal_block(diagonal_block.data(), permutation);
-//     return diagonal_block;
-// }
+    if (!(hmatrix.get_target_cluster().is_root() && hmatrix.get_source_cluster().is_root()) && !(is_cluster_on_partition(hmatrix.get_target_cluster()) && is_cluster_on_partition(hmatrix.get_source_cluster()))) {
+        htool::Logger::get_instance().log(LogLevel::ERROR, "Clusters are neither root nor local, permutations are not stable and copy_diagonal_in_user_numbering cannot be used."); // LCOV_EXCL_LINE
+    }
 
-// template <typename CoefficientPrecision, typename CoordinatePrecision>
-// void HMatrix<CoefficientPrecision, CoordinatePrecision>::copy_local_interaction(T *ptr, bool permutation) const {
-//     if ((!(cluster_tree_t->IsLocal()) || !(cluster_tree_s->IsLocal())) && permutation) {
-//         throw std::logic_error("[Htool error] Permutation is not local, get_local_interaction cannot be used"); // LCOV_EXCL_LINE
-//     }
+    if ((is_cluster_on_partition(hmatrix.get_target_cluster()) && is_cluster_on_partition(hmatrix.get_source_cluster())) && !(hmatrix.get_target_cluster().is_permutation_local() && hmatrix.get_source_cluster().is_permutation_local())) {
+        htool::Logger::get_instance().log(LogLevel::ERROR, "Clusters are local, but permutations are not local, copy_diagonal_in_user_numbering cannot be used"); // LCOV_EXCL_LINE}
+    }
 
-//     int local_offset_source = cluster_tree_s->get_masteroffset(rankWorld).first;
-//     int local_size_source   = cluster_tree_s->get_masteroffset(rankWorld).second;
-//     // Internal dense blocks
-//     for (int i = 0; i < MyDiagNearFieldMats.size(); i++) {
-//         const Block<CoefficientPrecision> *submat = MyDiagNearFieldMats[i];
-//         int local_nr                              = submat->get_target_cluster()->get_size();
-//         int local_nc                              = submat->get_source_cluster()->get_size();
-//         int offset_i                              = submat->get_target_cluster()->get_offset() - local_offset;
-//         int offset_j                              = submat->get_source_cluster()->get_offset() - local_offset_source;
-//         for (int i = 0; i < local_nc; i++) {
-//             std::copy_n(&(submat->get_dense_block_data()->operator()(0, i)), local_nr, ptr + offset_i + (offset_j + i) * local_size);
-//         }
-//     }
+    const auto &permutation = hmatrix.get_target_cluster().get_permutation();
+    int target_offset       = hmatrix.get_target_cluster().get_offset();
+    // int source_offset       = hmatrix.get_source_cluster().get_offset();
 
-//     // Internal compressed block
-//     for (int i = 0; i < MyDiagFarFieldMats.size(); i++) {
-//         const Block<CoefficientPrecision> *lmat = MyDiagFarFieldMats[i];
-//         int local_nr                            = lmat->get_target_cluster()->get_size();
-//         int local_nc                            = lmat->get_source_cluster()->get_size();
-//         int offset_i                            = lmat->get_target_cluster()->get_offset() - local_offset;
-//         int offset_j                            = lmat->get_source_cluster()->get_offset() - local_offset_source;
-//         ;
-//         Matrix<CoefficientPrecision> FarFielBlock(local_nr, local_nc);
-//         lmat->get_low_rank_block_data()->get_whole_matrix(&(FarFielBlock(0, 0)));
-//         for (int i = 0; i < local_nc; i++) {
-//             std::copy_n(&(FarFielBlock(0, i)), local_nr, ptr + offset_i + (offset_j + i) * local_size);
-//         }
-//     }
-
-// // Asking for permutation while symmetry!=N means that the block is upper/lower triangular in Htool's numbering, but it is not true in User's numbering
-
-// if (permutation && m_symmetry != 'N') {
-//     if (UPLO == 'L' && m_symmetry == 'S') {
-//         for (int i = 0; i < local_size; i++) {
-//             for (int j = 0; j < i; j++) {
-//                 ptr[j + i * local_size] = ptr[i + j * local_size];
-//             }
-//         }
-//     }
-
-//     if (UPLO == 'U' && m_symmetry == 'S') {
-//         for (int i = 0; i < local_size; i++) {
-//             for (int j = i + 1; j < local_size_source; j++) {
-//                 ptr[j + i * local_size] = ptr[i + j * local_size];
-//             }
-//         }
-//     }
-//     if (UPLO == 'L' && m_symmetry == 'H') {
-//         for (int i = 0; i < local_size; i++) {
-//             for (int j = 0; j < i; j++) {
-//                 ptr[j + i * local_size] = conj_if_complex(ptr[i + j * local_size]);
-//             }
-//         }
-//     }
-
-//     if (UPLO == 'U' && m_symmetry == 'H') {
-//         for (int i = 0; i < local_size; i++) {
-//             for (int j = i + 1; j < local_size_source; j++) {
-//                 ptr[j + i * local_size] = conj_if_complex(ptr[i + j * local_size]);
-//             }
-//         }
-//     }
-// }
-// // Permutations
-// if (permutation) {
-//     Matrix<CoefficientPrecision> diagonal_block_perm(local_size, local_size_source);
-//     for (int i = 0; i < local_size; i++) {
-//         for (int j = 0; j < local_size_source; j++) {
-//             diagonal_block_perm(i, cluster_tree_s->get_global_perm(j + local_offset_source) - local_offset_source) = ptr[i + j * local_size];
-//         }
-//     }
-
-//     for (int i = 0; i < local_size; i++) {
-//         this->local_cluster_to_local_target(diagonal_block_perm.data() + i * local_size, ptr + i * local_size, comm);
-//     }
-// }
-// }
-
-// template <typename CoefficientPrecision>
-// void HMatrix<CoefficientPrecision,CoordinatePrecision>::copy_local_diagonal_block(T *ptr, bool permutation) const {
-//     if (cluster_tree_t != cluster_tree_s) {
-//         throw std::logic_error("[Htool error] Matrix is not square a priori, get_local_diagonal_block cannot be used"); // LCOV_EXCL_LINE
-//     }
-//     copy_local_interaction(ptr, permutation);
-// }
-
-// template <typename CoefficientPrecision>
-// std::pair<int, int> HMatrix<CoefficientPrecision,CoordinatePrecision>::get_max_size_blocks() const {
-//     int local_max_size_j = 0;
-//     int local_max_size_i = 0;
-
-//     for (int i = 0; i < MyFarFieldMats.size(); i++) {
-//         if (local_max_size_j < MyFarFieldMats[i]->get_source_cluster()->get_size())
-//             local_max_size_j = MyFarFieldMats[i]->get_source_cluster()->get_size();
-//         if (local_max_size_i < MyFarFieldMats[i]->get_target_cluster()->get_size())
-//             local_max_size_i = MyFarFieldMats[i]->get_target_cluster()->get_size();
-//     }
-//     for (int i = 0; i < MyNearFieldMats.size(); i++) {
-//         if (local_max_size_j < MyNearFieldMats[i]->get_source_cluster()->get_size())
-//             local_max_size_j = MyNearFieldMats[i]->get_source_cluster()->get_size();
-//         if (local_max_size_i < MyNearFieldMats[i]->get_target_cluster()->get_size())
-//             local_max_size_i = MyNearFieldMats[i]->get_target_cluster()->get_size();
-//     }
-
-//     return std::pair<int, int>(local_max_size_i, local_max_size_j);
-// }
-
-// template <typename CoefficientPrecision>
-// void HMatrix<CoefficientPrecision,CoordinatePrecision>::apply_dirichlet(const std::vector<int> &boundary) {
-//     // Renum
-//     std::vector<int> boundary_renum(boundary.size());
-//     this->source_to_cluster_permutation(boundary.data(), boundary_renum.data());
-
-//     //
-//     for (int j = 0; j < MyStrictlyDiagNearFieldMats.size(); j++) {
-//         SubMatrix<CoefficientPrecision> &submat = *(MyStrictlyDiagNearFieldMats[j]);
-//         int local_nr         = submat.nb_rows();
-//         int local_nc         = submat.nb_cols();
-//         int offset_i         = submam_target_cluster_tree->get_offset_i();
-//         for (int i = offset_i; i < offset_i + std::min(local_nr, local_nc); i++) {
-//             if (boundary_renum[i])
-//                 submat(i - offset_i, i - offset_i) = 1e30;
-//         }
-//     }
-// }
+    for (auto leaf : hmatrix.get_leaves()) {
+        int local_nr = leaf->get_target_cluster().get_size();
+        int local_nc = leaf->get_source_cluster().get_size();
+        int offset_i = leaf->get_target_cluster().get_offset();
+        int offset_j = leaf->get_source_cluster().get_offset();
+        if (leaf->is_dense() && offset_i == offset_j) {
+            for (int k = 0; k < std::min(local_nr, local_nc); k++) {
+                ptr[permutation[k + offset_i] - target_offset] = (*leaf->get_dense_data())(k, k);
+            }
+        } else if (leaf->is_low_rank() && offset_i == offset_j) { // pretty rare...
+            Matrix<CoefficientPrecision> low_rank_to_dense(local_nc, local_nr);
+            leaf->get_low_rank_data()->copy_to_dense(low_rank_to_dense.data());
+            for (int k = 0; k < std::min(local_nr, local_nc); k++) {
+                ptr[permutation[k + offset_i] - target_offset] = (low_rank_to_dense)(k, k);
+            }
+        }
+    }
+}
 
 } // namespace htool
 #endif

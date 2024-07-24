@@ -114,7 +114,13 @@ void triangular_hmatrix_matrix_solve(char side, char UPLO, char transa, char dia
         transpose(transposed_B, B);
     } else {
         char transposed_transa = transa == 'N' ? 'T' : 'N';
-        triangular_hmatrix_matrix_solve_row_major('L', UPLO, transposed_transa, diag, alpha, A, B);
+        if (transa == 'C') {
+            conj_if_complex(B.data(), B.nb_rows() * B.nb_cols());
+        }
+        triangular_hmatrix_matrix_solve_row_major('L', UPLO, transposed_transa, diag, transa == 'C' ? conj_if_complex(alpha) : alpha, A, B);
+        if (transa == 'C') {
+            conj_if_complex(B.data(), B.nb_rows() * B.nb_cols());
+        }
     }
 }
 

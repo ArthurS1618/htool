@@ -104,10 +104,10 @@ void cholesky_factorization(char UPLO, HMatrix<CoefficientPrecision, CoordinateP
                 if (other_cluster_child->get_offset() > cluster_child->get_offset()) {
                     if (UPLO == 'L') {
                         HMatrix<CoefficientPrecision, CoordinatePrecision> *L = hmatrix.get_sub_hmatrix(*other_cluster_child, *cluster_child);
-                        triangular_hmatrix_hmatrix_solve('R', UPLO, 'C', 'N', CoefficientPrecision(1), *pivot, *L);
+                        triangular_hmatrix_hmatrix_solve('R', UPLO, is_complex<CoefficientPrecision>() ? 'C' : 'T', 'N', CoefficientPrecision(1), *pivot, *L);
                     } else {
                         HMatrix<CoefficientPrecision, CoordinatePrecision> *U = hmatrix.get_sub_hmatrix(*cluster_child, *other_cluster_child);
-                        triangular_hmatrix_hmatrix_solve('L', UPLO, 'C', 'N', CoefficientPrecision(1), *pivot, *U);
+                        triangular_hmatrix_hmatrix_solve('L', UPLO, is_complex<CoefficientPrecision>() ? 'C' : 'T', 'N', CoefficientPrecision(1), *pivot, *U);
                     }
                 }
             }
@@ -122,7 +122,7 @@ void cholesky_factorization(char UPLO, HMatrix<CoefficientPrecision, CoordinateP
                         // if (*output_cluster_child == *input_cluster_child) {
                         //     symmetric_rank_k_update(UPLO, 'N', CoefficientPrecision(-1), *L, CoefficientPrecision(1), *A_child);
                         // } else {
-                        add_hmatrix_hmatrix_product('N', 'C', CoefficientPrecision(-1), *L, *L, CoefficientPrecision(1), *A_child);
+                        add_hmatrix_hmatrix_product('N', is_complex<CoefficientPrecision>() ? 'C' : 'T', CoefficientPrecision(-1), *L, *L, CoefficientPrecision(1), *A_child);
                         // }
                     } else if (UPLO == 'U' && output_cluster_child->get_offset() > cluster_child->get_offset() && input_cluster_child->get_offset() > cluster_child->get_offset() && input_cluster_child->get_offset() >= output_cluster_child->get_offset()) {
                         HMatrix<CoefficientPrecision, CoordinatePrecision> *A_child = hmatrix.get_sub_hmatrix(*output_cluster_child, *input_cluster_child);
@@ -130,7 +130,7 @@ void cholesky_factorization(char UPLO, HMatrix<CoefficientPrecision, CoordinateP
                         // if (*output_cluster_child == *input_cluster_child) {
                         //     symmetric_rank_k_update(UPLO, 'C', CoefficientPrecision(-1), *U, CoefficientPrecision(1), *A_child);
                         // } else {
-                        add_hmatrix_hmatrix_product('C', 'N', CoefficientPrecision(-1), *U, *U, CoefficientPrecision(1), *A_child);
+                        add_hmatrix_hmatrix_product(is_complex<CoefficientPrecision>() ? 'C' : 'T', 'N', CoefficientPrecision(-1), *U, *U, CoefficientPrecision(1), *A_child);
                         // }
                     }
                 }

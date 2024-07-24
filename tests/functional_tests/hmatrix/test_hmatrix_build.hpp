@@ -14,7 +14,7 @@
 using namespace std;
 using namespace htool;
 
-template <typename T, typename GeneratorTestType>
+template <typename T, typename GeneratorTestTypeInUserNumbering>
 bool test_hmatrix_build(int nr, int nc, bool use_local_cluster, char Symmetry, char UPLO, htool::underlying_type<T> epsilon, bool use_dense_blocks_generator) {
 
     // Get the number of processes
@@ -39,12 +39,12 @@ bool test_hmatrix_build(int nr, int nc, bool use_local_cluster, char Symmetry, c
     test_partition(3, nr, p1, sizeWorld, partition);
 
     // Clustering
-    ClusterTreeBuilder<htool::underlying_type<T>> recursive_build_strategy;
+    ClusterTreeBuilder<htool::underlying_type<T>> cluster_tree_builder;
     // recursive_build_strategy.set_partition(partition);
     // recursive_build_strategy.set_minclustersize(2);
 
     std::shared_ptr<const Cluster<htool::underlying_type<T>>> source_root_cluster;
-    std::shared_ptr<const Cluster<htool::underlying_type<T>>> target_root_cluster = make_shared<const Cluster<htool::underlying_type<T>>>(recursive_build_strategy.create_cluster_tree(nr, 3, p1.data(), 2, sizeWorld, partition.data()));
+    std::shared_ptr<const Cluster<htool::underlying_type<T>>> target_root_cluster = make_shared<const Cluster<htool::underlying_type<T>>>(cluster_tree_builder.create_cluster_tree(nr, 3, p1.data(), 2, sizeWorld, partition.data()));
 
     if (Symmetry == 'N' && nr != nc) {
         // Geometry
@@ -57,34 +57,14 @@ bool test_hmatrix_build(int nr, int nc, bool use_local_cluster, char Symmetry, c
         // Clustering
         // source_recursive_build_strategy.set_minclustersize(2);
 
-        source_root_cluster = make_shared<const Cluster<htool::underlying_type<T>>>(recursive_build_strategy.create_cluster_tree(nc, 3, p2.data(), 2, sizeWorld, partition.data()));
+        source_root_cluster = make_shared<const Cluster<htool::underlying_type<T>>>(cluster_tree_builder.create_cluster_tree(nc, 3, p2.data(), 2, sizeWorld, partition.data()));
     } else {
         source_root_cluster = target_root_cluster;
         p2                  = p1;
     }
 
-    // Permutation on geometry
-    p1_permuted.resize(3 * nr);
-    const auto &target_permutation = target_root_cluster->get_permutation();
-    for (int i = 0; i < target_permutation.size(); i++) {
-        p1_permuted[i * 3 + 0] = p1[target_permutation[i] * 3 + 0];
-        p1_permuted[i * 3 + 1] = p1[target_permutation[i] * 3 + 1];
-        p1_permuted[i * 3 + 2] = p1[target_permutation[i] * 3 + 2];
-    }
-    p2_permuted.resize(3 * nc);
-    if (Symmetry == 'N' && nr != nc) {
-        const auto &source_permutation = source_root_cluster->get_permutation();
-        for (int i = 0; i < source_permutation.size(); i++) {
-            p2_permuted[i * 3 + 0] = p2[source_permutation[i] * 3 + 0];
-            p2_permuted[i * 3 + 1] = p2[source_permutation[i] * 3 + 1];
-            p2_permuted[i * 3 + 2] = p2[source_permutation[i] * 3 + 2];
-        }
-    } else {
-        p2_permuted = p1_permuted;
-    }
-
-    // Generator
-    GeneratorTestType generator(3, nr, nc, p1_permuted, p2_permuted, *target_root_cluster, *source_root_cluster, false, false);
+    GeneratorTestTypeInUserNumbering generator(3, p1, p2);
+    GeneratorWithPermutation<T> generator_with_permutation(generator, target_root_cluster->get_permutation().data(), source_root_cluster->get_permutation().data());
 
     // HMatrix
     double eta = 10;
@@ -98,7 +78,7 @@ bool test_hmatrix_build(int nr, int nc, bool use_local_cluster, char Symmetry, c
 
     std::shared_ptr<VirtualDenseBlocksGenerator<T>> dense_blocks_generator;
     if (use_dense_blocks_generator) {
-        dense_blocks_generator = std::make_shared<DenseBlocksGeneratorTest<T>>(generator);
+        dense_blocks_generator = std::make_shared<DenseBlocksGeneratorTest<T>>(generator_with_permutation);
     }
     hmatrix_tree_builder->set_dense_blocks_generator(dense_blocks_generator);
 
@@ -141,7 +121,7 @@ bool test_hmatrix_build(int nr, int nc, bool use_local_cluster, char Symmetry, c
     Matrix<T> dense_matrix;
     dense_matrix.assign(hmatrix_target_cluster.get_size(), hmatrix_source_cluster.get_size(), dense_data.data(), false);
 
-    generator.copy_submatrix(hmatrix_target_cluster.get_size(), hmatrix_source_cluster.get_size(), hmatrix_target_cluster.get_offset(), hmatrix_source_cluster.get_offset(), dense_data.data());
+    generator_with_permutation.copy_submatrix(hmatrix_target_cluster.get_size(), hmatrix_source_cluster.get_size(), hmatrix_target_cluster.get_offset(), hmatrix_source_cluster.get_offset(), dense_data.data());
 
     // if (rankWorld == 0) {
     //     std::cout << "dense :\n";
@@ -193,6 +173,23 @@ bool test_hmatrix_build(int nr, int nc, bool use_local_cluster, char Symmetry, c
     is_error = is_error || !(frobenius_error < epsilon);
     std::cout << "Check dense conversion: " << frobenius_error << "\n";
 
+    // Check dense conversion with permutation
+    Matrix<T> permuted_matrix(hmatrix_target_cluster.get_size(), hmatrix_source_cluster.get_size()), temp_matrix(hmatrix_target_cluster.get_size(), hmatrix_source_cluster.get_size());
+    copy_to_dense_in_user_numbering(root_hmatrix, permuted_matrix.data());
+
+    const auto &target_permutation = target_root_cluster->get_permutation();
+    const auto &source_permutation = hmatrix_source_cluster.get_permutation();
+    for (int i = 0; i < hmatrix_target_cluster.get_size(); i++) {
+        for (int j = 0; j < hmatrix_source_cluster.get_size(); j++) {
+            temp_matrix(i, j) = permuted_matrix(target_permutation[i + hmatrix_target_cluster.get_offset()] - hmatrix_target_cluster.get_offset(), source_permutation[j + hmatrix_source_cluster.get_offset()] - hmatrix_source_cluster.get_offset());
+        }
+    }
+
+    frobenius_error = normFrob(temp_matrix - dense_matrix);
+    frobenius_error /= dense_matrix_norm;
+    is_error = is_error || !(frobenius_error < epsilon);
+    std::cout << "Check dense conversion in user numbering: " << frobenius_error << "\n";
+
     // Check get diagonal conversion
     if (Symmetry != 'N' || nr == nc) {
         int local_size   = diagonal_hmatrix->get_target_cluster().get_size();
@@ -208,6 +205,14 @@ bool test_hmatrix_build(int nr, int nc, bool use_local_cluster, char Symmetry, c
 
         is_error = is_error || !(error_on_diagonal < epsilon);
         std::cout << "Check get diagonal: " << error_on_diagonal << "\n";
+
+        vector<T> diagonal_in_user_numbering(local_size), temp_vector(local_size);
+        copy_diagonal_in_user_numbering(*diagonal_hmatrix, diagonal_in_user_numbering.data());
+        user_to_cluster(diagonal_hmatrix->get_target_cluster(), diagonal_in_user_numbering.data(), temp_vector.data());
+        error_on_diagonal = norm2(temp_vector - dense_diagonal) / norm2(dense_diagonal);
+
+        is_error = is_error || !(error_on_diagonal < epsilon);
+        std::cout << "Check get diagonal in user numbering: " << error_on_diagonal << "\n";
     }
 
     //

@@ -16,7 +16,7 @@ using namespace std;
 using namespace htool;
 
 template <typename T, typename GeneratorTestType>
-bool test_hmatrix_lrmat_product(const TestCaseProduct<T, GeneratorTestType> &test_case, bool use_local_cluster, htool::underlying_type<T> epsilon, htool::underlying_type<T>) {
+bool test_hmatrix_lrmat_product(const TestCaseProduct<T, GeneratorTestType> &test_case, bool use_local_cluster, htool::underlying_type<T> epsilon, htool::underlying_type<T> additional_lrmat_sum_tolerance) {
 
     int rankWorld;
     MPI_Comm_rank(MPI_COMM_WORLD, &rankWorld);
@@ -125,7 +125,7 @@ bool test_hmatrix_lrmat_product(const TestCaseProduct<T, GeneratorTestType> &tes
     dense_lrmat_test.resize(lrmat_test.get_U().nb_rows(), lrmat_test.get_V().nb_cols());
     lrmat_test.copy_to_dense(dense_lrmat_test.data());
     error    = normFrob(matrix_result_w_lrmat_sum - dense_lrmat_test) / normFrob(matrix_result_w_lrmat_sum);
-    is_error = is_error || !(error < std::max(epsilon, lrmat_tolerance));
+    is_error = is_error || !(error < std::max(epsilon, lrmat_tolerance) * (1 + additional_lrmat_sum_tolerance));
     cout << "> Errors on a hmatrix lrmat product to lrmat with lrmat sum: " << error << endl;
 
     hmatrix_test = C;
@@ -140,7 +140,7 @@ bool test_hmatrix_lrmat_product(const TestCaseProduct<T, GeneratorTestType> &tes
     add_hmatrix_lrmat_product(transa, transb, alpha, root_hmatrix, B_auto_approximation, beta, hmatrix_test);
     copy_to_dense(hmatrix_test, densified_hmatrix_test.data());
     error    = normFrob(matrix_result_w_matrix_sum - densified_hmatrix_test) / normFrob(matrix_result_w_matrix_sum);
-    is_error = is_error || !(error < std::max(epsilon, lrmat_tolerance));
+    is_error = is_error || !(error < std::max(epsilon, lrmat_tolerance) * (1 + additional_lrmat_sum_tolerance));
     cout << "> Errors on a hmatrix lrmat product to hmatrix with lrmat sum: " << error << endl;
 
     cout << "> is_error: " << is_error << endl;
