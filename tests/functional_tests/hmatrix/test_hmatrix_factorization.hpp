@@ -30,6 +30,10 @@ bool test_hmatrix_lu(char trans, int n1, int n2, htool::underlying_type<T> epsil
     Matrix<T> A_dense(no_A, ni_A), X_dense(no_X, ni_X), B_dense(X_dense), densified_hmatrix_test(B_dense), matrix_test;
     test_case.operator_A->copy_submatrix(no_A, ni_A, test_case.root_cluster_A_output->get_offset(), test_case.root_cluster_A_input->get_offset(), A_dense.data());
     generate_random_matrix(X_dense);
+    Matrix<T> ei(no_A, 1);
+    ei(0, 0) = 1.0;
+    auto Bi  = A_dense * ei;
+
     add_matrix_matrix_product(trans, 'N', T(1.), A_dense, X_dense, T(0.), B_dense);
 
     // LU factorization
@@ -40,6 +44,11 @@ bool test_hmatrix_lu(char trans, int n1, int n2, htool::underlying_type<T> epsil
     is_error = is_error || !(error < epsilon * margin);
     cout << "> Errors on hmatrix lu solve: " << error << endl;
     cout << "> is_error: " << is_error << "\n";
+
+    Matrix<T> res_i = Bi;
+
+    lu_solve(trans, A, res_i);
+    std::cout << "erreur sur vectur de base : " << normFrob(ei - res_i) << std::endl;
 
     return is_error;
 }

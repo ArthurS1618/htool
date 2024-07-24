@@ -12,6 +12,7 @@ foreach(type ${types})
     add_test(NAME Test_hmatrix_factorization_${type} COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} 1 ${MPIEXEC_PREFLAGS} ${CMAKE_CURRENT_BINARY_DIR}/Test_hmatrix_factorization_${type})
     set_tests_properties(Test_hmatrix_factorization_${type} PROPERTIES ENVIRONMENT OMP_NUM_THREADS=4)
 endforeach()
+
 add_executable(Test_HLU test_hlu.cpp)
 target_link_libraries(Test_HLU htool)
 add_dependencies(build-tests-hmatrix-factorization Test_HLU)
@@ -20,3 +21,4 @@ add_executable(Test_HLU_sumexpr test_hmatrix_factorization_sum_expression.cpp)
 target_link_libraries(Test_HLU_sumexpr htool)
 add_dependencies(build-tests-hmatrix-factorization Test_HLU_sumexpr)
 add_test(Test_HLU_sumexpr Test_HLU_sumexpr)
+
