@@ -70,6 +70,7 @@ void cholesky_solve(char UPLO, const Matrix<T> &A, Matrix<T> &B) {
 
 template <typename T>
 void get_lu_factorisation(const Matrix<T> &M, Matrix<T> &L, Matrix<T> &U, std::vector<int> &P) {
+    // ToDo: Check if it is necessary to save the matrix M
     auto A   = M;
     int size = A.nb_rows();
     std::vector<int> ipiv(size, 0.0);
