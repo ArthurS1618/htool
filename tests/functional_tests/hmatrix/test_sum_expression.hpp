@@ -190,7 +190,7 @@ int test_sum_expression(int size, int rank, htool::underlying_type<T> epsilon) {
     ////////////////////////////////////////
     ////// TEST RESTRICT
     ////////////////////////////////::
-    // SumExpression_fast<double, double> S(&root_hmatrix, &root_hmatrix);
+    SumExpression_fast<double, double> S(&root_hmatrix, &root_hmatrix);
     // auto x_rand = generate_random_vector(size);
     // auto yref   = ref_HK * x_rand;
     // std::vector<double> y_sumexpr(size);
@@ -199,221 +199,268 @@ int test_sum_expression(int size, int rank, htool::underlying_type<T> epsilon) {
 
     // // test restrict
 
-    // auto t_temp       = &*root_cluster;
-    // auto s_temp       = &*root_cluster;
-    // auto sumexpr_temp = S;
-    // for (int k = 0; k < root_cluster->get_minimal_depth(); ++k) {
-    //     auto &t_child = t_temp->get_children()[0];
-    //     auto &s_child = s_temp->get_children()[1];
-    //     auto S_child  = sumexpr_temp.restrict_ACA(*t_child, *s_child);
-    //     std::cout << "depth : " << k << std::endl;
-    //     std::cout << " sr et sh pour restrict " << S_child.get_sr().size() << ',' << S_child.get_sh().size() << std::endl;
+    auto t_temp       = &*root_cluster;
+    auto s_temp       = &*root_cluster;
+    auto sumexpr_temp = S;
+    std::cout << "test produit sum expr " << std::endl;
+    for (int k = 0; k < root_cluster->get_minimal_depth(); ++k) {
+        auto &t_child = t_temp->get_children()[0];
+        auto &s_child = s_temp->get_children()[1];
+        auto S_child  = sumexpr_temp.restrict_ACA(*t_child, *s_child);
+        std::cout << "depth : " << k << std::endl;
+        std::cout << " sr et sh pour restrict " << S_child.get_sr().size() << ',' << S_child.get_sh().size() << std::endl;
 
-    //     auto x_rand_child    = generate_random_vector(s_child->get_size());
-    //     auto HK_child        = copy_sub_matrix(ref_HK, t_child->get_size(), s_child->get_size(), t_child->get_offset(), s_child->get_offset());
-    //     auto y_ref_child     = HK_child * x_rand_child;
-    //     auto y_sumexpr_child = S_child.prod('N', x_rand_child);
-    //     std::cout << "erreur prod sur le restrict : " << norm2(y_ref_child - y_sumexpr_child) / norm2(y_ref_child) << std::endl;
-    //     std::cout << "______________________________________________________" << std::endl;
-    //     auto x_rand_child_T = generate_random_vector(t_child->get_size());
-    //     std::vector<double> y_ref_child_T(s_child->get_size());
-    //     double alpha = 1.0;
-    //     HK_child.add_vector_product('T', 1.0, x_rand_child_T.data(), 1.0, y_ref_child_T.data());
-    //     auto y_sumexpr_child_T = S_child.prod('T', x_rand_child_T);
-    //     std::cout << "erreur prod sur le restrict transp : " << norm2(y_ref_child_T - y_sumexpr_child_T) / norm2(y_ref_child_T) << std::endl;
+        auto x_rand_child    = generate_random_vector(s_child->get_size());
+        auto HK_child        = copy_sub_matrix(ref_HK, t_child->get_size(), s_child->get_size(), t_child->get_offset(), s_child->get_offset());
+        auto y_ref_child     = HK_child * x_rand_child;
+        auto y_sumexpr_child = S_child.prod('N', x_rand_child);
+        std::cout << "erreur prod sur le restrict : " << norm2(y_ref_child - y_sumexpr_child) / norm2(y_ref_child) << std::endl;
+        std::cout << "______________________________________________________" << std::endl;
+        auto x_rand_child_T = generate_random_vector(t_child->get_size());
+        std::vector<double> y_ref_child_T(s_child->get_size());
+        double alpha = 1.0;
+        HK_child.add_vector_product('T', 1.0, x_rand_child_T.data(), 1.0, y_ref_child_T.data());
+        auto y_sumexpr_child_T = S_child.prod('T', x_rand_child_T);
+        std::cout << "erreur prod sur le restrict transp : " << norm2(y_ref_child_T - y_sumexpr_child_T) / norm2(y_ref_child_T) << std::endl;
 
-    //     std::cout << "______________________________________________________" << std::endl;
-    //     std::cout << "______________________________________________________" << std::endl;
+        std::cout << "______________________________________________________" << std::endl;
+        std::cout << "______________________________________________________" << std::endl;
 
-    //     std::cout << "______________________________________________________" << std::endl;
-    //     std::cout << "______________________________________________________" << std::endl;
+        std::cout << "______________________________________________________" << std::endl;
+        std::cout << "______________________________________________________" << std::endl;
 
-    //     t_temp       = t_child.get();
-    //     s_temp       = s_child.get();
-    //     sumexpr_temp = S_child;
-    // }
+        t_temp       = t_child.get();
+        s_temp       = s_child.get();
+        sumexpr_temp = S_child;
+    }
 
     std::cout << "////////////////////////////////////////" << std::endl;
+
+    for (auto &transa : {'N', 'T'}) {
+        for (auto &transb : {'N', 'T'}) {
+            Matrix<double> refprod;
+            if (transa == 'N' && transb == 'N') {
+                refprod = reference * reference;
+            } else if (transa == 'T' && transb == 'N') {
+                refprod = transp(reference) * reference;
+            } else if (transa == 'N' && transb == 'T') {
+                refprod = reference * transp(reference);
+            } else {
+                refprod = transp(reference) * transp(reference);
+            }
+
+            SumExpression_NT<double, double> SNT(transa, &root_hmatrix, transb, &root_hmatrix);
+            t_temp              = &*root_cluster;
+            s_temp              = &*root_cluster;
+            auto sumexprNT_temp = SNT;
+            std::cout << "test produit sum expr TRANSA TRANSB = " << transa << ',' << transb << std::endl;
+            for (int k = 0; k < 4; ++k) {
+                auto &t_child = t_temp->get_children()[0];
+                auto &s_child = s_temp->get_children()[1];
+                auto S_child  = sumexprNT_temp.restrict(*t_child, *s_child);
+                std::cout << "      depth : " << k << std::endl;
+                std::cout << "      sr et sh pour restrict " << S_child.get_sr().size() << ',' << S_child.get_sh().size() << std::endl;
+                auto x_rand_child    = generate_random_vector(s_child->get_size());
+                auto HK_child        = copy_sub_matrix(refprod, t_child->get_size(), s_child->get_size(), t_child->get_offset(), s_child->get_offset());
+                auto y_ref_child     = HK_child * x_rand_child;
+                auto y_sumexpr_child = S_child.prod('N', x_rand_child);
+                std::cout << "      erreur prod sur le restrict : " << norm2(y_ref_child - y_sumexpr_child) / norm2(y_ref_child) << std::endl;
+                auto x_rand_child_T = generate_random_vector(t_child->get_size());
+                std::vector<double> y_ref_child_T(s_child->get_size());
+                double alpha = 1.0;
+                HK_child.add_vector_product('T', 1.0, x_rand_child_T.data(), 1.0, y_ref_child_T.data());
+                auto y_sumexpr_child_T = S_child.prod('T', x_rand_child_T);
+                std::cout << "      erreur prod sur le restrict transp : " << norm2(y_ref_child_T - y_sumexpr_child_T) / norm2(y_ref_child_T) << std::endl;
+                std::cout << "______________________________________________________" << std::endl;
+                t_temp         = t_child.get();
+                s_temp         = s_child.get();
+                sumexprNT_temp = S_child;
+            }
+            std::cout << "______________________________________________________" << std::endl;
+            std::cout << "______________________________________________________" << std::endl;
+        }
+    }
+
     /////////////////////////////
     ///// TEST HMAT HMAT
     /////////////////////
-    auto format = root_hmatrix.get_format();
-    // auto hmat_prod = root_hmatrix.hmatrix_product_fast(root_hmatrix);
-    auto hmat_prod = format.hmatrix_product_fast(format);
+    // auto format = root_hmatrix.get_format();
+    // // auto hmat_prod = root_hmatrix.hmatrix_product_fast(root_hmatrix);
+    // auto hmat_prod = format.hmatrix_product_fast(format);
 
-    Matrix<double> prod_dense(size, size);
-    copy_to_dense(hmat_prod, prod_dense.data());
-    std::cout << "erreur produit : " << normFrob(ref_HK - prod_dense) / normFrob(ref_HK) << " avec epsilon = " << epsilon << std::endl;
-    std::cout << "compression produit : " << hmat_prod.get_compression() << std::endl;
-    std::cout << "compression reference : " << format.get_compression() << std::endl;
+    // Matrix<double> prod_dense(size, size);
+    // copy_to_dense(hmat_prod, prod_dense.data());
+    // std::cout << "erreur produit : " << normFrob(ref_HK - prod_dense) / normFrob(ref_HK) << " avec epsilon = " << epsilon << std::endl;
+    // std::cout << "compression produit : " << hmat_prod.get_compression() << std::endl;
+    // std::cout << "compression reference : " << format.get_compression() << std::endl;
 
-    auto hmat_sub = format.get_block(root_cluster->get_children()[0]->get_size(), root_cluster->get_children()[1]->get_size(), root_cluster->get_children()[0]->get_offset(), root_cluster->get_children()[1]->get_offset())->hmatrix_product_fast(*format.get_block(root_cluster->get_children()[1]->get_size(), root_cluster->get_children()[1]->get_size(), root_cluster->get_children()[1]->get_offset(), root_cluster->get_children()[1]->get_offset()));
-    auto prod_sub = copy_sub_matrix(reference, root_cluster->get_children()[0]->get_size(), root_cluster->get_children()[1]->get_size(), root_cluster->get_children()[0]->get_offset(), root_cluster->get_children()[1]->get_offset()) * copy_sub_matrix(reference, root_cluster->get_children()[1]->get_size(), root_cluster->get_children()[1]->get_size(), root_cluster->get_children()[1]->get_offset(), root_cluster->get_children()[1]->get_offset());
-    Matrix<double> sub_dense(root_cluster->get_children()[0]->get_size(), root_cluster->get_children()[1]->get_size());
-    copy_to_dense(hmat_sub, sub_dense.data());
-    std::cout << "erreur sub : " << normFrob(sub_dense - prod_sub) / normFrob(sub_dense) << std::endl;
-    /////////////////////////////////
-    //////// TEST PLUS EGAL
-    /////////////////////////////
+    // auto hmat_sub = format.get_block(root_cluster->get_children()[0]->get_size(), root_cluster->get_children()[1]->get_size(), root_cluster->get_children()[0]->get_offset(), root_cluster->get_children()[1]->get_offset())->hmatrix_product_fast(*format.get_block(root_cluster->get_children()[1]->get_size(), root_cluster->get_children()[1]->get_size(), root_cluster->get_children()[1]->get_offset(), root_cluster->get_children()[1]->get_offset()));
+    // auto prod_sub = copy_sub_matrix(reference, root_cluster->get_children()[0]->get_size(), root_cluster->get_children()[1]->get_size(), root_cluster->get_children()[0]->get_offset(), root_cluster->get_children()[1]->get_offset()) * copy_sub_matrix(reference, root_cluster->get_children()[1]->get_size(), root_cluster->get_children()[1]->get_size(), root_cluster->get_children()[1]->get_offset(), root_cluster->get_children()[1]->get_offset());
+    // Matrix<double> sub_dense(root_cluster->get_children()[0]->get_size(), root_cluster->get_children()[1]->get_size());
+    // copy_to_dense(hmat_sub, sub_dense.data());
+    // std::cout << "erreur sub : " << normFrob(sub_dense - prod_sub) / normFrob(sub_dense) << std::endl;
+    // /////////////////////////////////
+    // //////// TEST PLUS EGAL
+    // /////////////////////////////
 
-    // auto ref_plus = reference - 2.5 * reference;
-    // root_hmatrix.plus_egal(-2.5, &root_hmatrix);
-    // Matrix<double> test_plus(size, size);
-    // copy_to_dense(root_hmatrix, test_plus.data());
-    // std::cout << "erreur plus egal " << normFrob(ref_plus - test_plus) / normFrob(ref_plus) << std::endl;
+    // // auto ref_plus = reference - 2.5 * reference;
+    // // root_hmatrix.plus_egal(-2.5, &root_hmatrix);
+    // // Matrix<double> test_plus(size, size);
+    // // copy_to_dense(root_hmatrix, test_plus.data());
+    // // std::cout << "erreur plus egal " << normFrob(ref_plus - test_plus) / normFrob(ref_plus) << std::endl;
 
-    ////////////////////////////
-    /// M = M +alpha HK
-    // auto ref_pp = reference - 0.5 * ref_HK;
-    // root_hmatrix.plus_egal(-0.5, &hmat_prod);
-    // Matrix<double> pp_dense(size, size);
-    // copy_to_dense(root_hmatrix, pp_dense.data());
-    // std::cout << "errer M-HK            " << normFrob(pp_dense - ref_pp) / normFrob(ref_pp) << std::endl;
+    // ////////////////////////////
+    // /// M = M +alpha HK
+    // // auto ref_pp = reference - 0.5 * ref_HK;
+    // // root_hmatrix.plus_egal(-0.5, &hmat_prod);
+    // // Matrix<double> pp_dense(size, size);
+    // // copy_to_dense(root_hmatrix, pp_dense.data());
+    // // std::cout << "errer M-HK            " << normFrob(pp_dense - ref_pp) / normFrob(ref_pp) << std::endl;
 
-    ///////////////////////////////////////////////////
-    std::cout
-        << "///////////////////////////////////////" << std::endl;
-    //// test résolution triangulaire
-    Matrix<double> L(size, size);
-    Matrix<double> U(size, size);
-    std::vector<int> ipiv(size, 0.0);
-    int info                 = -1;
-    auto reference_num_htool = reference;
-    auto A                   = reference_num_htool;
-    Lapack<double>::getrf(&size, &size, A.data(), &size, ipiv.data(), &info);
+    // ///////////////////////////////////////////////////
+    // std::cout
+    //     << "///////////////////////////////////////" << std::endl;
+    // //// test résolution triangulaire
+    // Matrix<double> L(size, size);
+    // Matrix<double> U(size, size);
+    // std::vector<int> ipiv(size, 0.0);
+    // int info                 = -1;
+    // auto reference_num_htool = reference;
+    // auto A                   = reference_num_htool;
+    // Lapack<double>::getrf(&size, &size, A.data(), &size, ipiv.data(), &info);
 
-    for (int i = 0; i < size; ++i) {
-        L(i, i) = 1;
-        U(i, i) = A(i, i);
+    // for (int i = 0; i < size; ++i) {
+    //     L(i, i) = 1;
+    //     U(i, i) = A(i, i);
 
-        for (int j = 0; j < i; ++j) {
-            L(i, j) = A(i, j);
-            U(j, i) = A(j, i);
-        }
-    }
-    // auto ll = get_unperm_mat(L, *root_cluster, *root_cluster);
-    // Matricegenerator<double, double> l_generator(ll, *root_cluster, *root_cluster);
-    // HMatrixTreeBuilder<double, double> lh_builder(*root_cluster, *root_cluster, epsilon, eta, 'N', 'N', -1, -1, -1);
-    // auto Lh = lh_builder.build(l_generator);
+    //     for (int j = 0; j < i; ++j) {
+    //         L(i, j) = A(i, j);
+    //         U(j, i) = A(j, i);
+    //     }
+    // }
+    // // auto ll = get_unperm_mat(L, *root_cluster, *root_cluster);
+    // // Matricegenerator<double, double> l_generator(ll, *root_cluster, *root_cluster);
+    // // HMatrixTreeBuilder<double, double> lh_builder(*root_cluster, *root_cluster, epsilon, eta, 'N', 'N', -1, -1, -1);
+    // // auto Lh = lh_builder.build(l_generator);
 
-    // // Lh.format();
-    // // Lh.save_plot("lh");
-    // // auto Lformat = Lh.get_format();
-    // // Lformat.save_plot("lh");
+    // // // Lh.format();
+    // // // Lh.save_plot("lh");
+    // // // auto Lformat = Lh.get_format();
+    // // // Lformat.save_plot("lh");
 
-    // // Matrix<double> ldense(size, size);
-    // // copy_to_dense(Lformat, ldense.data());
-    // // std::cout << "Lh assembled, error relative Lh-L  et compression  :" << normFrob(L - ldense) / normFrob(L) << "  ,   " << Lformat.get_compression() << std::endl;
-    // // std::cout << "format ok " << std::endl;
-    // // root_hmatrix.save_plot("ref");
-    // auto uu = get_unperm_mat(U, *root_cluster, *root_cluster);
-    // Matricegenerator<double, double> u_generator(uu, *root_cluster, *root_cluster);
-    // HMatrixTreeBuilder<double, double> uh_builder(*root_cluster, *root_cluster, epsilon, eta, 'N', 'N', -1, -1, -1);
-    // auto Uh = uh_builder.build(u_generator);
-    // Matrix<double> udense(size, size);
-    // auto Uformat = Uh.get_format();
-    // copy_to_dense(Uformat, udense.data());
-    // std::cout << "Uh asembled, error relative Uh-U  et compression : " << normFrob(U - udense) / normFrob(U) << "    , " << Uh.get_compression() << std::endl;
+    // // // Matrix<double> ldense(size, size);
+    // // // copy_to_dense(Lformat, ldense.data());
+    // // // std::cout << "Lh assembled, error relative Lh-L  et compression  :" << normFrob(L - ldense) / normFrob(L) << "  ,   " << Lformat.get_compression() << std::endl;
+    // // // std::cout << "format ok " << std::endl;
+    // // // root_hmatrix.save_plot("ref");
+    // // auto uu = get_unperm_mat(U, *root_cluster, *root_cluster);
+    // // Matricegenerator<double, double> u_generator(uu, *root_cluster, *root_cluster);
+    // // HMatrixTreeBuilder<double, double> uh_builder(*root_cluster, *root_cluster, epsilon, eta, 'N', 'N', -1, -1, -1);
+    // // auto Uh = uh_builder.build(u_generator);
+    // // Matrix<double> udense(size, size);
+    // // auto Uformat = Uh.get_format();
+    // // copy_to_dense(Uformat, udense.data());
+    // // std::cout << "Uh asembled, error relative Uh-U  et compression : " << normFrob(U - udense) / normFrob(U) << "    , " << Uh.get_compression() << std::endl;
 
-    /////////////////////////////
-    ///// test forward : trouver X tel que LX = Z
-    // auto LX = Lformat.hmatrix_product_fast(root_hmatrix);
-    // Matrix<double> lx(size, size);
+    // /////////////////////////////
+    // ///// test forward : trouver X tel que LX = Z
+    // // auto LX = Lformat.hmatrix_product_fast(root_hmatrix);
+    // // Matrix<double> lx(size, size);
 
-    // auto Ll = LX.get_format();
-    // LX.save_plot("lx_prod");
-    // copy_to_dense(LX, lx.data());
-    // std::cout << "prod ok     : " << normFrob(lx - L * reference) / normFrob(L * reference) << ',' << normFrob(lx) << std::endl;
-    // Matrix<double> lldense(size, size);
-    // copy_to_dense(Ll, lldense.data());
-    // std::cout << "prod formaté : " << normFrob(lldense - L * reference) / normFrob(L * reference) << ',' << normFrob(lldense) << std::endl;
+    // // auto Ll = LX.get_format();
+    // // LX.save_plot("lx_prod");
+    // // copy_to_dense(LX, lx.data());
+    // // std::cout << "prod ok     : " << normFrob(lx - L * reference) / normFrob(L * reference) << ',' << normFrob(lx) << std::endl;
+    // // Matrix<double> lldense(size, size);
+    // // copy_to_dense(Ll, lldense.data());
+    // // std::cout << "prod formaté : " << normFrob(lldense - L * reference) / normFrob(L * reference) << ',' << normFrob(lldense) << std::endl;
 
-    // std::vector<double> vtests(size);
+    // // std::vector<double> vtests(size);
+    // // auto xrand = generate_random_vector(size);
+    // // Lformat.add_vector_product('N', 1.0, xrand.data(), 1.0, vtests.data());
+    // // std::cout << "erreur produit :  " << norm2(L * xrand - vtests) / norm2(L * xrand) << std::endl;
+
+    // // std::vector<double> xtest(size);
+    // // Lformat.hmatrix_vector_triangular_L(xtest, vtests, *root_cluster, 0);
+    // // std::cout << "norme vecreur solve : " << norm2(xrand - xtest) / norm2(xrand) << std::endl;
+    // // HMatrix<double, double> res_FM(*root_cluster, *root_cluster);
+    // // res_FM.set_epsilon(epsilon);
+    // // res_FM.set_admissibility_condition(root_hmatrix.get_admissibility_condition());
+    // // res_FM.set_low_rank_generator(root_hmatrix.get_low_rank_generator());
+    // // res_FM.set_eta(eta);
+    // // Lformat.FM_fast_build(*root_cluster, *root_cluster, &res_FM, &Ll);
+    // // std::cout << "--------------------------------> FM ok" << std::endl;
+    // // Matrix<double> lxx(size, size);
+
+    // // copy_to_dense(res_FM, lxx.data());
+    // // std::cout << "error FM " << normFrob(lxx - reference) / normFrob(reference) << std::endl;
+    // /////////////////////////////////////////////////
+    // /// test forward transp : trouver X tq XU = Z
+    // // auto xrand = generate_random_vector(size);
+    // // std::vector<double> yy(size);
+    // // Uformat.add_vector_product('T', 1.0, xrand.data(), 1.0, yy.data());
+    // // std::vector<double> xuforward(size);
+    // // Uformat.hmatrix_vector_triangular_U('T', xuforward, yy, *root_cluster, 0);
+
+    // // std::cout << "--------- erreur solve  xU = y " << norm2(xuforward - xrand) / norm2(xrand) << std::endl;
+    // // auto ref = reference * U;
+    // // // auto res = ref;
+    // // // triangular_matrix_matrix_solve('R', 'U', 'N', 'N', 1.0, U, res);
+    // // // std::cout << "erreur triangular solve XU = Z            " << normFrob(res - reference) / normFrob(reference) << std::endl;
+    // // auto XU = root_hmatrix.hmatrix_product_fast(Uformat);
+    // // // Matrix<double> xudense(size, size);
+    // // // copy_to_dense(XU, xudense.data());
+    // // // std::cout << "errue r produit XU : " << normFrob(xudense - ref) / normFrob(ref) << std::endl;
+    // // /////////////////////////////////////
+    // // HMatrix<double, double> res_FMT(*root_cluster, *root_cluster);
+    // // res_FMT.set_epsilon(epsilon);
+    // // res_FMT.set_admissibility_condition(root_hmatrix.get_admissibility_condition());
+    // // res_FMT.set_low_rank_generator(root_hmatrix.get_low_rank_generator());
+    // // res_FMT.set_eta(eta);
+    // // Uformat.FMT_fast_build(*root_cluster, *root_cluster, &res_FMT, &XU);
+    // // std::cout << "--------------------------------> FM ok" << std::endl;
+    // // Matrix<double> uxx(size, size);
+
+    // // copy_to_dense(res_FMT, uxx.data());
+    // // std::cout << "error FMT " << normFrob(uxx - reference) / normFrob(reference) << std::endl;
+    // //////////////////////
+    // /// tesst hlu
+    // HMatrix<double, double> Lres(*root_cluster, *root_cluster);
+    // Lres.set_admissibility_condition(root_hmatrix.get_admissibility_condition());
+    // Lres.set_eta(eta);
+    // Lres.set_low_rank_generator(root_hmatrix.get_low_rank_generator());
+    // Lres.set_epsilon(root_hmatrix.get_epsilon());
+
+    // HMatrix<double, double> Ures(*root_cluster, *root_cluster);
+    // Ures.set_admissibility_condition(root_hmatrix.get_admissibility_condition());
+    // Ures.set_eta(eta);
+    // Ures.set_low_rank_generator(root_hmatrix.get_low_rank_generator());
+    // Ures.set_epsilon(root_hmatrix.get_epsilon());
+
+    // // HLU_fast(root_hmatrix, *root_cluster, &Lres, &Ures);
+    // HLU_fast(format, *root_cluster, &Lres, &Ures);
+
+    // Matrix<double> lll(size, size);
+    // Matrix<double> uuu(size, size);
+    // copy_to_dense(Lres, lll.data());
+    // copy_to_dense(Ures, uuu.data());
+
+    // std::cout << "erreur L, U, LU : " << normFrob(lll - L) / normFrob(L) << ',' << normFrob(uuu - U) / normFrob(U) << ',' << normFrob(lll * uuu - reference) / normFrob(reference) << std::endl;
+    // std::cout << "compression de L et U " << Lres.get_compression() << ',' << Ures.get_compression() << std::endl;
+
+    // auto LUres = Lres.hmatrix_product_fast_triangulaire('L', 'U', Ures);
+    // Matrix<double> lures(size, size);
+    // copy_to_dense(LUres, lures.data());
+    // std::cout << "erreur produit LU et compression : " << normFrob(lures - reference) / normFrob(reference) << ',' << LUres.get_compression() << std::endl;
+
+    // // Lres.save_plot("HLU_L");
+    // // Ures.save_plot("HLU_U");
+    // // LUres.save_plot("HLU_LU");
+
+    // std::vector<double> res(size);
     // auto xrand = generate_random_vector(size);
-    // Lformat.add_vector_product('N', 1.0, xrand.data(), 1.0, vtests.data());
-    // std::cout << "erreur produit :  " << norm2(L * xrand - vtests) / norm2(L * xrand) << std::endl;
-
-    // std::vector<double> xtest(size);
-    // Lformat.hmatrix_vector_triangular_L(xtest, vtests, *root_cluster, 0);
-    // std::cout << "norme vecreur solve : " << norm2(xrand - xtest) / norm2(xrand) << std::endl;
-    // HMatrix<double, double> res_FM(*root_cluster, *root_cluster);
-    // res_FM.set_epsilon(epsilon);
-    // res_FM.set_admissibility_condition(root_hmatrix.get_admissibility_condition());
-    // res_FM.set_low_rank_generator(root_hmatrix.get_low_rank_generator());
-    // res_FM.set_eta(eta);
-    // Lformat.FM_fast_build(*root_cluster, *root_cluster, &res_FM, &Ll);
-    // std::cout << "--------------------------------> FM ok" << std::endl;
-    // Matrix<double> lxx(size, size);
-
-    // copy_to_dense(res_FM, lxx.data());
-    // std::cout << "error FM " << normFrob(lxx - reference) / normFrob(reference) << std::endl;
-    /////////////////////////////////////////////////
-    /// test forward transp : trouver X tq XU = Z
-    // auto xrand = generate_random_vector(size);
-    // std::vector<double> yy(size);
-    // Uformat.add_vector_product('T', 1.0, xrand.data(), 1.0, yy.data());
-    // std::vector<double> xuforward(size);
-    // Uformat.hmatrix_vector_triangular_U('T', xuforward, yy, *root_cluster, 0);
-
-    // std::cout << "--------- erreur solve  xU = y " << norm2(xuforward - xrand) / norm2(xrand) << std::endl;
-    // auto ref = reference * U;
-    // // auto res = ref;
-    // // triangular_matrix_matrix_solve('R', 'U', 'N', 'N', 1.0, U, res);
-    // // std::cout << "erreur triangular solve XU = Z            " << normFrob(res - reference) / normFrob(reference) << std::endl;
-    // auto XU = root_hmatrix.hmatrix_product_fast(Uformat);
-    // // Matrix<double> xudense(size, size);
-    // // copy_to_dense(XU, xudense.data());
-    // // std::cout << "errue r produit XU : " << normFrob(xudense - ref) / normFrob(ref) << std::endl;
-    // /////////////////////////////////////
-    // HMatrix<double, double> res_FMT(*root_cluster, *root_cluster);
-    // res_FMT.set_epsilon(epsilon);
-    // res_FMT.set_admissibility_condition(root_hmatrix.get_admissibility_condition());
-    // res_FMT.set_low_rank_generator(root_hmatrix.get_low_rank_generator());
-    // res_FMT.set_eta(eta);
-    // Uformat.FMT_fast_build(*root_cluster, *root_cluster, &res_FMT, &XU);
-    // std::cout << "--------------------------------> FM ok" << std::endl;
-    // Matrix<double> uxx(size, size);
-
-    // copy_to_dense(res_FMT, uxx.data());
-    // std::cout << "error FMT " << normFrob(uxx - reference) / normFrob(reference) << std::endl;
-    //////////////////////
-    /// tesst hlu
-    HMatrix<double, double> Lres(*root_cluster, *root_cluster);
-    Lres.set_admissibility_condition(root_hmatrix.get_admissibility_condition());
-    Lres.set_eta(eta);
-    Lres.set_low_rank_generator(root_hmatrix.get_low_rank_generator());
-    Lres.set_epsilon(root_hmatrix.get_epsilon());
-
-    HMatrix<double, double> Ures(*root_cluster, *root_cluster);
-    Ures.set_admissibility_condition(root_hmatrix.get_admissibility_condition());
-    Ures.set_eta(eta);
-    Ures.set_low_rank_generator(root_hmatrix.get_low_rank_generator());
-    Ures.set_epsilon(root_hmatrix.get_epsilon());
-
-    // HLU_fast(root_hmatrix, *root_cluster, &Lres, &Ures);
-    HLU_fast(format, *root_cluster, &Lres, &Ures);
-
-    Matrix<double> lll(size, size);
-    Matrix<double> uuu(size, size);
-    copy_to_dense(Lres, lll.data());
-    copy_to_dense(Ures, uuu.data());
-
-    std::cout << "erreur L, U, LU : " << normFrob(lll - L) / normFrob(L) << ',' << normFrob(uuu - U) / normFrob(U) << ',' << normFrob(lll * uuu - reference) / normFrob(reference) << std::endl;
-    std::cout << "compression de L et U " << Lres.get_compression() << ',' << Ures.get_compression() << std::endl;
-
-    auto LUres = Lres.hmatrix_product_fast_triangulaire('L', 'U', Ures);
-    Matrix<double> lures(size, size);
-    copy_to_dense(LUres, lures.data());
-    std::cout << "erreur produit LU et compression : " << normFrob(lures - reference) / normFrob(reference) << ',' << LUres.get_compression() << std::endl;
-
-    // Lres.save_plot("HLU_L");
-    // Ures.save_plot("HLU_U");
-    // LUres.save_plot("HLU_LU");
-
-    std::vector<double> res(size);
-    auto xrand = generate_random_vector(size);
-    auto yy    = reference * xrand;
-    auto ytest = Lres.solve_LU_triangular(Lres, Ures, yy);
-    std::cout << "erreur solve LU : " << norm2(xrand - ytest) / norm2(xrand) << std::endl;
+    // auto yy    = reference * xrand;
+    // auto ytest = Lres.solve_LU_triangular(Lres, Ures, yy);
+    // std::cout << "erreur solve LU : " << norm2(xrand - ytest) / norm2(xrand) << std::endl;
     return 0;
 }

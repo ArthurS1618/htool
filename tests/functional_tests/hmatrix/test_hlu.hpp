@@ -18,6 +18,27 @@ using namespace htool;
 
 ////////////////////////
 /////// ROUTINES
+// Fonction pour sauvegarder un vecteur en CSV
+template <typename T>
+void save_to_csv(const std::vector<T> &data, const std::string &nomFichier) {
+    std::ofstream fichier(nomFichier);
+    if (!fichier.is_open()) {
+        std::cerr << "Erreur : impossible d'ouvrir le fichier pour écriture." << std::endl;
+        return;
+    }
+
+    for (size_t i = 0; i < data.size(); ++i) {
+        fichier << data[i];
+        if (i < data.size() - 1) {
+            fichier << ","; // Séparateur de colonnes
+        }
+    }
+    fichier << "\n"; // Fin de ligne
+
+    fichier.close();
+    std::cout << "Données sauvegardées dans " << nomFichier << std::endl;
+}
+
 ///// fonction pour appliquer la perm inverse de la numerotation de htool a une matrice (j'arrive pas a me servir de l'option "NOPERM")
 template <class CoefficientPrecision, class CoordinatePrecision>
 Matrix<CoefficientPrecision> get_unperm_mat(const Matrix<CoefficientPrecision> mat, const Cluster<CoordinatePrecision> &target, const Cluster<CoordinatePrecision> &source) {
@@ -81,7 +102,7 @@ class Matricegenerator : public VirtualGenerator<CoefficientPrecision> {
 /// %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% /////
 
 template <typename T, typename GeneratorTestType>
-bool test_hlu(int size, htool::underlying_type<T> epsilon, htool::underlying_type<T> eta) {
+std::vector<T> test_hlu(int size, htool::underlying_type<T> epsilon, htool::underlying_type<T> eta) {
 
     bool is_error = false;
     std::vector<double> p1(3 * size);
@@ -118,23 +139,32 @@ bool test_hlu(int size, htool::underlying_type<T> epsilon, htool::underlying_typ
     Ures.set_eta(eta);
     Ures.set_low_rank_generator(root_hmatrix.get_low_rank_generator());
     Ures.set_epsilon(root_hmatrix.get_epsilon());
+
     auto start = std::chrono::high_resolution_clock::now();
     HLU_fast(format, *root_cluster, &Lres, &Ures);
-    auto end                               = std::chrono::high_resolution_clock::now();
+    auto end = std::chrono::high_resolution_clock::now();
+
     std::chrono::duration<double> duration = end - start;
     std::vector<double> res(size);
-    auto xrand = generate_random_vector(size);
-    auto yy    = reference * xrand;
-    auto ytest = Lres.solve_LU_triangular(Lres, Ures, yy);
-    err        = xrand
-              std::cout
-          << "________________________________________________________" << std::endl;
+    auto xrand  = generate_random_vector(size);
+    auto yy     = reference * xrand;
+    auto ytest  = Lres.solve_LU_triangular(Lres, Ures, yy);
+    auto err    = norm2(xrand - ytest) / norm2(xrand);
+    auto time   = duration.count();
+    auto compru = Ures.get_compression();
+    auto comprl = Lres.get_compression();
+    std::cout
+        << "________________________________________________________" << std::endl;
     std::cout << "size ----------------------------------------> " << size << std::endl;
-    std::cout << "erreur solve LU :----------------------------> " << norm2(xrand - ytest) / norm2(xrand) << std::endl;
+    std::cout << "erreur solve LU :----------------------------> " << err << std::endl;
     std::cout << " duration LU factorisation : ----------------> " << duration.count() << std::endl;
     std::cout << "comrpession L et U : ------------------------> " << Lres.get_compression() << ',' << Ures.get_compression() << std::endl;
-    std::vector<double> res;
-    res.push_back()
+    std::vector<T> result;
+    result.push_back(size * 1.0);
+    result.push_back(time);
+    result.push_back(err);
+    result.push_back(comprl);
+    result.push_back(compru);
 
-        return is_error;
+    return result;
 }

@@ -19,3 +19,8 @@ foreach(type ${types})
     set_tests_properties(Test_hmatrix_product_${type}_4 PROPERTIES ENVIRONMENT OMP_NUM_THREADS=1)
     set_tests_properties(Test_hmatrix_product_${type}_4 PROPERTIES LABELS "mpi")
 endforeach()
+
+add_executable(Test_hmatrix_product_sumexpr test_hmatrix_product_sumexpression.cpp)
+target_link_libraries(Test_hmatrix_product_sumexpr htool)
+add_dependencies(build-tests-hmatrix-product Test_hmatrix_product_sumexpr)
+add_test(Test_hmatrix_product_sumexpr Test_hmatrix_product_sumexpr)

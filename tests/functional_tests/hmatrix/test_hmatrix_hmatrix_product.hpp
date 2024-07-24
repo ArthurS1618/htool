@@ -246,3 +246,77 @@ bool test_symmetric_hmatrix_hmatrix_product(const TestCaseProduct<T, GeneratorTe
 
     return is_error;
 }
+
+template <typename T, typename GeneratorTestType>
+bool test_hmatrix_hmatrix_product_sumexpression(const TestCaseProduct<T, GeneratorTestType> &test_case, htool::underlying_type<T> epsilon, htool::underlying_type<T> margin, bool use_local_cluster) {
+    // Logger::get_instance().set_current_log_level(LogLevel::INFO);
+    std::cout << "NO TRANSA TRANSB && USE_LOCAL_CLUSTER= TRUE" << std::endl;
+    int rankWorld;
+    MPI_Comm_rank(MPI_COMM_WORLD, &rankWorld);
+    bool is_error = false;
+    double eta    = 10;
+
+    const Cluster<htool::underlying_type<T>> *root_cluster_A_output, *root_cluster_A_input, *root_cluster_B_output, *root_cluster_B_input, *root_cluster_C_output, *root_cluster_C_input;
+    if (use_local_cluster) {
+        root_cluster_A_output = &test_case.root_cluster_A_output->get_cluster_on_partition(rankWorld);
+        root_cluster_A_input  = &test_case.root_cluster_A_input->get_cluster_on_partition(rankWorld);
+        root_cluster_B_output = &test_case.root_cluster_B_output->get_cluster_on_partition(rankWorld);
+        root_cluster_B_input  = &test_case.root_cluster_B_input->get_cluster_on_partition(rankWorld);
+        root_cluster_C_output = &test_case.root_cluster_C_output->get_cluster_on_partition(rankWorld);
+        root_cluster_C_input  = &test_case.root_cluster_C_input->get_cluster_on_partition(rankWorld);
+    } else {
+        root_cluster_A_output = &test_case.root_cluster_A_output->get_cluster_on_partition(rankWorld);
+        root_cluster_A_input  = test_case.root_cluster_A_input;
+        root_cluster_B_output = test_case.root_cluster_B_output;
+        root_cluster_B_input  = test_case.root_cluster_B_input;
+        root_cluster_C_output = &test_case.root_cluster_C_output->get_cluster_on_partition(rankWorld);
+        root_cluster_C_input  = test_case.root_cluster_C_input;
+    }
+
+    HMatrixTreeBuilder<T, htool::underlying_type<T>> hmatrix_tree_builder_A(*root_cluster_A_output, *root_cluster_A_input, epsilon, eta, 'N', 'N', -1, -1, rankWorld);
+    HMatrixTreeBuilder<T, htool::underlying_type<T>> hmatrix_tree_builder_B(*root_cluster_B_output, *root_cluster_B_input, epsilon, eta, 'N', 'N', -1, -1, rankWorld);
+    HMatrixTreeBuilder<T, htool::underlying_type<T>> hmatrix_tree_builder_C(*root_cluster_C_output, *root_cluster_C_input, epsilon, eta, 'N', 'N', -1, -1, rankWorld);
+    hmatrix_tree_builder_C.set_minimal_source_depth(2);
+
+    // build
+    HMatrix<T, htool::underlying_type<T>> A = hmatrix_tree_builder_A.build(*test_case.operator_A);
+    HMatrix<T, htool::underlying_type<T>> B = hmatrix_tree_builder_B.build(*test_case.operator_B);
+    // HMatrix<T, htool::underlying_type<T>> C = hmatrix_tree_builder_C.build(*test_case.operator_C);
+    // HMatrix<T, htool::underlying_type<T>> hmatrix_test(C);
+    // save_leaves_with_rank(A, "A_leaves_" + std::to_string(rankWorld));
+    // save_leaves_with_rank(B, "B_leaves_" + std::to_string(rankWorld));
+    // save_leaves_with_rank(C, "C_leaves_" + std::to_string(rankWorld));
+
+    // Dense matrices
+    int ni_A = root_cluster_A_input->get_size();
+    int no_A = root_cluster_A_output->get_size();
+    int ni_B = root_cluster_B_input->get_size();
+    int no_B = root_cluster_B_output->get_size();
+    // int ni_C = root_cluster_C_input->get_size();
+    // int no_C = root_cluster_C_output->get_size();
+
+    Matrix<T> A_dense(no_A, ni_A), B_dense(no_B, ni_B);
+    test_case.operator_A->copy_submatrix(no_A, ni_A, root_cluster_A_output->get_offset(), root_cluster_A_input->get_offset(), A_dense.data());
+    test_case.operator_B->copy_submatrix(no_B, ni_B, root_cluster_B_output->get_offset(), root_cluster_B_input->get_offset(), B_dense.data());
+
+    // test_case.operator_C->copy_submatrix(no_C, ni_C, root_cluster_C_output->get_offset(), root_cluster_C_input->get_offset(), C_dense.data());
+
+    // Matrix<T> HA_dense(A.get_target_cluster().get_size(), A.get_source_cluster().get_size());
+    // Matrix<T> HB_dense(B.get_target_cluster().get_size(), B.get_source_cluster().get_size());
+    // // Matrix<T> HC_dense(C.get_target_cluster().get_size(), C.get_source_cluster().get_size());
+    // copy_to_dense(A, HA_dense.data());
+    // copy_to_dense(B, HB_dense.data());
+    // copy_to_dense(C, HC_dense.data());
+
+    // Random Input
+    auto AB = A.hmatrix_product_fast(B);
+
+    Matrix<T> ABdense(A.get_target_cluster().get_size(), B.get_source_cluster().get_size());
+    copy_to_dense(AB, ABdense.data());
+
+    double error = normFrob(A_dense * B_dense - ABdense) / normFrob(A_dense * B_dense);
+    is_error     = is_error || !(error < epsilon * margin);
+    cout << "> Errors on a hmatrix hmatrix product to hmatrix: " << error << endl;
+    cout << "> is_error: " << is_error << "\n";
+    return is_error;
+}
