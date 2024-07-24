@@ -40,7 +40,8 @@ int main(int argc, char *argv[]) {
         Cluster<double> target_cluster = recursive_build_strategy.create_cluster_tree(nr, 3, xt.data(), 2, 2);
         Cluster<double> source_cluster = recursive_build_strategy.create_cluster_tree(nc, 3, xt.data(), 2, 2);
 
-        GeneratorTestDouble A(3, nr, nc, xt, xs, target_cluster, source_cluster, true, true);
+        GeneratorTestDouble A_in_user_numbering(3, xt, xs);
+        GeneratorWithPermutation<double> A(A_in_user_numbering, target_cluster.get_permutation().data(), source_cluster.get_permutation().data());
 
         // fullACA fixed rank
         int reqrank_max = 10;

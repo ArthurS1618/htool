@@ -11,6 +11,7 @@
 #include <htool/testing/generator_test.hpp>
 #include <htool/testing/geometry.hpp>
 #include <htool/testing/partition.hpp>
+#include <mpi.h>
 
 using namespace std;
 using namespace htool;

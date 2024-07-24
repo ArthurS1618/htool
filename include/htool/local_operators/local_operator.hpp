@@ -35,9 +35,6 @@ class LocalOperator : public VirtualLocalOperator<CoefficientPrecision> {
 
     virtual void local_sub_matrix_vector_product(const CoefficientPrecision *const in, CoefficientPrecision *const out, int mu, int offset, int size) const {
         std::vector<CoefficientPrecision> temp(m_source_cluster.get_size() * mu, 0);
-        int rankWorld;
-        MPI_Comm_rank(MPI_COMM_WORLD, &rankWorld);
-
         std::copy_n(in, size * mu, temp.data() + offset * mu);
         add_matrix_product_global_to_local(1, temp.data(), 0, out, mu);
     }

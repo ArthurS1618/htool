@@ -14,11 +14,11 @@ void add_lrmat_hmatrix_product(char transa, char transb, CoefficientPrecision al
         auto &V = A.get_V();
         if (transa == 'N') {
             Matrix<CoefficientPrecision> VB(V.nb_rows(), transb == 'N' ? B.nb_cols() : B.nb_rows());
-            add_matrix_hmatrix_product<CoefficientPrecision>(transa, transb, 1, V, B, 0, VB);
+            add_matrix_hmatrix_product<CoefficientPrecision>(transa, transb, CoefficientPrecision(1), V, B, CoefficientPrecision(0), VB);
             add_matrix_matrix_product<CoefficientPrecision>(transa, 'N', alpha, U, VB, beta, C);
         } else {
             Matrix<CoefficientPrecision> UtB(V.nb_rows(), transb == 'N' ? B.nb_cols() : B.nb_rows());
-            add_matrix_hmatrix_product<CoefficientPrecision>(transa, transb, 1, U, B, 0, UtB);
+            add_matrix_hmatrix_product<CoefficientPrecision>(transa, transb, CoefficientPrecision(1), U, B, CoefficientPrecision(0), UtB);
             add_matrix_matrix_product<CoefficientPrecision>(transa, 'N', alpha, V, UtB, beta, C);
         }
     }

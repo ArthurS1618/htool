@@ -17,7 +17,8 @@
     void HTOOL_BLAS_F77(C##symv)(const char *, const int *, const T *, const T *, const int *, const T *, const int *, const T *, T *, const int *);                                                      \
     void HTOOL_BLAS_F77(C##symm)(const char *, const char *, const int *, const int *, const T *, const T *, const int *, const T *, const int *, const T *, T *, const int *);                           \
     void HTOOL_BLAS_F77(C##syrk)(const char *const, const char *const, const int *const, const int *const, const T *const, const T *const, const int *const, const T *const, T *const, const int *const); \
-    void HTOOL_BLAS_F77(C##trsm)(const char *, const char *, const char *, const char *, const int *, const int *, const T *, const T *, const int *, T *, const int *);
+    void HTOOL_BLAS_F77(C##trsm)(const char *, const char *, const char *, const char *, const int *, const int *, const T *, const T *, const int *, T *, const int *);                                  \
+    void HTOOL_BLAS_F77(C##laswp)(const int *, T *, const int *, const int *, const int *, const int *, const int *);
 #define HTOOL_GENERATE_EXTERN_BLAS_COMPLEX(C, T, B, U)                                                                                                                                                    \
     HTOOL_GENERATE_EXTERN_BLAS(B, U)                                                                                                                                                                      \
     HTOOL_GENERATE_EXTERN_BLAS(C, T)                                                                                                                                                                      \
@@ -97,6 +98,9 @@ struct Blas {
     /* Function: trsm
      *  Solves a triangular system. */
     static void trsm(const char *, const char *, const char *, const char *, const int *, const int *, const K *, const K *, const int *, K *, const int *);
+    /* Function:
+     *  Performs a series of row interchanges on the matrix A */
+    static void laswp(const int *, K *, const int *, const int *, const int *, const int *, const int *);
 };
 
 #    define HTOOL_GENERATE_GEMM(C, T)                                                                                                                                                                                                                                                                            \
@@ -109,6 +113,11 @@ struct Blas {
         inline void Blas<T>::trsm(const char *side, const char *uplo, const char *transa, const char *diag, const int *m, const int *n, const T *alpha, const T *a, const int *lda, T *b, const int *ldb) {                                                                                                      \
             HTOOL_BLAS_F77(C##trsm)                                                                                                                                                                                                                                                                              \
             (side, uplo, transa, diag, m, n, alpha, a, lda, b, ldb);                                                                                                                                                                                                                                             \
+        }                                                                                                                                                                                                                                                                                                        \
+        template <>                                                                                                                                                                                                                                                                                              \
+        inline void Blas<T>::laswp(const int *N, T *A, const int *lda, const int *K1, const int *K2, const int *ipiv, const int *incx) {                                                                                                                                                                         \
+            HTOOL_BLAS_F77(C##laswp)                                                                                                                                                                                                                                                                             \
+            (N, A, lda, K1, K2, ipiv, incx);                                                                                                                                                                                                                                                                     \
         }
 
 #    if !HTOOL_MKL

@@ -49,7 +49,7 @@ int test_solver_ddm(int argc, char *argv[], int mu, char data_symmetry, char sym
         std::cout << "Creating generators" << std::endl;
     Matrix<complex<double>> A;
     A.bytes_to_matrix(datapath + "/matrix.bin");
-    GeneratorFromMatrix<std::complex<double>> Generator(A, target_cluster.get_permutation(), target_cluster.get_permutation());
+    GeneratorInUserNumberingFromMatrix<std::complex<double>> Generator(A);
     int n = A.nb_rows();
 
     // Right-hand side
@@ -111,7 +111,7 @@ int test_solver_ddm(int argc, char *argv[], int mu, char data_symmetry, char sym
     // recursive_build_strategy.set_minclustersize(2);
     Cluster<double> local_cluster = recursive_build_strategy.create_cluster_tree(local_to_global_numbering.size(), 3, local_geometry.data(), 2, 2, nullptr);
 
-    LocalGeneratorFromMatrix<std::complex<double>> local_generator(A, local_cluster.get_permutation(), local_cluster.get_permutation(), local_to_global_numbering, local_to_global_numbering);
+    LocalGeneratorInUserNumberingFromMatrix<std::complex<double>> local_generator(A, local_to_global_numbering, local_to_global_numbering);
 
     HMatrixTreeBuilder<std::complex<double>, double> local_hmatrix_builder(local_cluster, local_cluster, epsilon, eta, symmetric, UPLO, -1, -1, -1);
 

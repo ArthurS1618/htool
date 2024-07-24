@@ -107,7 +107,7 @@ void triangular_hmatrix_hmatrix_solve(char side, char UPLO, char transa, char di
                 }
             }
         } // Forward, compute each block column one after the other
-        else if ((UPLO == 'U' && transa == 'N' && side == 'R') || (UPLO == 'L' && transa == 'T' && side == 'R')) {
+        else if ((UPLO == 'U' && transa == 'N' && side == 'R') || (UPLO == 'L' && transa != 'N' && side == 'R')) {
             for (auto input_it = input_clusters.begin(); input_it != input_clusters.end(); ++input_it) {
                 auto &input_cluster_child = *input_it;
 
@@ -132,7 +132,7 @@ void triangular_hmatrix_hmatrix_solve(char side, char UPLO, char transa, char di
                 }
             }
         } // Backward, compute each block column one after the other
-        else if ((UPLO == 'L' && transa == 'N' && side == 'R') || (UPLO == 'U' && transa == 'T' && side == 'R')) {
+        else if ((UPLO == 'L' && transa == 'N' && side == 'R') || (UPLO == 'U' && transa != 'N' && side == 'R')) {
             for (auto input_it = input_clusters.rbegin(); input_it != input_clusters.rend(); ++input_it) {
                 auto &input_cluster_child = *input_it;
 

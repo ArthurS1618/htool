@@ -10,12 +10,33 @@ template <typename CoefficientPrecision, typename CoordinatePrecision = Coeffici
 void add_matrix_hmatrix_product(char transa, char transb, CoefficientPrecision alpha, const Matrix<CoefficientPrecision> &A, const HMatrix<CoefficientPrecision, CoordinatePrecision> &B, CoefficientPrecision beta, Matrix<CoefficientPrecision> &C) {
 
     char new_transa = transb == 'N' ? 'T' : 'N';
+    new_transa      = B.get_symmetry_for_leaves() == 'H' and transb == 'N' ? 'N' : new_transa;
+    new_transa      = B.get_symmetry_for_leaves() == 'S' and transb == 'N' ? 'N' : new_transa;
     if (transa == 'N') {
-        sequential_add_hmatrix_matrix_product_row_major(new_transa, 'N', alpha, B, A.data(), beta, C.data(), C.nb_rows());
+        bool need_buffer_for_conj = transb == 'C' or (B.get_symmetry_for_leaves() == 'H' and transb == 'N');
+        std::vector<CoefficientPrecision> buffer_A(need_buffer_for_conj ? A.nb_cols() * A.nb_rows() : 0);
+        if (need_buffer_for_conj) {
+            std::copy(A.data(), A.data() + A.nb_cols() * A.nb_rows(), buffer_A.data());
+            conj_if_complex(buffer_A.data(), buffer_A.size());
+            conj_if_complex(C.data(), C.nb_rows() * C.nb_cols());
+        }
+        sequential_add_hmatrix_matrix_product_row_major(new_transa, 'N', need_buffer_for_conj ? conj_if_complex(alpha) : alpha, B, need_buffer_for_conj ? buffer_A.data() : A.data(), need_buffer_for_conj ? conj_if_complex(beta) : beta, C.data(), C.nb_rows());
+        if (need_buffer_for_conj) {
+            conj_if_complex(C.data(), C.nb_rows() * C.nb_cols());
+        }
     } else {
         Matrix<CoefficientPrecision> transposed_A(A.nb_cols(), A.nb_rows());
         transpose(A, transposed_A);
-        sequential_add_hmatrix_matrix_product_row_major(new_transa, 'N', alpha, B, transposed_A.data(), beta, C.data(), C.nb_rows());
+        if (transb == 'C') {
+            conj_if_complex(C.data(), C.nb_rows() * C.nb_cols());
+        }
+        if ((transa == 'T' && transb == 'C') or (transa == 'C' and transb != 'C')) {
+            conj_if_complex(transposed_A.data(), transposed_A.nb_rows() * transposed_A.nb_cols());
+        }
+        sequential_add_hmatrix_matrix_product_row_major(new_transa, 'N', transb == 'C' ? conj_if_complex(alpha) : alpha, B, transposed_A.data(), transb == 'C' ? conj_if_complex(beta) : beta, C.data(), C.nb_rows());
+        if (transb == 'C') {
+            conj_if_complex(C.data(), C.nb_rows() * C.nb_cols());
+        }
     }
 }
 

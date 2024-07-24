@@ -17,7 +17,14 @@ void add_hmatrix_matrix_product(char transa, char transb, CoefficientPrecision a
     } else {
         Matrix<CoefficientPrecision> transposed_C(C.nb_cols(), C.nb_rows());
         transpose(C, transposed_C);
-        sequential_add_hmatrix_matrix_product_row_major(transa, 'N', alpha, A, B.data(), beta, transposed_C.data(), transposed_C.nb_rows());
+        std::vector<CoefficientPrecision> buffer_B(transb == 'C' ? B.nb_cols() * B.nb_rows() : 0);
+
+        if (transb == 'C') {
+            std::copy(B.data(), B.data() + B.nb_cols() * B.nb_rows(), buffer_B.data());
+            conj_if_complex(buffer_B.data(), buffer_B.size());
+        }
+
+        sequential_add_hmatrix_matrix_product_row_major(transa, 'N', alpha, A, transb == 'C' ? buffer_B.data() : B.data(), beta, transposed_C.data(), transposed_C.nb_rows());
         transpose(transposed_C, C);
     }
 }

@@ -19,12 +19,54 @@ void lu_factorization(Matrix<T> &A) {
 
 template <typename T>
 void triangular_matrix_matrix_solve(char side, char UPLO, char transa, char diag, T alpha, const Matrix<T> &A, Matrix<T> &B) {
-    int m   = B.nb_rows();
-    int n   = B.nb_cols();
-    int lda = side == 'L' ? m : n;
-    int ldb = m;
+    int m           = B.nb_rows();
+    int n           = B.nb_cols();
+    int lda         = side == 'L' ? m : n;
+    int ldb         = m;
+    auto &ipiv      = A.get_pivots();
+    bool is_pivoted = false;
+
+    if (ipiv.size() > 0) {
+        int index = 0;
+        while (index < ipiv.size() and not is_pivoted) {
+            is_pivoted = (ipiv[index] == index + 1);
+            index += 1;
+        }
+    }
+
+    if (is_pivoted and UPLO == 'L') {
+        if (side == 'L' and transa == 'N') {
+            int K1   = 1;
+            int K2   = m;
+            int incx = 1;
+            Blas<T>::laswp(&n, B.data(), &ldb, &K1, &K2, ipiv.data(), &incx);
+        } else if (side == 'R' and transa != 'N') {
+            // C++17 std::swap_ranges
+            for (int i = 0; i < B.nb_rows(); i++) {
+                for (int j = 0; j < B.nb_cols(); j++) {
+                    std::swap(B(i, ipiv[j] - 1), B(i, j));
+                }
+            }
+        }
+    }
 
     Blas<T>::trsm(&side, &UPLO, &transa, &diag, &m, &n, &alpha, A.data(), &lda, B.data(), &ldb);
+    // std::cout <<"TEST "<<ipiv<<" "<<is_pivoted<<"\n";
+    if (is_pivoted and UPLO == 'L') {
+        if (side == 'L' and transa != 'N') {
+            int K1   = 1;
+            int K2   = m;
+            int incx = -1;
+            Blas<T>::laswp(&n, B.data(), &ldb, &K1, &K2, ipiv.data(), &incx);
+        } else if (side == 'R' and transa == 'N') {
+            // C++17 std::swap_ranges
+            for (int i = 0; i < B.nb_rows(); i++) {
+                for (int j = B.nb_cols() - 1; j >= 0; j--) {
+                    std::swap(B(i, ipiv[j] - 1), B(i, j));
+                }
+            }
+        }
+    }
 }
 
 template <typename T>
