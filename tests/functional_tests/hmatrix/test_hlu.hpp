@@ -3,7 +3,6 @@
 #include <htool/clustering/clustering.hpp>
 #include <htool/hmatrix/hmatrix.hpp>
 #include <htool/hmatrix/hmatrix_output.hpp>
-#include <htool/hmatrix/sum_expressions.hpp>
 #include <htool/hmatrix/tree_builder/tree_builder.hpp>
 #include <htool/matrix/matrix.hpp>
 #include <htool/testing/generator_input.hpp>
@@ -37,6 +36,22 @@ void save_to_csv(const std::vector<T> &data, const std::string &nomFichier) {
 
     fichier.close();
     std::cout << "Données sauvegardées dans " << nomFichier << std::endl;
+}
+
+std::vector<double> generate_random_vector(int size) {
+    std::random_device rd;  // Source d'entropie aléatoire
+    std::mt19937 gen(rd()); // Générateur de nombres pseudo-aléatoires
+
+    std::uniform_real_distribution<double> dis(1.0, 10.0); // Plage de valeurs pour les nombres aléatoires (ici de 1.0 à 10.0)
+
+    std::vector<double> random_vector;
+    random_vector.reserve(size); // Allocation de mémoire pour le vecteur
+
+    for (int i = 0; i < size; ++i) {
+        random_vector.push_back(dis(gen)); // Ajout d'un nombre aléatoire dans la plage à chaque itération
+    }
+
+    return random_vector;
 }
 
 ///// fonction pour appliquer la perm inverse de la numerotation de htool a une matrice (j'arrive pas a me servir de l'option "NOPERM")
@@ -118,13 +133,29 @@ std::vector<T> test_hlu(int size, htool::underlying_type<T> epsilon, htool::unde
     ClusterTreeBuilder<double> recursive_build_strategy_1;
     std::shared_ptr<Cluster<double>> root_cluster = std::make_shared<Cluster<double>>(recursive_build_strategy_1.create_cluster_tree(size, 3, p1.data(), 2, 2));
     Matrix<double> reference(size, size);
-    GeneratorTestDoubleSymmetric generator(3, size, size, p1, p1, *root_cluster, *root_cluster, true, true);
+    // GeneratorTestDoubleSymmetric generator(3, size, size, p1, p1, *root_cluster, *root_cluster, true, true);
+    GeneratorTestDoubleSymmetric generator(3, p1, p1);
+
     generator.copy_submatrix(size, size, 0, 0, reference.data());
 
     HMatrixTreeBuilder<double, double> hmatrix_tree_builder(*root_cluster, *root_cluster, epsilon, eta, 'N', 'N', -1, -1, -1);
 
     auto root_hmatrix = hmatrix_tree_builder.build(generator);
     auto format       = root_hmatrix.get_format();
+
+    // htool::TestCaseSolve<T, GeneratorTestType> test_case('L', trans, n1, n2, 1, -1);
+
+    // // HMatrix
+    // HMatrixTreeBuilder<T, htool::underlying_type<T>> hmatrix_tree_builder_A(*test_case.root_cluster_A_output, *test_case.root_cluster_A_input, epsilon, eta, 'N', 'N', -1, -1, -1);
+    // HMatrix<T, htool::underlying_type<T>> root_hmatrix = hmatrix_tree_builder_A.build(*test_case.operator_A);
+
+    // // Matrix
+    // int ni_A = test_case.root_cluster_A_input->get_size();
+    // int no_A = test_case.root_cluster_A_output->get_size();
+    // int ni_X = test_case.root_cluster_X_input->get_size();
+    // int no_X = test_case.root_cluster_X_output->get_size();
+    // Matrix<T> A_dense(no_A, ni_A), X_dense(no_X, ni_X), B_dense(X_dense), densified_hmatrix_test(B_dense), matrix_test;
+    // test_case.operator_A->copy_submatrix(no_A, ni_A, test_case.root_cluster_A_output->get_offset(), test_case.root_cluster_A_input->get_offset(), A_dense.data());
 
     //////////////////////
     /// tesst hlu

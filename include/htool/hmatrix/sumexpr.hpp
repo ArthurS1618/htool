@@ -187,11 +187,8 @@ class SumExpression_fast : public VirtualGenerator<CoefficientPrecision> {
         return row;
     }
     //////////////////////////////////////////
-    //// COp submatrix
+    //// Copy submatrix -> to get a column , row or the entire matrix
     //////////////////////////////////////
-    // double norme_approx() {
-    //     double nr = 0.0;
-    // }
     void copy_submatrix(int M, int N, int row_offset, int col_offset, CoefficientPrecision *ptr) const override {
         // on regarde si il faut pas juste une ligne ou une collonne
         Matrix<CoefficientPrecision> mat(M, N);
@@ -247,10 +244,13 @@ class SumExpression_fast : public VirtualGenerator<CoefficientPrecision> {
         std::copy(mat.data(), mat.data() + M * N, ptr);
     }
 
-    // do Sr = Sr +AB with QR svd
-    // U1V1^T+U2V2^T = (U1, U2)(V1,V2)^T = (Q1R1)(Q2R2)T =
+    // sumexrp = (   H11 H12 ) ( K11 K12  )      , restrcit(sumexpr, 11) = H11 K11 + H12 K22
+    //           (   H21 H22 ) ( K21 K22  )
+    //  sumexpr = sum_hmatrix_product + UV^T
+    //  Si H ou K low rank  HK low rank -> U'V'^T =ACA (UV^T + HK)
 
     SumExpression_fast restrict_ACA(const Cluster<CoordinatePrecision> &t, const Cluster<CoordinatePrecision> &s) const {
+        // on met un flag pour savoir si la sortie est retrictible
         bool flag = true;
         std::vector<Matrix<CoefficientPrecision>> sr_0;
         Matrix<CoefficientPrecision> sdense_0;
@@ -289,8 +289,6 @@ class SumExpression_fast : public VirtualGenerator<CoefficientPrecision> {
                 auto K_child = K->get_block(rho_child->get_size(), s.get_size(), rho_child->get_offset(), s.get_offset());
                 // si on arrive pas a choper les blocs : ca doit pas arriver mais bon
                 if (H_child->get_target_cluster().get_size() != t.get_size() || H_child->get_source_cluster().get_size() != rho_child->get_size() || K_child->get_target_cluster().get_size() != rho_child->get_size() || K_child->get_source_cluster().get_size() != s.get_size()) {
-                    // std::cout << "?! " << std::endl;
-                    // std::cout << H_child->get_target_cluster().get_size() << '=' << t.get_size() << ',' << H_child->get_source_cluster().get_size() << '=' << rho_child->get_size() << ',' << K_child->get_target_cluster().get_size() << '=' << rho_child->get_size() << ',' << K_child->get_source_cluster().get_size() << '=' << s.get_size() << std::endl;
                     Matrix<CoefficientPrecision> hdense(H->get_target_cluster().get_size(), H->get_source_cluster().get_size());
                     Matrix<CoefficientPrecision> kdense(K->get_target_cluster().get_size(), K->get_source_cluster().get_size());
                     copy_to_dense(*H, hdense.data());

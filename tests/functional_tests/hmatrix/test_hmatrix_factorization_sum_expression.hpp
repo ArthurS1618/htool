@@ -8,7 +8,31 @@
 
 using namespace std;
 using namespace htool;
+template <typename T>
+Matrix<T> transp(const Matrix<T> &M) {
+    Matrix<T> res(M.nb_cols(), M.nb_rows());
+    for (int k = 0; k < M.nb_cols(); ++k) {
+        for (int l = 0; l < M.nb_rows(); ++l) {
+            res(k, l) = M(l, k);
+        }
+    }
+    return res;
+}
+std::vector<double> generate_random_vector(int size) {
+    std::random_device rd;  // Source d'entropie aléatoire
+    std::mt19937 gen(rd()); // Générateur de nombres pseudo-aléatoires
 
+    std::uniform_real_distribution<double> dis(1.0, 10.0); // Plage de valeurs pour les nombres aléatoires (ici de 1.0 à 10.0)
+
+    std::vector<double> random_vector;
+    random_vector.reserve(size); // Allocation de mémoire pour le vecteur
+
+    for (int i = 0; i < size; ++i) {
+        random_vector.push_back(dis(gen)); // Ajout d'un nombre aléatoire dans la plage à chaque itération
+    }
+
+    return random_vector;
+}
 template <typename T, typename GeneratorTestType>
 bool test_hlu_sum_expression(int n1, int n2, htool::underlying_type<T> epsilon, htool::underlying_type<T> margin) {
     bool is_error = false;
@@ -28,19 +52,15 @@ bool test_hlu_sum_expression(int n1, int n2, htool::underlying_type<T> epsilon, 
     int ni_X = test_case.root_cluster_X_input->get_size();
     int no_X = test_case.root_cluster_X_output->get_size();
     Matrix<T> A_dense(no_A, ni_A);
-    std::vector<T> B_dense(X_dense), densified_hmatrix_test(B_dense), matrix_test;
 
     test_case.operator_A->copy_submatrix(no_A, ni_A, test_case.root_cluster_A_output->get_offset(), test_case.root_cluster_A_input->get_offset(), A_dense.data());
     auto X_dense = generate_random_vector(no_X);
 
-    // generate_random_matrix(X_dense);
-    // add_matrix_matrix_product(trans, 'N', T(1.), A_dense, X_dense, T(0.), B_dense);
-    B_dense = A_dense * X_dense;
+    auto B_dense = A_dense * X_dense;
+    std::vector<T> densified_hmatrix_test(B_dense), matrix_test;
 
     // LU factorization
     matrix_test = B_dense;
-    // lu_factorization(A);
-    // lu_solve(trans, A, matrix_test);
     HMatrix<T, htool::underlying_type<T>> Lres(A.get_target_cluster(), A.get_source_cluster());
     HMatrix<T, htool::underlying_type<T>> Ures(A.get_target_cluster(), A.get_source_cluster());
     Lres.set_admissibility_condition(A.get_admissibility_condition());
@@ -51,6 +71,7 @@ bool test_hlu_sum_expression(int n1, int n2, htool::underlying_type<T> epsilon, 
     Ures.set_low_rank_generator(A.get_low_rank_generator());
     Lres.set_epsilon(epsilon);
     Ures.set_epsilon(epsilon);
+    auto B = A.get_format();
     HLU_fast(A, A.get_target_cluster(), &Lres, &Ures);
 
     auto ytest = Lres.solve_LU_triangular(Lres, Ures, matrix_test);

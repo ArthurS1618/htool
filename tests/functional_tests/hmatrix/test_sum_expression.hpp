@@ -175,7 +175,10 @@ int test_sum_expression(int size, int rank, htool::underlying_type<T> epsilon) {
     ClusterTreeBuilder<double> recursive_build_strategy_1;
     std::shared_ptr<Cluster<double>> root_cluster = std::make_shared<Cluster<double>>(recursive_build_strategy_1.create_cluster_tree(size, 3, p1.data(), 2, 2));
     Matrix<double> reference(size, size);
-    GeneratorTestDoubleSymmetric generator(3, size, size, p1, p1, *root_cluster, *root_cluster, true, true);
+    // GeneratorTestDoubleSymmetric generator(3, size, size, p1, p1, *root_cluster, *root_cluster, true, true);
+    // auto operator_in_user_numbering_A = std::make_unique<GeneratorTestType>(3, x1, x1);
+    GeneratorTestDoubleSymmetric generator(3, p1, p1);
+
     generator.copy_submatrix(size, size, 0, 0, reference.data());
     std::cout << "norme generator: " << normFrob(reference) << std::endl;
 
@@ -236,50 +239,50 @@ int test_sum_expression(int size, int rank, htool::underlying_type<T> epsilon) {
 
     std::cout << "////////////////////////////////////////" << std::endl;
 
-    for (auto &transa : {'N', 'T'}) {
-        for (auto &transb : {'N', 'T'}) {
-            Matrix<double> refprod;
-            if (transa == 'N' && transb == 'N') {
-                refprod = reference * reference;
-            } else if (transa == 'T' && transb == 'N') {
-                refprod = transp(reference) * reference;
-            } else if (transa == 'N' && transb == 'T') {
-                refprod = reference * transp(reference);
-            } else {
-                refprod = transp(reference) * transp(reference);
-            }
+    // for (auto &transa : {'N', 'T'}) {
+    //     for (auto &transb : {'N', 'T'}) {
+    //         Matrix<double> refprod;
+    //         if (transa == 'N' && transb == 'N') {
+    //             refprod = reference * reference;
+    //         } else if (transa == 'T' && transb == 'N') {
+    //             refprod = transp(reference) * reference;
+    //         } else if (transa == 'N' && transb == 'T') {
+    //             refprod = reference * transp(reference);
+    //         } else {
+    //             refprod = transp(reference) * transp(reference);
+    //         }
 
-            SumExpression_NT<double, double> SNT(transa, &root_hmatrix, transb, &root_hmatrix);
-            t_temp              = &*root_cluster;
-            s_temp              = &*root_cluster;
-            auto sumexprNT_temp = SNT;
-            std::cout << "test produit sum expr TRANSA TRANSB = " << transa << ',' << transb << std::endl;
-            for (int k = 0; k < 4; ++k) {
-                auto &t_child = t_temp->get_children()[0];
-                auto &s_child = s_temp->get_children()[1];
-                auto S_child  = sumexprNT_temp.restrict(*t_child, *s_child);
-                std::cout << "      depth : " << k << std::endl;
-                std::cout << "      sr et sh pour restrict " << S_child.get_sr().size() << ',' << S_child.get_sh().size() << std::endl;
-                auto x_rand_child    = generate_random_vector(s_child->get_size());
-                auto HK_child        = copy_sub_matrix(refprod, t_child->get_size(), s_child->get_size(), t_child->get_offset(), s_child->get_offset());
-                auto y_ref_child     = HK_child * x_rand_child;
-                auto y_sumexpr_child = S_child.prod('N', x_rand_child);
-                std::cout << "      erreur prod sur le restrict : " << norm2(y_ref_child - y_sumexpr_child) / norm2(y_ref_child) << std::endl;
-                auto x_rand_child_T = generate_random_vector(t_child->get_size());
-                std::vector<double> y_ref_child_T(s_child->get_size());
-                double alpha = 1.0;
-                HK_child.add_vector_product('T', 1.0, x_rand_child_T.data(), 1.0, y_ref_child_T.data());
-                auto y_sumexpr_child_T = S_child.prod('T', x_rand_child_T);
-                std::cout << "      erreur prod sur le restrict transp : " << norm2(y_ref_child_T - y_sumexpr_child_T) / norm2(y_ref_child_T) << std::endl;
-                std::cout << "______________________________________________________" << std::endl;
-                t_temp         = t_child.get();
-                s_temp         = s_child.get();
-                sumexprNT_temp = S_child;
-            }
-            std::cout << "______________________________________________________" << std::endl;
-            std::cout << "______________________________________________________" << std::endl;
-        }
-    }
+    //         SumExpression_NT<double, double> SNT(transa, &root_hmatrix, transb, &root_hmatrix);
+    //         t_temp              = &*root_cluster;
+    //         s_temp              = &*root_cluster;
+    //         auto sumexprNT_temp = SNT;
+    //         std::cout << "test produit sum expr TRANSA TRANSB = " << transa << ',' << transb << std::endl;
+    //         for (int k = 0; k < 4; ++k) {
+    //             auto &t_child = t_temp->get_children()[0];
+    //             auto &s_child = s_temp->get_children()[1];
+    //             auto S_child  = sumexprNT_temp.restrict(*t_child, *s_child);
+    //             std::cout << "      depth : " << k << std::endl;
+    //             std::cout << "      sr et sh pour restrict " << S_child.get_sr().size() << ',' << S_child.get_sh().size() << std::endl;
+    //             auto x_rand_child    = generate_random_vector(s_child->get_size());
+    //             auto HK_child        = copy_sub_matrix(refprod, t_child->get_size(), s_child->get_size(), t_child->get_offset(), s_child->get_offset());
+    //             auto y_ref_child     = HK_child * x_rand_child;
+    //             auto y_sumexpr_child = S_child.prod('N', x_rand_child);
+    //             std::cout << "      erreur prod sur le restrict : " << norm2(y_ref_child - y_sumexpr_child) / norm2(y_ref_child) << std::endl;
+    //             auto x_rand_child_T = generate_random_vector(t_child->get_size());
+    //             std::vector<double> y_ref_child_T(s_child->get_size());
+    //             double alpha = 1.0;
+    //             HK_child.add_vector_product('T', 1.0, x_rand_child_T.data(), 1.0, y_ref_child_T.data());
+    //             auto y_sumexpr_child_T = S_child.prod('T', x_rand_child_T);
+    //             std::cout << "      erreur prod sur le restrict transp : " << norm2(y_ref_child_T - y_sumexpr_child_T) / norm2(y_ref_child_T) << std::endl;
+    //             std::cout << "______________________________________________________" << std::endl;
+    //             t_temp         = t_child.get();
+    //             s_temp         = s_child.get();
+    //             sumexprNT_temp = S_child;
+    //         }
+    //         std::cout << "______________________________________________________" << std::endl;
+    //         std::cout << "______________________________________________________" << std::endl;
+    //     }
+    // }
 
     /////////////////////////////
     ///// TEST HMAT HMAT

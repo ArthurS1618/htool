@@ -7,7 +7,7 @@ using namespace htool;
 int main(int argc, char *argv[]) {
     bool is_error = false;
 
-    MPI_Init(&argc, &argv);
+    // MPI_Init(&argc, &argv);
     if (argc != 5) {
         std::cerr << " PARAMETERS : SIZEMAX, nb iteration, EPSILON ETA" << std::endl;
     }
@@ -37,7 +37,7 @@ int main(int argc, char *argv[]) {
     save_to_csv(err, "err_test_hlu_eps6_eta_10.csv");
     save_to_csv(comprl, "comprl_test_hlu_eps6_eta_10.csv");
     save_to_csv(compru, "compru_test_hlu_eps6_eta_10.csv");
-    MPI_Finalize();
+    // MPI_Finalize();
     if (is_error) {
         return 1;
     }
