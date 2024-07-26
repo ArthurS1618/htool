@@ -5,7 +5,6 @@
 #include <htool/hmatrix/hmatrix.hpp>
 #include <htool/hmatrix/hmatrix_output.hpp>
 #include <htool/hmatrix/linalg/interface.hpp>
-#include <htool/hmatrix/sum_expressions.hpp>
 #include <htool/hmatrix/tree_builder/tree_builder.hpp>
 #include <htool/matrix/matrix.hpp>
 

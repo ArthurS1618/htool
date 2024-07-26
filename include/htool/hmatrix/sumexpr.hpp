@@ -15,14 +15,15 @@ Matrix<T> copy_sub_matrix(const Matrix<T> in, int nr, int nc, int oft, int ofs) 
     }
     return res;
 }
+
+// one to rule theim alltemplate <typename CoefficientPrecision, typename CoordinatePrecision>
 template <typename CoefficientPrecision, typename CoordinatePrecision>
 class SumExpression_fast : public VirtualGenerator<CoefficientPrecision> {
   private:
     using HMatrixType = HMatrix<CoefficientPrecision, CoordinatePrecision>;
     using LRtype      = LowRankMatrix<CoefficientPrecision, CoordinatePrecision>;
-
-    // one to rule theim all
-    std::vector<Matrix<CoefficientPrecision>> Sr;
+    std::vector<Matrix<CoefficientPrecision>>
+        Sr;
     std::vector<HMatrixType *> Sh;       //// sum (HK)
     Matrix<CoefficientPrecision> Sdense; // pour gérer les petites denses
     int target_size;
@@ -474,7 +475,6 @@ class SumExpression_fast : public VirtualGenerator<CoefficientPrecision> {
                         // Compute low-rank matrix UV =  LR(HK) ;
                         SumExpression_fast temp(H_child, K_child);
                         if (sr_0.size() == 0) {
-                            // Première affectation
                             LRtype lr_new(temp, *H_child->get_low_rank_generator(), t, s, -1, H_child->get_epsilon());
                             if (lr_new.get_U().nb_cols() > 0) {
                                 // ACA a marché
@@ -484,11 +484,10 @@ class SumExpression_fast : public VirtualGenerator<CoefficientPrecision> {
                                 sr_0     = tempm;
 
                             } else {
-                                // on push les hmat
-                                if (H_child->is_low_rank() || K_child->is_low_rank() || t.get_children().size() == 0 || s.get_children().size() == 0) {
-                                    flag = false;
-                                }
-                                sh_0.push_back(H_child);
+                                // ACA a marché
+                                std::vector<Matrix<CoefficientPrecision>> tempm(2);
+                                tempm[0] = lr_new.get_U();
+                                tempm[1] = lr_new.g;
                                 sh_0.push_back(K_child);
                             }
                         } else {
