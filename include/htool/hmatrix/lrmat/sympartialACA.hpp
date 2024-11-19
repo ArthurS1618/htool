@@ -42,7 +42,7 @@ class sympartialACA final : public VirtualLowRankGenerator<CoefficientPrecision,
         int i1;
         int i2;
         // const double *x1;
-
+        // std::cout << "on est dans le ACA avec epsilon et eta = : " << epsilon << std::endl;
         if (t.get_offset() >= s.get_offset()) {
 
             n1 = t.get_size();
@@ -174,12 +174,21 @@ class sympartialACA final : public VirtualLowRankGenerator<CoefficientPrecision,
                     vv.push_back(u1);
 
                 } else {
-                    q -= 1;
-                    if (q == 0) { // corner case where first row is zero, ACA fails, we build a dense block instead
-                        q = -1;
+                    if (q == 1) {
+                        // on a trouvé un zero a la première itération : bloc de zero :
+                        std::fill(u1.begin(), u1.end(), CoefficientPrecision(0));
+                        std::fill(u2.begin(), u2.end(), CoefficientPrecision(0));
+                        uu.push_back(u2);
+                        vv.push_back(u1);
+
+                    } else {
+                        q -= 1;
+                        if (q == 0) { // corner case where first row is zero, ACA fails, we build a dense block instead
+                            q = -1;
+                        }
+                        htool::Logger::get_instance().log(LogLevel::WARNING, "ACA found a zero row in a " + std::to_string(t.get_size()) + "x" + std::to_string(s.get_size()) + " block. Final rank is " + std::to_string(q)); // LCOV_EXCL_LINE
+                        // std::cout << "[Htool warning] ACA found a zero row in a " + std::to_string(t.get_size()) + "x" + std::to_string(s.get_size()) + " block. Final rank is " + std::to_string(q) << std::endl;
                     }
-                    htool::Logger::get_instance().log(LogLevel::WARNING, "ACA found a zero row in a " + std::to_string(t.get_size()) + "x" + std::to_string(s.get_size()) + " block. Final rank is " + std::to_string(q)); // LCOV_EXCL_LINE
-                    // std::cout << "[Htool warning] ACA found a zero row in a " + std::to_string(t.get_size()) + "x" + std::to_string(s.get_size()) + " block. Final rank is " + std::to_string(q) << std::endl;
                     break;
                 }
             }
@@ -188,6 +197,7 @@ class sympartialACA final : public VirtualLowRankGenerator<CoefficientPrecision,
         // Final rank
         rank = q;
         if (rank > 0) {
+            // std::cout << "il a trouvé une approx avec aux et frob de norme :  " << aux << ',' << frob << ',' << t.get_size() << ',' << s.get_size() << ',' << rank << std::endl;
             U.resize(t.get_size(), rank);
             V.resize(rank, s.get_size());
 

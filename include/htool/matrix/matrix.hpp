@@ -720,6 +720,71 @@ double normFrob(const Matrix<T> &A) {
     return sqrt(norm);
 }
 
+template <typename T>
+Matrix<T> transp(const Matrix<T> &A) {
+    Matrix<T> B(A.nb_cols(), A.nb_rows());
+    for (int k = 0; k < A.nb_cols(); ++k) {
+        for (int l = 0; l < A.nb_rows(); ++l) {
+            B(k, l) = A(l, k);
+        }
+    }
+    return B;
+}
+template <typename T>
+std::vector<Matrix<T>> random_ACA(const Matrix<T> A, double tol, bool flag_out) {
+    std::vector<Matrix<T>> res;
+    double norme = 1e20;
+    int rk       = 1;
+    auto size_t  = A.nb_rows();
+    auto size_s  = A.nb_cols();
+    Matrix<T> L(size_t, 1);
+    Matrix<T> Ut(size_s, 1);
+    Matrix<T> temp(size_t, size_t);
+    for (int k = 0; k < size_t; ++k) {
+        temp(k, k) = 1.0;
+    }
+    while (norme > (tol * (size_s - rk)) && (rk < std::min(size_t / 2, size_s / 2))) {
+        std::cout << "norme = " << norme << std::endl;
+        auto w = generateGaussianVector(size_s);
+        std::vector<T> lrtemp(size_t);
+        A.add_vector_product('N', 1.0, w.data(), 1.0, lrtemp.data());
+        std::vector<T> lr(size_t);
+        temp.add_vector_product('N', 1.0, lrtemp.data(), 1.0, lr.data());
+        norme = norm2(lr);
+        lr    = mult(1.0 / norme, lr);
+        std::vector<T> new_Ldata(size_t * rk);
+        std::copy(L.data(), L.data() + (size_t * (rk - 1)), new_Ldata.data());
+        L.assign(size_t, rk, new_Ldata.data(), false);
+        L.set_col(rk - 1, lr);
+        std::vector<T> new_Udata(size_s * rk);
+        std::copy(Ut.data(), Ut.data() + (size_s * (rk - 1)), new_Udata.data());
+        Ut.assign(size_s, rk, new_Udata.data(), false);
+        std::vector<T> ur(size_s);
+        A.add_vector_product('T', 1.0, lr.data(), 1.0, ur.data());
+        Ut.set_col(rk - 1, ur);
+        Matrix<T> ltemp(size_t, 1);
+        ltemp.assign(size_t, 1, lr.data(), false);
+        // temp = temp- l* l^T
+        double alpha = -1.0;
+        double beta  = 1.0;
+        int kk       = 1;
+        int ld       = size_t;
+        std::cout << "aprés L et U : " << normFrob(A - L * transp(Ut)) << std::endl;
+
+        Blas<T>::gemm("N", "T", &ld, &ld, &kk, &alpha, ltemp.data(), &ld, ltemp.data(), &ld, &beta, temp.data(), &ld);
+        rk += 1;
+    }
+    if (rk == std::min(size_t / 2, size_s / 2)) {
+        flag_out = false;
+    } else {
+        flag_out = true;
+        auto U   = transp(Ut);
+        res.push_back(L);
+        res.push_back(U);
+    }
+    return res;
+}
+
 } // namespace htool
 
 #endif

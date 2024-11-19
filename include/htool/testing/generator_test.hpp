@@ -152,7 +152,7 @@ class GeneratorTestDouble : public GeneratorTestWithPermutation<double> {
   public:
     using GeneratorTestWithPermutation::GeneratorTestWithPermutation;
     double get_coef(const int &i, const int &j) const override {
-        return 1. / (1.0 * 4 * M_PI * std::sqrt(std::inner_product(m_target_points.begin() + m_space_dimension * i, this->m_target_points.begin() + m_space_dimension * i + m_space_dimension, m_source_points.begin() + m_space_dimension * j, double(0), std::plus<double>(), [](double u, double v) { return (u - v) * (u - v); })));
+        return 1. / (1.0 + 1.0 * 4 * M_PI * std::sqrt(std::inner_product(m_target_points.begin() + m_space_dimension * i, this->m_target_points.begin() + m_space_dimension * i + m_space_dimension, m_source_points.begin() + m_space_dimension * j, double(0), std::plus<double>(), [](double u, double v) { return (u - v) * (u - v); })));
     }
 };
 

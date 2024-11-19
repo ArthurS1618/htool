@@ -292,9 +292,445 @@ class HMatrix : public TreeNode<HMatrix<CoefficientPrecision, CoordinatePrecisio
         // m_dense_data->assign(dense_matrix.nb_rows(), dense_matrix.nb_cols(), dense_matrix.release(), true);
         m_storage_type = StorageType::Dense;
     }
+    // je rajoute ca pour faire du coarsenning
+    // void ACA(const int &size_t, const int &size_s, const int &offset_t, const int &offset_s, const double &epsilon, bool flag_out) {
+    //     auto bloc   = *this->get_block(size_t, size_s, offset_t, offset_s);
+    //     double flag = 1e20;
+    //     int rk      = 0;
+    //     int i0      = 0;
+    //     int j0      = 0;
+    //     std::vector<int> index;
+    //     std::vector<int> index_left;
+    //     index.push_back(0);
+    //     double val = 0;
+    //     std::vector<int> index;
+    //     while ((flag > (size_t - rk) * epsilon) && (rk < size_t / 2)) {
+    //         index.push_back(i0);
+    //         std::vector<CoefficientPrecision> ei(size_t);
+    //         ei[rk] = 1.0;
+    //         std::vector<CoefficientPrecision> row_i(size_s);
+    //         bloc.add_vector_product('T', 1.0, ei.data(), 1.0, row_i.data());
+    //         auto max_row = std::max_element(row_i.begin(), row_i.end());
+    //         j0           = std::distance(row_i.begin(), max_row);
+    //         std::vector<CoefficientPrecision> ej(size_t);
+    //         ej[j0] = 1.0;
+    //         std::vector<CoefficientPrecision> col_j(size_t);
+    //         bloc.add_vector_product('N', 1.0, ej.data(), 1.0, col_j.data());
+    //         max_col = std::max_element(col_j.begin(), col_j.end());
+    //         i0      = std::distance(col_j.begin(), max_col);
+    //         val     = col_j[i0];
+    //         if (std::abs(val) < 1e-20) {
+    //             flag = 0;
+    //         } else {
+    //         }
+    //     }
+    // }
+
+    // void random_ACA(const int &size_t, const int &size_s, const int &off_t, const int &off_s, Matrix<CoefficientPrecision> &L, Matrix<CoefficientPrecision> &Ut, double tol, bool flag_out) {
+    //     auto bloc    = this->get_block(size_t, size_s, off_t, off_s);
+    //     double norme = 1e20;
+    //     int rk       = 0;
+    //     Matrix<CoefficientPrecision> bloc_dense(size_t, size_s);
+    //     copy_to_dense(*bloc, bloc_dense.data());
+    //     Matrix<CoefficientPrecision> temp(size_t, size_t);
+    //     for (int k = 0; k < size_t; ++k) {
+    //         temp(k, k) = 1.0;
+    //     }
+    //     while (norme > (tol * (size_s - rk)) && (rk < std::min(size_t / 2, size_s / 2))) {
+    //         std::cout << "norme = " << norme << std::endl;
+    //         auto w = generateGaussianVector(size_s);
+    //         std::vector<CoefficientPrecision> lrtemp(size_t);
+    //         bloc->add_vector_product('N', 1.0, w.data(), 1.0, lrtemp.data());
+    //         std::vector<CoefficientPrecision> lr(size_t);
+    //         temp.add_vector_product('N', 1.0, lrtemp.data(), 1.0, lr.data());
+    //         norme = norm2(lr);
+    //         lr    = mult(1.0 / norme, lr);
+    //         rk += 1;
+    //         std::vector<CoefficientPrecision> new_Ldata(size_t * rk);
+    //         std::copy(L.data(), L.data() + (size_t * (rk - 1)), new_Ldata.data());
+    //         L.assign(size_t, rk, new_Ldata.data(), false);
+    //         L.set_col(rk - 1, lr);
+    //         std::vector<CoefficientPrecision> new_Udata(size_s * rk);
+    //         std::copy(Ut.data(), Ut.data() + (size_s * (rk - 1)), new_Udata.data());
+    //         Ut.assign(size_s, rk, new_Udata.data(), false);
+    //         std::vector<CoefficientPrecision> ur(size_s);
+    //         bloc->add_vector_product('T', 1.0, lr.data(), 1.0, ur.data());
+    //         Ut.set_col(rk - 1, ur);
+    //         Matrix<CoefficientPrecision> ltemp(size_t, 1);
+    //         ltemp.assign(size_t, 1, lr.data(), false);
+    //         // temp = temp- l* l^T
+    //         double alpha = -1.0;
+    //         double beta  = 1.0;
+    //         int kk       = 1;
+    //         int ld       = size_t;
+    //         std::cout << "aprés L et U : " << normFrob(bloc_dense - L * transp(Ut)) << std::endl;
+
+    //         Blas<CoefficientPrecision>::gemm("N", "T", &ld, &ld, &kk, &alpha, ltemp.data(), &ld, ltemp.data(), &ld, &beta, temp.data(), &ld);
+    //     }
+    //     if (rk == std::min(size_t / 2, size_s / 2)) {
+    //         flag_out = false;
+    //     } else {
+    //         flag_out = true;
+    //         Matrix<CoefficientPrecision> U(rk, size_s);
+    //         for (int k = 0; k < rk; ++k) {
+    //             for (int l = 0; l < size_s; ++l) {
+    //                 U(k, l) = Ut(l, k);
+    //             }
+    //         }
+    //         bloc->delete_children();
+    //         LowRankMatrix<CoefficientPrecision, CoordinatePrecision> LU(L, U);
+    //         bloc->set_low_rank_data(LU);
+    //         Ut = U;
+    //     }
+    // // }
+    // void random_ACA(const int &size_t, const int &size_s, const int &off_t, const int &off_s, double tol, bool flag_out) {
+    //     auto bloc    = this->get_block(size_t, size_s, off_t, off_s);
+    //     double norme = 1e20;
+    //     int rk       = 1;
+    //     Matrix<CoefficientPrecision> L(size_t, 1);
+    //     Matrix<CoefficientPrecision> Ut(size_s, 1);
+    //     Matrix<CoefficientPrecision> bloc_dense(size_t, size_s);
+    //     copy_to_dense(*bloc, bloc_dense.data());
+    //     Matrix<CoefficientPrecision> temp(size_t, size_t);
+    //     for (int k = 0; k < size_t; ++k) {
+    //         temp(k, k) = 1.0;
+    //     }
+    //     while (norme > (tol * (size_s - rk)) && (rk < std::min(size_t / 2, size_s / 2))) {
+    //         std::cout << "norme = " << norme << std::endl;
+    //         auto w = generateGaussianVector(size_s);
+    //         std::vector<CoefficientPrecision> lrtemp(size_t);
+    //         bloc->add_vector_product('N', 1.0, w.data(), 1.0, lrtemp.data());
+    //         std::vector<CoefficientPrecision> lr(size_t);
+    //         temp.add_vector_product('N', 1.0, lrtemp.data(), 1.0, lr.data());
+    //         norme = norm2(lr);
+    //         lr    = mult(1.0 / norme, lr);
+    //         std::vector<CoefficientPrecision> new_Ldata(size_t * rk);
+    //         std::copy(L.data(), L.data() + (size_t * (rk - 1)), new_Ldata.data());
+    //         L.assign(size_t, rk, new_Ldata.data(), false);
+    //         L.set_col(rk - 1, lr);
+    //         std::vector<CoefficientPrecision> new_Udata(size_s * rk);
+    //         std::copy(Ut.data(), Ut.data() + (size_s * (rk - 1)), new_Udata.data());
+    //         Ut.assign(size_s, rk, new_Udata.data(), false);
+    //         std::vector<CoefficientPrecision> ur(size_s);
+    //         bloc->add_vector_product('T', 1.0, lr.data(), 1.0, ur.data());
+    //         Ut.set_col(rk - 1, ur);
+    //         Matrix<CoefficientPrecision> ltemp(size_t, 1);
+    //         ltemp.assign(size_t, 1, lr.data(), false);
+    //         // temp = temp- l* l^T
+    //         double alpha = -1.0;
+    //         double beta  = 1.0;
+    //         int kk       = 1;
+    //         int ld       = size_t;
+    //         std::cout << "aprés L et U : " << normFrob(bloc_dense - L * transp(Ut)) << std::endl;
+
+    //         Blas<CoefficientPrecision>::gemm("N", "T", &ld, &ld, &kk, &alpha, ltemp.data(), &ld, ltemp.data(), &ld, &beta, temp.data(), &ld);
+    //         rk += 1;
+    //     }
+    //     if (rk == std::min(size_t / 2, size_s / 2)) {
+    //         flag_out = false;
+    //     } else {
+    //         flag_out = true;
+    //         // Matrix<CoefficientPrecision> U(rk, size_s);
+    //         // for (int k = 0; k < rk; ++k) {
+    //         //     for (int l = 0; l < size_s; ++l) {
+    //         //         U(k, l) = Ut(l, k);
+    //         //     }
+    //         // }
+    //         auto U = transp(Ut);
+    //         bloc->delete_children();
+    //         LowRankMatrix<CoefficientPrecision, CoordinatePrecision> LU(L, U);
+    //         bloc->set_low_rank_data(LU);
+    //         // Ut = U;
+    //     }
+    // }
+    // il faut renvoyer LU , on ravaill aavec UT pour toujours rajouter de colonnes
+    void random_ACA(const int &size_t, const int &size_s, const int &oft, const int &ofs, const double &tolerance, bool &flagout) {
+        int rk = 1;
+        Matrix<CoefficientPrecision> L(size_t, 1);
+        Matrix<CoefficientPrecision> Ut(size_s, 1);
+        Matrix<CoefficientPrecision> temp(size_t, size_t);
+        for (int k = 0; k < size_t; ++k) {
+            temp(k, k) = 1.0;
+        }
+        double norme_LU = 0.0;
+        auto bloc       = this->get_block(size_t, size_s, oft, ofs);
+        auto w          = gaussian_vector(size_s, 0.0, 1.0);
+        while ((rk < size_t / 2) && (rk < size_s / 2)) {
+            std::vector<CoefficientPrecision> Aw(size_t, 0.0);
+            bloc->add_vector_product('N', 1.0, w.data(), 1.0, Aw.data());
+            std::vector<CoefficientPrecision> lr(size_t, 0.0);
+            temp.add_vector_product('N', 1.0, Aw.data(), 1.0, lr.data());
+            auto norm_lr = norm2(lr);
+            if (norm_lr < 1e-20) {
+                flagout = false;
+                break;
+            } else {
+                lr = mult(1.0 / norm_lr, lr);
+            }
+            std::vector<CoefficientPrecision> ur(size_s, 0.0);
+            bloc->add_vector_product('T', 1.0, lr.data(), 1.0, ur.data());
+            auto norm_ur = norm2(ur);
+            // std::cout << "norm2 ur : " << norm_ur << std::endl;
+            Matrix<CoefficientPrecision> lr_ur(size_t, size_t);
+            double alpha = 1.0;
+            double beta  = -1.0;
+            int kk       = 1;
+            Blas<CoefficientPrecision>::gemm("N", "T", &size_t, &size_t, &kk, &alpha, lr.data(), &size_t, ur.data(), &size_t, &alpha, lr_ur.data(), &size_t);
+            // Matrix<CoefficientPrecision> llr(size_t, 1);
+            // llr.assign(size_t, 1, lr.data(), false);
+            // Matrix<CoefficientPrecision> uur(size_s, 1);
+            // uur.assign(size_t, 1, ur.data(), false);
+            // Matrix<CoefficientPrecision> uurt(1, size_s);
+            // Matrix<CoefficientPrecision> llrt(1, size_t);
+            // transpose(uurt, uur);
+            // lr_ur = llr * uurt;
+            std::vector<CoefficientPrecision> Llr(L.nb_cols(), 0.0);
+            L.add_vector_product('T', 1.0, lr.data(), 1.0, Llr.data());
+            std::vector<CoefficientPrecision> ULlr(size_s, 0.0);
+            Ut.add_vector_product('N', 1.0, Llr.data(), 1.0, ULlr.data());
+            double trace = 0.0;
+            for (int k = 0; k < std::min(size_t, size_s); ++k) {
+                trace += (ULlr[k] * ur[k]);
+            }
+            auto nr_lrur = normFrob(lr_ur);
+            auto nr      = norme_LU + std::pow(nr_lrur, 2.0) + 2 * trace;
+            if (rk > 1 && (std::pow(norm_lr * norm_ur * (size_s - rk), 2.0) <= std::pow(tolerance, 2.0) * nr)) {
+                break;
+            }
+            if (rk == 1) {
+                std::copy(lr.data(), lr.data() + size_t, L.data());
+                std::copy(ur.data(), ur.data() + size_s, Ut.data());
+                // std::cout << "!!!!!! aprés affectation " << normFrob(L) << ',' << normFrob(Ut) << "! " << norm_lr << ',' << norm_ur << std::endl;
+            } else {
+                Matrix<CoefficientPrecision> new_L(size_t, rk);
+                std::copy(L.data(), L.data() + L.nb_rows() * L.nb_cols(), new_L.data());
+                std::copy(lr.data(), lr.data() + size_t, new_L.data() + (rk - 1) * size_t);
+                Matrix<CoefficientPrecision> new_U(size_s, rk);
+                std::copy(Ut.data(), Ut.data() + Ut.nb_rows() * Ut.nb_cols(), new_U.data());
+                std::copy(ur.data(), ur.data() + size_s, new_U.data() + (rk - 1) * size_s);
+                L  = new_L;
+                Ut = new_U;
+            }
+            w = gaussian_vector(size_s, 0.0, 1.0);
+            Blas<CoefficientPrecision>::gemm("N", "T", &size_t, &size_t, &kk, &beta, lr.data(), &size_t, lr.data(), &size_t, &alpha, temp.data(), &size_t);
+            norme_LU += std::pow(nr_lrur, 2.0);
+            rk += 1;
+        }
+        if (rk >= std::min(size_t / 2, size_s / 2)) {
+            flagout = false;
+        }
+        if (flagout) {
+            Matrix<CoefficientPrecision> U(rk - 1, size_s);
+            transpose(Ut, U);
+            LowRankMatrix<CoefficientPrecision, CoordinatePrecision> lr_mat(L, U);
+            bloc->delete_children();
+            bloc->set_low_rank_data(lr_mat);
+        } else {
+            std::cerr << "aucune approximation trouvée , rk=" << rk << "sur un bloxc de taille " << this->get_target_cluster().get_size() << ',' << this->get_source_cluster().get_size() << std::endl;
+        }
+        // std::cout << flagout << std::endl;
+    }
+
+    std::vector<Matrix<CoefficientPrecision>> random_ACA_vect(const int &size_t, const int &size_s, const int &oft, const int &ofs, const double &tolerance, bool &flagout) {
+        int rk = 1;
+        Matrix<CoefficientPrecision> L(size_t, 1);
+        Matrix<CoefficientPrecision> Ut(size_s, 1);
+        Matrix<CoefficientPrecision> temp(size_t, size_t);
+        std::vector<Matrix<CoefficientPrecision>> res;
+        for (int k = 0; k < size_t; ++k) {
+            temp(k, k) = 1.0;
+        }
+        double norme_LU = 0.0;
+        auto bloc       = this->get_block(size_t, size_s, oft, ofs);
+        auto w          = gaussian_vector(size_s, 0.0, 1.0);
+        while ((rk < size_t / 2) && (rk < size_s / 2)) {
+            std::vector<CoefficientPrecision> Aw(size_t, 0.0);
+            bloc->add_vector_product('N', 1.0, w.data(), 1.0, Aw.data());
+            std::vector<CoefficientPrecision> lr(size_t, 0.0);
+            temp.add_vector_product('N', 1.0, Aw.data(), 1.0, lr.data());
+            auto norm_lr = norm2(lr);
+            if (norm_lr < 1e-20) {
+                // flagout = false;
+                // matrice vide
+                break;
+            } else {
+                lr = mult(1.0 / norm_lr, lr);
+            }
+            std::vector<CoefficientPrecision> ur(size_s, 0.0);
+            bloc->add_vector_product('T', 1.0, lr.data(), 1.0, ur.data());
+            auto norm_ur = norm2(ur);
+            // std::cout << "norm2 ur : " << norm_ur << std::endl;
+            Matrix<CoefficientPrecision> lr_ur(size_t, size_t);
+            double alpha = 1.0;
+            double beta  = -1.0;
+            int kk       = 1;
+            Blas<CoefficientPrecision>::gemm("N", "T", &size_t, &size_t, &kk, &alpha, lr.data(), &size_t, ur.data(), &size_t, &alpha, lr_ur.data(), &size_t);
+            // Matrix<CoefficientPrecision> llr(size_t, 1);
+            // llr.assign(size_t, 1, lr.data(), false);
+            // Matrix<CoefficientPrecision> uur(size_s, 1);
+            // uur.assign(size_t, 1, ur.data(), false);
+            // Matrix<CoefficientPrecision> uurt(1, size_s);
+            // Matrix<CoefficientPrecision> llrt(1, size_t);
+            // transpose(uurt, uur);
+            // lr_ur = llr * uurt;
+            std::vector<CoefficientPrecision> Llr(L.nb_cols(), 0.0);
+            L.add_vector_product('T', 1.0, lr.data(), 1.0, Llr.data());
+            std::vector<CoefficientPrecision> ULlr(size_s, 0.0);
+            Ut.add_vector_product('N', 1.0, Llr.data(), 1.0, ULlr.data());
+            double trace = 0.0;
+            for (int k = 0; k < std::min(size_t, size_s); ++k) {
+                trace += (ULlr[k] * ur[k]);
+            }
+            auto nr_lrur = normFrob(lr_ur);
+            auto nr      = norme_LU + std::pow(nr_lrur, 2.0) + 2 * trace;
+            if (rk > 1 && (std::pow(norm_lr * norm_ur * (size_s - rk), 2.0) <= std::pow(tolerance, 2.0) * nr)) {
+                break;
+            }
+            if (rk == 1) {
+                std::copy(lr.data(), lr.data() + size_t, L.data());
+                std::copy(ur.data(), ur.data() + size_s, Ut.data());
+                // std::cout << "!!!!!! aprés affectation " << normFrob(L) << ',' << normFrob(Ut) << "! " << norm_lr << ',' << norm_ur << std::endl;
+            } else {
+                Matrix<CoefficientPrecision> new_L(size_t, rk);
+                std::copy(L.data(), L.data() + L.nb_rows() * L.nb_cols(), new_L.data());
+                std::copy(lr.data(), lr.data() + size_t, new_L.data() + (rk - 1) * size_t);
+                Matrix<CoefficientPrecision> new_U(size_s, rk);
+                std::copy(Ut.data(), Ut.data() + Ut.nb_rows() * Ut.nb_cols(), new_U.data());
+                std::copy(ur.data(), ur.data() + size_s, new_U.data() + (rk - 1) * size_s);
+                L  = new_L;
+                Ut = new_U;
+            }
+            w = gaussian_vector(size_s, 0.0, 1.0);
+            Blas<CoefficientPrecision>::gemm("N", "T", &size_t, &size_t, &kk, &beta, lr.data(), &size_t, lr.data(), &size_t, &alpha, temp.data(), &size_t);
+            norme_LU += std::pow(nr_lrur, 2.0);
+            rk += 1;
+        }
+        if (rk >= std::min(size_t / 2, size_s / 2)) {
+            flagout = false;
+        }
+        if (flagout) {
+            if (rk == 1) {
+                Matrix<CoefficientPrecision> U(1, size_s);
+                res.push_back(L);
+                res.push_back(U);
+            } else {
+                Matrix<CoefficientPrecision> U(rk - 1, size_s);
+                transpose(Ut, U);
+                // LowRankMatrix<CoefficientPrecision, CoordinatePrecision> lr_mat(L, U);
+                // bloc->delete_children();
+                // bloc->set_low_rank_data(lr_mat);
+                res.push_back(L);
+                res.push_back(U);
+            }
+        } else {
+            Matrix<CoefficientPrecision> dense(this->get_target_cluster().get_size(), this->get_source_cluster().get_size());
+            copy_to_dense(*this, dense.data());
+            Matrix<CoefficientPrecision> U(rk - 1, size_s);
+            transpose(Ut, U);
+
+            std::cerr << "aucune approximation trouvée , rk=" << rk << "sur un bloc de taille " << this->get_target_cluster().get_size() << ',' << this->get_source_cluster().get_size() << " et de norme : " << normFrob(dense) << std::endl;
+            std::cerr << " l'erreur a la fin est " << normFrob(dense - L * U) << std::endl;
+        }
+        return res;
+        // std::cout << flagout << std::endl;
+    }
+
+    // void iterate_ACA(const double &tolerance) {
+    //     auto adm = this->compute_admissibility(this->get_target_cluster(), this->get_source_cluster());
+    //     if (adm) {
+    //         bool flag = true;
+    //         Matrix<CoefficientPrecision> dense(this->get_target_cluster().get_size(), this->get_source_cluster().get_size());
+    //         copy_to_dense(*this, dense.data());
+    //         this->random_ACA(this->get_target_cluster().get_size(), this->get_source_cluster().get_size(), this->get_target_cluster().get_offset(), this->get_source_cluster().get_offset(), tolerance, flag);
+    //         // std::cout << "flag : " << flag;
+    //         if (flag) {
+
+    //             std::cout << "norme du_ bloc : " << normFrob(dense) << std::endl;
+    //             std::cout << "erreur de l'approximation sur le bloc : " << normFrob(this->get_low_rank_data()->get_U() * this->get_low_rank_data()->get_V() - dense) << std::endl;
+    //         }
+    //         if (!flag && this->get_children().size() > 0) {
+    //             for (auto &child : this->get_children()) {
+    //                 child->iterate_ACA(tolerance);
+    //             }
+    //         }
+    //     } else if (this->get_children().size() > 0) {
+    //         for (auto &child : this->get_children()) {
+    //             child->iterate_ACA(tolerance);
+    //         }
+    //     }
+    // }
+
+    void iterate_ACA(const Cluster<CoordinatePrecision> &t, const Cluster<CoordinatePrecision> &s, const double &tolerance) {
+        auto adm = this->compute_admissibility(t, s);
+        if (adm) {
+            bool flag = true;
+            // Matrix<CoefficientPrecision> dense(t.get_size(), s.get_size());
+            // copy_to_dense(*this->get_block(t.get_size(), s.get_size(), t.get_offset(), s.get_offset()), dense.data());
+            this->random_ACA(t.get_size(), s.get_size(), t.get_offset(), s.get_offset(), tolerance, flag);
+            // std::cout << "flag : " << flag;
+            // if (flag) {
+
+            //     std::cout << "norme du_ bloc : " << normFrob(dense) << std::endl;
+            //     std::cout << "erreur de l'approximation sur le bloc : " << normFrob(this->get_block(t.get_size(), s.get_size(), t.get_offset(), s.get_offset())->get_low_rank_data()->get_U() * this->get_block(t.get_size(), s.get_size(), t.get_offset(), s.get_offset())->get_low_rank_data()->get_V() - dense) << std::endl;
+            // }
+            if (!flag && this->get_block(t.get_size(), s.get_size(), t.get_offset(), s.get_offset())->get_children().size() > 0) {
+                for (auto &t_son : t.get_children()) {
+                    for (auto &s_son : s.get_children()) {
+                        this->iterate_ACA(*t_son, *s_son, tolerance);
+                    }
+                }
+            }
+        } else if (this->get_block(t.get_size(), s.get_size(), t.get_offset(), s.get_offset())->get_children().size() > 0) {
+            for (auto &t_son : t.get_children()) {
+                for (auto &s_son : s.get_children()) {
+                    this->iterate_ACA(*t_son, *s_son, tolerance);
+                }
+            }
+        }
+    }
+
+    void format_ACA(HMatrix *res, const double &tolerance) {
+        auto &t    = this->get_target_cluster();
+        auto &s    = this->get_source_cluster();
+        int size_t = t.get_size();
+        int size_s = s.get_size();
+        int oft    = t.get_offset();
+        int ofs    = s.get_offset();
+        auto adm   = this->compute_admissibility(this->get_target_cluster(), this->get_source_cluster());
+        if (adm) {
+            bool flag                                        = true;
+            std::vector<Matrix<CoefficientPrecision>> resACA = this->random_ACA_vect(size_t, size_s, oft, ofs, tolerance, flag);
+            if (resACA.size() > 0) {
+                LowRankMatrix<CoefficientPrecision, CoordinatePrecision> lr(resACA[0], resACA[1]);
+                res->set_low_rank_data(lr);
+            } else {
+                if (this->get_children().size() > 0) {
+                    for (auto &child : this->get_children()) {
+                        auto sub_res = res->add_child(&child->get_target_cluster(), &child->get_source_cluster());
+                        child->format_ACA(sub_res, tolerance);
+                    }
+                } else {
+                    auto dense = this->get_dense_data();
+                    // std::unique_ptr<Matrix<CoefficientPrecision>> ptr_dense(dense);
+                    res->set_dense_data(std::make_unique<Matrix<CoefficientPrecision>>(*dense));
+                }
+            }
+        } else {
+            if (this->get_children().size() > 0) {
+                for (auto &child : this->get_children()) {
+                    auto sub_res = res->add_child(&child->get_target_cluster(), &child->get_source_cluster());
+                    child->format_ACA(sub_res, tolerance);
+                }
+            } else {
+                auto dense = this->get_dense_data();
+                res->set_dense_data(std::make_unique<Matrix<CoefficientPrecision>>(*dense));
+            }
+        }
+    }
 
     // Linear algebra
-    void add_vector_product(char trans, CoefficientPrecision alpha, const CoefficientPrecision *in, CoefficientPrecision beta, CoefficientPrecision *out) const;
+    void
+    add_vector_product(char trans, CoefficientPrecision alpha, const CoefficientPrecision *in, CoefficientPrecision beta, CoefficientPrecision *out) const;
     void add_matrix_product_row_major(char trans, CoefficientPrecision alpha, const CoefficientPrecision *in, CoefficientPrecision beta, CoefficientPrecision *out, int mu) const;
     void plus_egal(const CoefficientPrecision &apha, const HMatrix *B);
 

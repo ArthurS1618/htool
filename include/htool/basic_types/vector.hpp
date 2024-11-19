@@ -4,11 +4,13 @@
 #include "../misc/misc.hpp"
 #include <algorithm>
 #include <cassert>
+#include <cmath>
 #include <complex>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
 #include <numeric>
+#include <random>
 #include <vector>
 
 namespace htool {
@@ -183,6 +185,56 @@ int matlab_save(std::vector<T> vector, const std::string &file) {
     }
     out.close();
     return 0;
+}
+
+// std::vector<double> generateGaussianVector(int n) {
+//     std::vector<double> gaussianVector;
+//     gaussianVector.reserve(n);
+
+//     // Générateur de nombres aléatoires
+//     std::random_device rd;                          // Graine aléatoire
+//     std::mt19937 gen(rd());                         // Générateur Mersenne Twister
+//     std::uniform_real_distribution<> dis(0.0, 1.0); // Distribution uniforme entre 0 et 1
+
+//     // Utilisation de la méthode Box-Muller
+//     for (int i = 0; i < n / 2; ++i) {
+//         double u1 = dis(gen);
+//         double u2 = dis(gen);
+
+//         // Transformation de Box-Muller
+//         double z0 = std::sqrt(-2.0 * std::log(u1)) * std::cos(2.0 * M_PI * u2);
+//         double z1 = std::sqrt(-2.0 * std::log(u1)) * std::sin(2.0 * M_PI * u2);
+
+//         // Ajouter z0 et z1 au vecteur
+//         gaussianVector.push_back(z0);
+//         gaussianVector.push_back(z1);
+//     }
+
+//     // Si n est impair, on génère un nombre supplémentaire
+//     if (n % 2 == 1) {
+//         double u1 = dis(gen);
+//         double u2 = dis(gen);
+//         double z0 = std::sqrt(-2.0 * std::log(u1)) * std::cos(2.0 * M_PI * u2);
+//         gaussianVector.push_back(z0);
+//     }
+
+//     return gaussianVector;
+// }
+std::vector<double> gaussian_vector(int n, double mean = 0.0, double std_dev = 1.0) {
+    // Générateur de nombres aléatoires avec une seed basée sur le temps
+    std::random_device rd;
+    std::mt19937 generator(rd());
+
+    // Distribution normale
+    std::normal_distribution<double> distribution(mean, std_dev);
+
+    // Remplir le vecteur avec des valeurs gaussiennes
+    std::vector<double> vec(n);
+    for (int i = 0; i < n; ++i) {
+        vec[i] = distribution(generator);
+    }
+
+    return vec;
 }
 
 //================================//

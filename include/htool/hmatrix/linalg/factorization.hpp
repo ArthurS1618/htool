@@ -62,6 +62,67 @@ void lu_factorization(HMatrix<CoefficientPrecision, CoordinatePrecision> &hmatri
     }
 }
 
+// je rajoute pour les csr :
+template <typename CoefficientPrecision, typename CoordinatePrecision>
+void lu_factorization_csr(HMatrix<CoefficientPrecision, CoordinatePrecision> &hmatrix) {
+    if (hmatrix.is_hierarchical()) {
+
+        bool block_tree_not_consistent = (hmatrix.get_target_cluster().get_rank() < 0 || hmatrix.get_source_cluster().get_rank() < 0);
+        std::vector<const Cluster<CoordinatePrecision> *> clusters;
+        const Cluster<CoordinatePrecision> &cluster = hmatrix.get_target_cluster();
+
+        if (cluster.is_leaf() || (block_tree_not_consistent and cluster.get_rank() >= 0)) {
+            clusters.push_back(&cluster);
+        } else if (block_tree_not_consistent) {
+            for (auto &output_cluster_child : cluster.get_clusters_on_partition()) {
+                clusters.push_back(output_cluster_child);
+            }
+        } else {
+            for (auto &output_cluster_child : cluster.get_children()) {
+                clusters.push_back(output_cluster_child.get());
+            }
+        }
+
+        for (auto &cluster_child : clusters) {
+            HMatrix<CoefficientPrecision, CoordinatePrecision> *pivot = hmatrix.get_sub_hmatrix(*cluster_child, *cluster_child);
+            // Compute pivot block
+            lu_factorization_csr(*pivot);
+
+            // Apply pivot block to row and column
+            for (auto &other_cluster_child : clusters) {
+                if (other_cluster_child->get_offset() > cluster_child->get_offset()) {
+                    HMatrix<CoefficientPrecision, CoordinatePrecision> *U = hmatrix.get_sub_hmatrix(*cluster_child, *other_cluster_child);
+                    HMatrix<CoefficientPrecision, CoordinatePrecision> *L = hmatrix.get_sub_hmatrix(*other_cluster_child, *cluster_child);
+                    if (!(U->get_low_rank_data() != nullptr && U->get_low_rank_data()->get_U().nb_cols() == 0)) {
+                        triangular_hmatrix_hmatrix_solve_csr('L', 'L', 'N', 'U', CoefficientPrecision(1), *pivot, *U);
+                    }
+                    if (!(L->get_low_rank_data() != nullptr && L->get_low_rank_data()->get_U().nb_cols() == 0)) {
+                        triangular_hmatrix_hmatrix_solve_csr('R', 'U', 'N', 'N', CoefficientPrecision(1), *pivot, *L);
+                    }
+                }
+            }
+
+            // Update Schur complement
+            for (auto &output_cluster_child : clusters) {
+                for (auto &input_cluster_child : clusters) {
+                    if (output_cluster_child->get_offset() > cluster_child->get_offset() && input_cluster_child->get_offset() > cluster_child->get_offset()) {
+                        HMatrix<CoefficientPrecision, CoordinatePrecision> *A_child = hmatrix.get_sub_hmatrix(*output_cluster_child, *input_cluster_child);
+                        const HMatrix<CoefficientPrecision, CoordinatePrecision> *U = hmatrix.get_sub_hmatrix(*cluster_child, *input_cluster_child);
+                        const HMatrix<CoefficientPrecision, CoordinatePrecision> *L = hmatrix.get_sub_hmatrix(*output_cluster_child, *cluster_child);
+                        if (!(U->get_low_rank_data() != nullptr && U->get_low_rank_data()->get_U().nb_cols() == 0) && !(L->get_low_rank_data() != nullptr && L->get_low_rank_data()->get_U().nb_cols() == 0)) {
+                            add_hmatrix_hmatrix_product_csr('N', 'N', CoefficientPrecision(-1), *L, *U, CoefficientPrecision(1), *A_child);
+                        }
+                    }
+                }
+            }
+        }
+    } else if (hmatrix.is_dense()) {
+        lu_factorization(*hmatrix.get_dense_data());
+    } else {
+        htool::Logger::get_instance().log(LogLevel::ERROR, "Operation is not implemented for lu_factorization (hmatrix is low-rank)"); // LCOV_EXCL_LINE
+    }
+}
+
 template <typename CoefficientPrecision, typename CoordinatePrecision>
 void lu_solve(char trans, const HMatrix<CoefficientPrecision, CoordinatePrecision> &A, Matrix<CoefficientPrecision> &X) {
 

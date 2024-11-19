@@ -16,6 +16,8 @@ class LowRankMatrix {
   protected:
     Matrix<CoefficientPrecision> m_U, m_V;
     underlying_type<CoefficientPrecision> m_epsilon;
+    // // je rajoute ca :
+    // int rk = 0;
 
   public:
     // Constructors

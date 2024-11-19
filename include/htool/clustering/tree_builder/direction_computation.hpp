@@ -102,6 +102,57 @@ class ConstantDirection final : public VirtualDirectionComputationStrategy<T> {
     }
 };
 
+template <typename T>
+class MixedDirection final : public VirtualDirectionComputationStrategy<T> {
+  private:
+    std::vector<T> dir;
+    int minsize;
+
+  public:
+    using VirtualDirectionComputationStrategy<T>::VirtualDirectionComputationStrategy;
+    MixedDirection(const std::vector<T> &b, const int &minsize0) : dir(b), minsize(minsize0) {}
+    std::vector<T> compute_direction(const Cluster<T> *cluster, const std::vector<int> &permutation, int spatial_dimension, const T *const coordinates, const T *const, const T *const) override {
+        std::vector<T> res;
+        if (cluster->get_size() > minsize) {
+            return res = dir;
+        } else {
+            // int spatial_dimension = 3;
+            // std::vector<T> min_point(spatial_dimension, std::numeric_limits<T>::max());
+            // std::vector<T> max_point(spatial_dimension, std::numeric_limits<T>::min());
+            // for (int j = 0; j < cluster->get_size(); j++) {
+            //     std::vector<T> u(spatial_dimension, 0);
+            //     for (int p = 0; p < spatial_dimension; p++) {
+            //         if (min_point[p] > coordinates[spatial_dimension * permutation[j + cluster->get_offset()] + p]) {
+            //             min_point[p] = coordinates[spatial_dimension * permutation[j + cluster->get_offset()] + p];
+            //         }
+            //         if (max_point[p] < coordinates[spatial_dimension * permutation[j + cluster->get_offset()] + p]) {
+            //             max_point[p] = coordinates[spatial_dimension * permutation[j + cluster->get_offset()] + p];
+            //         }
+            //         u[p] = coordinates[spatial_dimension * permutation[j + cluster->get_offset()] + p] - cluster->get_center()[p];
+            //     }
+            // }
+
+            // // Direction of largest extent
+            // T max_distance(std::numeric_limits<T>::min());
+            // int dir_axis = 0;
+            // for (int p = 0; p < spatial_dimension; p++) {
+            //     if (max_distance < max_point[p] - min_point[p]) {
+            //         max_distance = max_point[p] - min_point[p];
+            //         dir_axis     = p;
+            //     }
+            // }
+            // std::vector<T> direction(spatial_dimension, 0);
+            // direction[dir_axis] = 1;
+            // res                 = direction;
+            std::vector<T> perp(dir.size());
+            perp[0] = dir[1];
+            perp[1] = -perp[0];
+            res     = perp;
+        }
+        return res;
+    }
+};
+
 } // namespace htool
 
 #endif
